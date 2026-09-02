@@ -42,15 +42,15 @@
 import type { BoxOdds, BoxTier, EconomyConfig, Item, ItemOdds, Rarity } from './types';
 
 export const DEFAULT_CONFIG: EconomyConfig = {
-  house_margin: 0.2,
+  house_margin: 0.05,
   pot_revenue_threshold: 400.0,
   box_prices: { tier_1: 5, tier_2: 20, tier_3: 50 },
-  shard_probs: { tier_1: 0.015, tier_2: 0.06, tier_3: 0.2 },
-  pc_value: 600,
+  shard_probs: { tier_1: 0.0075, tier_2: 0.03, tier_3: 0.1 },
+  pc_value: 400,
   shards_required: 5,
   pc_total_supply: 1,
   pc_shards_minted: 0,
-  max_item_prob: 0.1,
+  max_item_prob: 0.3,
   ev_weight_factor: 0.2,
   scrap_ev_frac: 0.05,
   scrap_coins_per_key: 100,

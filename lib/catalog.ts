@@ -24,6 +24,7 @@ export interface SeedItem {
 
 export const SEED_ITEMS: SeedItem[] = [
   // --- The headline stuff --------------------------------------------------
+  { name: 'Graphics Card', description: 'Pulled from the house PC — the other half of the build', est_value: 200, stock_qty: 1 },
   { name: 'Audioengine A5+ Speakers', description: 'Powered bookshelf speakers, excellent condition', est_value: 200, stock_qty: 1 },
   { name: 'MCAT Prep Book Set', description: 'Full Kaplan set, lightly annotated', est_value: 120, stock_qty: 1, tier: 'tier_3' },
   { name: '144Hz Gaming Monitor', description: '27" 1080p 144Hz, no dead pixels', est_value: 100, stock_qty: 1 },

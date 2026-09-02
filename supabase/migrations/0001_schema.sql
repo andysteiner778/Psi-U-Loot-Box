@@ -138,15 +138,15 @@ CREATE TABLE public.config (
 -- Every tunable the economy reads. Nothing is hardcoded in the RPC, so all of
 -- this is hot-editable mid-party from the admin dashboard.
 INSERT INTO public.config (key, value) VALUES ('settings', jsonb_build_object(
-  'house_margin',          0.20,
+  'house_margin',          0.05,
   'pot_revenue_threshold', 400.00,
   'box_prices',            jsonb_build_object('tier_1', 5, 'tier_2', 20, 'tier_3', 50),
-  'shard_probs',           jsonb_build_object('tier_1', 0.015, 'tier_2', 0.06, 'tier_3', 0.20),
-  'pc_value',              600,
+  'shard_probs',           jsonb_build_object('tier_1', 0.0075, 'tier_2', 0.03, 'tier_3', 0.10),
+  'pc_value',              400,
   'shards_required',       5,
   'pc_total_supply',       1,
   'pc_shards_minted',      0,
-  'max_item_prob',         0.10,
+  'max_item_prob',         0.30,
   'ev_weight_factor',      0.20,
   'scrap_ev_frac',         0.05,
   'scrap_coins_per_key',   100,

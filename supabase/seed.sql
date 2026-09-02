@@ -84,6 +84,8 @@ SELECT p.id, extensions.crypt('1234', extensions.gen_salt('bf', 10)), TRUE
 --  database itself refuses to let them be recycled (anti-exploit rule 2).
 -- ---------------------------------------------------------------------------
 INSERT INTO public.items (name, description, est_value, rarity, scrap_value, stock_qty, box_tier) VALUES
+  ('Graphics Card', 'Pulled from the house PC — the other half of the build', 200, 'pink', 0, 1, 'tier_3');
+INSERT INTO public.items (name, description, est_value, rarity, scrap_value, stock_qty, box_tier) VALUES
   ('Audioengine A5+ Speakers', 'Powered bookshelf speakers, excellent condition', 200, 'pink', 0, 1, 'tier_3');
 INSERT INTO public.items (name, description, est_value, rarity, scrap_value, stock_qty, box_tier) VALUES
   ('MCAT Prep Book Set', 'Full Kaplan set, lightly annotated', 120, 'purple', 0, 1, 'tier_3');
@@ -115,10 +117,10 @@ INSERT INTO public.items (name, description, est_value, rarity, scrap_value, sto
   ('Phone Charger', 'Assorted bricks and cables', 5, 'grey', 50, 6, 'tier_1');
 
 -- ---------------------------------------------------------------------------
---  Catalog totals: 15 distinct items, 49 units, $818.00 of goods.
---    tier_3: 2 units worth $320.00
+--  Catalog totals: 16 distinct items, 50 units, $1018.00 of goods.
+--    tier_3: 3 units worth $520.00
 --    tier_2: 4 units worth $260.00
 --    tier_1: 43 units worth $238.00
 --
---  At a 20% house margin the pot needs roughly $1023 in deposits to clear all of it.
+--  At a 20% house margin the pot needs roughly $1273 in deposits to clear all of it.
 -- ---------------------------------------------------------------------------
