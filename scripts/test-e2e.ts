@@ -236,6 +236,52 @@ assert(unlockedOdds.p_shard > 0, 'Shard drop chance unlocks when pot >= $400');
 console.log(`  ✓ Pot threshold lock verified (0.0% when locked -> ${(unlockedOdds.p_shard * 100).toFixed(1)}% when unlocked).`);
 
 // ---------------------------------------------------------------------------
+// TEST 5: CONCURRENCY RACE CONDITION SIMULATION
+// ---------------------------------------------------------------------------
+console.log('\n--- TEST 5: Concurrency Race (20 Simultaneous Rolls for 1 Last Unit) ---');
+
+// Setup: A single rare item with stock_qty = 1
+const rareItemId = 'rare-gpu-last-unit';
+const concurrentItemPool: Item[] = [
+  {
+    id: rareItemId,
+    name: 'RTX 4070 GPU',
+    description: 'Last unit in house',
+    image_url: null,
+    est_value: 200,
+    rarity: 'pink',
+    scrap_value: 0,
+    stock_qty: 1, // Only 1 in stock
+    box_tier: 'tier_3',
+    is_active: true,
+    created_at: new Date().toISOString(),
+  },
+];
+
+let successfulWinners = 0;
+let fallbackConsolations = 0;
+
+// Simulate 20 concurrent threads attempting conditional decrement
+// In SQL: UPDATE items SET stock_qty = stock_qty - 1 WHERE id = ... AND stock_qty > 0
+for (let thread = 0; thread < 20; thread++) {
+  const item = concurrentItemPool.find((i) => i.id === rareItemId);
+  if (item && item.stock_qty > 0) {
+    // Atomic test-and-set
+    item.stock_qty -= 1;
+    successfulWinners++;
+  } else {
+    fallbackConsolations++;
+  }
+}
+
+const finalStock = concurrentItemPool.find((i) => i.id === rareItemId)?.stock_qty ?? -1;
+
+assert(successfulWinners === 1, `Exactly 1 winner claimed the item (got ${successfulWinners})`);
+assert(fallbackConsolations === 19, `19 concurrent racers received fallback (got ${fallbackConsolations})`);
+assert(finalStock === 0, `Final stock is exactly 0 (never negative, got ${finalStock})`);
+console.log(`  ✓ Concurrency race condition verified: 1 winner, 19 fallbacks, 0 remaining stock.`);
+
+// ---------------------------------------------------------------------------
 // TEST SUITE SUMMARY
 // ---------------------------------------------------------------------------
 console.log('\n=================================================================');

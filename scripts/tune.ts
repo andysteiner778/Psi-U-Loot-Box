@@ -117,7 +117,9 @@ for (const s of SCENARIOS) {
   console.log('   tier    P(item)   P(shard)  P(respin) P(scrap)  shard eats');
 
   for (const tier of BOX_TIERS) {
-    const pool = items.filter((i) => i.box_tier === tier);
+    const pool = items.filter(
+      (i) => i.box_tier === tier || (tier !== 'tier_1' && i.box_tier === 'tier_1' && i.est_value <= 15)
+    );
     const o = computeBoxOdds({ tier, items: pool, config: cfg, potGateMet: true });
     const budget = o.box_price * (1 - cfg.house_margin);
     const eats = budget > 0 ? o.ev_shard / budget : 0;

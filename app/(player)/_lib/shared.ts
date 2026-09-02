@@ -89,8 +89,23 @@ export function normalizeOdds(raw: unknown): PlayerBoxOdds {
   };
 
   const items = Array.isArray(o.items) ? (o.items as Record<string, unknown>[]) : [];
+  const filler = Array.isArray(o.filler) ? (o.filler as Record<string, unknown>[]) : [];
+
+  const mapOdds = (i: Record<string, unknown>) => ({
+    item_id: String(i.item_id ?? ''),
+    name: String(i.name ?? 'Unknown'),
+    est_value: num(i.est_value),
+    rarity: (i.rarity as Rarity) ?? 'grey',
+    stock_qty: num(i.stock_qty),
+    probability: num(i.probability),
+  });
 
   return {
+    // The consolation is a real cheap object drawn from `filler`, not coins,
+    // whenever the junk pool has stock. See BoxOdds in lib/types.ts.
+    filler: filler.map(mapOdds),
+    floor_kind: o.floor_kind === 'coins' ? ('coins' as const) : ('item' as const),
+    floor_value: num(o.floor_value),
     tier: (o.tier as BoxTier) ?? 'tier_1',
     box_price: num(o.box_price),
     target_ev: num(o.target_ev),

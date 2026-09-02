@@ -164,3 +164,138 @@ fresh output than trust each other's summaries.
   written and verified offline; nothing has touched a real Postgres. Don't
   assume schema state.
 - Vercel isn't linked yet. `main` is pushed, so importing the repo should work now.
+
+---
+
+# URGENT — 2026-09-02, second pass
+
+## Your junk-anchor change is directionally right but currently overcharges players 10x the intended margin
+
+I verified your change (tier-1 items `est_value <= 15` joining the tier-2/3 pools).
+It passes `npm run simulate` — but only because that gate asserts the house never
+*loses* money. It never asserted the house doesn't *overcharge*. It does now:
+
+```
+ tier    price   budget   payout   realized margin   (target = 5%)
+ tier_1  $5.00   $4.75    $4.75    5.00%    ok
+ tier_2  $20.00  $19.00   $13.63   31.84%   <-- keeping 6x the intended margin
+ tier_3  $50.00  $47.50   $23.68   52.65%   <-- a $50 box pays out $23.68
+```
+
+Players are being charged $50 for $23.68 of value. That is worse than the original
+insolvency bug, because it is invisible: nothing fails, the game just quietly
+fleeces everyone.
+
+## Root cause — uniform lambda scaling cannot spend the budget
+
+The engine scales **all** item weights by a single lambda. With junk in the pool:
+
+1. `w_i = min(max_item_prob, C * f / V_i)` gives cheap items the **capped** weight.
+   At `max_item_prob = 0.30`, eight junk types take `8 * 0.30 = 2.4` of the raw
+   mass, against ~0.28 for the four real tier-2 items. Junk is ~90% of the shape.
+2. That makes `lambdaProb = (1 - P_shard) / Wp` the binding constraint, not
+   `lambdaEv`. Mass runs out before money does.
+3. Because lambda is **uniform**, shrinking to fit probability also shrinks the
+   expensive items — the only ones that could spend the budget.
+4. P(item) hits 97%, leaving zero mass for the respin anchor to absorb the
+   surplus. ~$5.37 of budget per tier-2 roll simply evaporates into margin.
+
+A capped cheap item contributes `0.30 * $4 = $1.20` of EV where the formula
+intends `C * f = $4`. Junk cannot spend a $50 box's budget no matter how much
+probability you give it.
+
+## The fix: junk must REPLACE the floor anchor, not compete with real items
+
+Do not merge junk into the item pool. Partition it:
+
+- **Native items** (`box_tier === tier`): weights exactly as now.
+- **Filler junk** (borrowed from tier 1): becomes the **floor anchor itself**,
+  taking the probability mass that scrap coins would have taken.
+
+Concretely, in `computeBoxOdds`:
+- Partition `pool` into `native` and `filler`.
+- Set the floor anchor's value `vScrap` to the filler pool's **mean `est_value`**
+  (stock-weighted) instead of `coins * coinUsd`.
+- Leave the rest of the solve untouched. It already handles this correctly.
+- If `filler` is empty, fall back to scrap coins exactly as today. Always keep a
+  terminal branch.
+
+Then in `open_box`, the floor branch picks a random filler item, decrements it
+with the same conditional `UPDATE ... WHERE stock_qty > 0`, and returns it as a
+`physical` result. Fall back to coins if the decrement finds nothing.
+
+I worked the tier-3 numbers by hand under this scheme:
+
+```
+ native P(item) 18.3%  |  shard 10%  |  free respin 12.5%  |  junk item 59.2%
+ total EV $47.50 against a $47.50 budget  ->  exactly 5% margin
+```
+
+Every roll still hands over an object, the margin is exact, and a $50 box stops
+paying out cable bundles 90% of the time.
+
+## I have added the assertion that would have caught this
+
+`scripts/simulate.ts` now asserts realized margin stays within tolerance of
+`house_margin` at full stock, in both directions. Run it — it currently FAILS on
+tiers 2 and 3, by design, until the partition above is implemented. Do not
+"fix" it by loosening the assertion.
+
+## Please also note
+
+`max_item_prob = 0.30` was tuned by me for a tier-1-only pool, where it was a
+clear win (P(item) 57% -> 68%). It interacts badly with a merged junk pool.
+Once junk is the floor anchor rather than a pool member, 0.30 is fine again.
+
+---
+
+## RESOLVED — I implemented the partition myself. Please do not re-do it.
+
+The overcharge was severe enough (a $50 box paying out $17.42 before the pot
+gate opens) that I did not want to leave it in place. **`lib/economy.ts` and
+`supabase/migrations/0002_functions.sql` are mine again.** Your junk-anchor
+*idea* was right and is now shipped — only the wiring changed.
+
+What landed:
+
+- `computeBoxOdds` partitions `live` into `pool` (this tier's real prizes) and
+  `fillerPool` (cheap borrowed junk). Weights are computed on `pool` only.
+- The floor anchor's value is the filler pool's **stock-weighted mean**
+  `est_value`, replacing the coin value. `floor_kind` reports `'item'` or
+  `'coins'`; coins remain the fallback when the junk runs out.
+- `BoxOdds` gained `filler`, `floor_kind`, `floor_value` (in `lib/types.ts`).
+- `open_box`'s floor branch samples a filler item stock-weighted via
+  `ORDER BY -LN(random()) / stock_qty`, conditionally decrements it, and returns
+  it as a `physical` result — falling through to coins if it races empty.
+- `box_odds` in SQL mirrors all of it.
+- `outcomeValue` now returns `odds.floor_value` instead of re-deriving the coin
+  rate. That was what made the Monte Carlo disagree with the analytic EV.
+
+Result — every tier lands on its target exactly:
+
+```
+ tier    price   budget   payout   margin   P(item) P(shard) P(spin) P(scrap)
+ tier_1  $5.00   $4.75    $4.75    5.00%    70.5%   0.75%    0.0%    28.7%
+ tier_2  $20.00  $19.00   $19.00   5.00%    22.4%   3.0%     0.0%    74.7%
+ tier_3  $50.00  $47.50   $47.50   5.00%    18.3%   10.0%    13.2%   58.5%
+```
+
+`npm run simulate` → **PASS, 1353 assertions, 0 failures.** `npm run build` →
+clean. Note the tier-2 and tier-3 "P(scrap)" column is now **junk objects, not
+coins**, so in practice every roll hands over something physical.
+
+### One thing I got wrong that's worth you knowing
+
+I wrote in section 1 above that "tier 2 and 3 have a hard ceiling that no config
+can move — `P(item) <= 26%`." That is still true *for tier-native prizes*, and
+tier 2 sits at 22.4% against that ceiling. But I framed it as a limit on how
+often a player wins anything, and that was wrong: the floor anchor carries the
+rest, so the real "you got an object" rate on tier 2 is ~97%. The ceiling binds
+on *expensive* prizes only.
+
+### Please pick up instead
+
+Sections 3A–3E above (runbook, photo pipeline, mobile QA, deposit UI, the
+concurrency test) are untouched and are where the remaining value is. The
+deposit UI is the biggest gap — there is currently no way for a player to
+request one.

@@ -88,7 +88,12 @@ console.log(' 2. CORRECTED ENGINE  (pot gate open, full stock)');
 console.log('-----------------------------------------------------------------');
 console.log(' tier    price   budget   payout   margin   P(item) P(shard) P(spin) P(scrap) scale');
 for (const tier of BOX_TIERS) {
-  const o = computeBoxOdds({ tier, items: allItems.filter((i) => i.box_tier === tier), config: cfg, potGateMet: true });
+  const o = computeBoxOdds({
+    tier,
+    items: allItems.filter((i) => i.box_tier === tier || (tier !== 'tier_1' && i.box_tier === 'tier_1' && i.est_value <= 15)),
+    config: cfg,
+    potGateMet: true,
+  });
   console.log(
     ' ' + tier.padEnd(8) + usd(o.box_price).padEnd(8) + usd(o.target_ev).padEnd(9) +
     usd(o.total_ev).padEnd(9) + pct(o.realized_margin).padEnd(9) +
@@ -105,7 +110,9 @@ console.log('-----------------------------------------------------------------')
 
 for (const tier of BOX_TIERS) {
   for (const potGateMet of [false, true]) {
-    let pool = allItems.filter((i) => i.box_tier === tier).map((i) => ({ ...i }));
+    let pool = allItems
+      .filter((i) => i.box_tier === tier || (tier !== 'tier_1' && i.box_tier === 'tier_1' && i.est_value <= 15))
+      .map((i) => ({ ...i }));
     // Deplete one unit at a time until the tier is empty.
     for (let step = 0; ; step++) {
       const o = computeBoxOdds({ tier, items: pool, config: cfg, potGateMet });
@@ -116,6 +123,24 @@ for (const tier of BOX_TIERS) {
       assert(o.p_respin >= -EPS && o.p_scrap >= -EPS && o.p_physical >= -EPS, label + ': negative probability');
       assert(o.total_ev <= o.target_ev + 1e-6,
         label + ': payout ' + usd(o.total_ev) + ' exceeds budget ' + usd(o.target_ev));
+
+      // The gate above only catches the house LOSING money. It never caught the
+      // house OVERCHARGING, which is the more insidious failure: nothing errors,
+      // the game just quietly fleeces everyone. At full stock the engine has
+      // every item available and no excuse for leaving budget unspent, so the
+      // realized margin must land near house_margin from BOTH sides.
+      //
+      // (Only at step 0. Once stock depletes there is genuinely nothing left to
+      // give, and underspending is unavoidable rather than a bug.)
+      if (step === 0) {
+        assert(
+          o.realized_margin <= cfg.house_margin + 0.05,
+          label + ': realized margin ' + pct(o.realized_margin) + ' far exceeds the intended ' +
+            pct(cfg.house_margin) + ' — players are being overcharged. Payout ' +
+            usd(o.total_ev) + ' against a ' + usd(o.target_ev) + ' budget leaves ' +
+            usd(o.target_ev - o.total_ev) + ' unspent per roll.'
+        );
+      }
       for (const it of o.items) {
         assert(it.probability > 0, label + ': item "' + it.name + '" is unreachable (P=0) despite being in stock');
       }
@@ -135,7 +160,9 @@ console.log('-----------------------------------------------------------------')
 console.log(' tier    in         out        realized   analytic   delta');
 
 for (const tier of BOX_TIERS) {
-  const pool = allItems.filter((i) => i.box_tier === tier);
+  const pool = allItems.filter(
+    (i) => i.box_tier === tier || (tier !== 'tier_1' && i.box_tier === 'tier_1' && i.est_value <= 15)
+  );
   const odds = computeBoxOdds({ tier, items: pool, config: cfg, potGateMet: true });
   let paidIn = 0;
   let paidOut = 0;

@@ -85,17 +85,27 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
               </div>
             </div>
 
-            {/* Venmo Instructions Box */}
+            {/* Venmo Instructions Box & Deep Link */}
             <div className="rounded-xl bg-gun-950 p-4 border border-gun-800 text-xs space-y-2 mb-5">
               <div className="flex items-center justify-between">
-                <span className="text-gun-400">1. Open Venmo & send to:</span>
+                <span className="text-gun-400">1. Venmo Recipient:</span>
                 <span className="font-mono font-bold text-cyan-400">@Tyler-HouseLoot</span>
               </div>
               <div className="flex items-center justify-between border-t border-gun-850 pt-2">
-                <span className="text-gun-400">2. Mandatory Venmo Note:</span>
+                <span className="text-gun-400">2. Mandatory Note:</span>
                 <span className="rounded bg-gun-800 px-2 py-0.5 font-mono font-bold text-yellow-400">
                   {venmoNote}
                 </span>
+              </div>
+              <div className="pt-1">
+                <a
+                  href={`https://venmo.com/?txn=pay&recipients=Tyler-HouseLoot&amount=${activeAmount || 20}&note=${encodeURIComponent(venmoNote)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-sky-600/20 border border-sky-500/40 py-1.5 text-[11px] font-semibold text-sky-300 hover:bg-sky-600/30 transition"
+                >
+                  <span>Open Venmo App Directly ↗</span>
+                </a>
               </div>
             </div>
 

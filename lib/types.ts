@@ -188,6 +188,15 @@ export interface BoxOdds {
   p_scrap: number;
   ev_scrap: number;
   scrap_coins_awarded: number;
+  /**
+   * The floor anchor. When `floor_kind` is 'item' the consolation is a real
+   * cheap object drawn from `filler` (stock-weighted) rather than scrap coins —
+   * winning a $4 cable bundle reads as a win; "+5 coins" reads as a loss.
+   * Falls back to coins when the junk pool is empty.
+   */
+  filler: ItemOdds[];
+  floor_kind: 'item' | 'coins';
+  floor_value: number;
   /** Sum of all four EV components. MUST be <= target_ev or the house loses money. */
   total_ev: number;
   /** 1 - total_ev / box_price. Negative means insolvent. */

@@ -110,14 +110,37 @@ export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: Od
     );
   }
 
+  // --- Partition the pool ---------------------------------------------------
+  // Items belonging to THIS tier are the real prizes. Cheap items borrowed from
+  // tier 1 are "filler": they serve as the floor anchor, replacing scrap coins.
+  //
+  // They must NOT be merged into the item pool and scaled alongside real prizes.
+  // Merging them was measured to overcharge players by 10x the intended margin:
+  // `w_i = min(max_item_prob, C*f/V_i)` gives cheap items the CAPPED weight, so
+  // eight junk types took 2.4 of the raw mass against ~0.28 for four real items.
+  // That made probability, not budget, the binding constraint — and because
+  // lambda is uniform, shrinking to fit probability also shrank the expensive
+  // items, the only ones able to spend the budget. A $50 box paid out $23.68.
+  const live = items.filter((i) => i.is_active && i.stock_qty > 0 && i.est_value > 0);
+  const pool = live.filter((i) => i.box_tier === tier);
+  const fillerPool = live.filter((i) => i.box_tier !== tier);
+
   // --- Floor anchor: priced honestly, never $0 ------------------------------
   const coinUsd = scrapCoinUsd(cfg);
-  const vScrapTarget = cfg.scrap_ev_frac * C;
-  const coins = Math.max(1, Math.round(vScrapTarget / coinUsd));
-  const vScrap = coins * coinUsd; // what we actually pay, after rounding to whole coins
+  const coins = Math.max(1, Math.round((cfg.scrap_ev_frac * C) / coinUsd));
+  const fillerStock = fillerPool.reduce((a, i) => a + i.stock_qty, 0);
+  const fillerMean =
+    fillerStock > 0
+      ? fillerPool.reduce((a, i) => a + i.est_value * i.stock_qty, 0) / fillerStock
+      : 0;
+
+  // A junk object beats abstract coins for the same money: in CS:GO the usual
+  // result is a cheap skin, not "nothing". Fall back to coins when the junk
+  // runs out, so the engine always has a terminal branch.
+  const floorKind: 'item' | 'coins' = fillerStock > 0 ? 'item' : 'coins';
+  const vScrap = floorKind === 'item' ? fillerMean : coins * coinUsd;
 
   // --- Raw weights: the spec's expression, used as a SHAPE ------------------
-  const pool = items.filter((i) => i.is_active && i.stock_qty > 0 && i.est_value > 0);
   const weights = pool.map((i) => Math.min(cfg.max_item_prob, (C * cfg.ev_weight_factor) / i.est_value));
   const Wp = weights.reduce((a, w) => a + w, 0);
   const Wv = weights.reduce((a, w, k) => a + w * pool[k].est_value, 0);
@@ -185,6 +208,17 @@ export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: Od
     probability: lambda * weights[k],
   }));
 
+  // Within the floor branch, which junk item do you get? Stock-weighted, so a
+  // pile of 8 cable bundles is 8x likelier than a single desk lamp.
+  const fillerOdds: ItemOdds[] = fillerPool.map((i) => ({
+    item_id: i.id,
+    name: i.name,
+    est_value: i.est_value,
+    rarity: i.rarity,
+    stock_qty: i.stock_qty,
+    probability: fillerStock > 0 ? (pScrap * i.stock_qty) / fillerStock : 0,
+  }));
+
   const evShard = pShard * vShard;
   const evRespin = pRespin * C;
   const evScrap = pScrap * vScrap;
@@ -214,6 +248,9 @@ export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: Od
     p_scrap: pScrap,
     ev_scrap: evScrap,
     scrap_coins_awarded: coins,
+    filler: fillerOdds,
+    floor_kind: floorKind,
+    floor_value: vScrap,
     total_ev: totalEv,
     realized_margin: C > 0 ? 1 - totalEv / C : 0,
     scale_factor: lambda,
@@ -256,7 +293,10 @@ export function outcomeValue(odds: BoxOdds, o: Outcome, cfg: EconomyConfig): num
     case 'respin':
       return odds.box_price;
     case 'scrap':
-      return odds.scrap_coins_awarded * scrapCoinUsd(cfg);
+      // The floor branch is a junk OBJECT when the filler pool has stock, and
+      // only falls back to coins when it is empty. `floor_value` already
+      // carries whichever applies, so never re-derive it from the coin rate.
+      return odds.floor_value;
   }
 }
 

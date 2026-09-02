@@ -45,6 +45,9 @@ DECLARE
   v_coin_usd       NUMERIC;
   v_coins          INT;
   v_v_scrap        NUMERIC;
+  v_fill_stock     INT;
+  v_fill_value     NUMERIC;
+  v_floor_kind     TEXT;
   v_max_prob       DOUBLE PRECISION;
   v_weight_factor  NUMERIC;
   ids              UUID[];
@@ -117,18 +120,46 @@ BEGIN
   v_coin_usd := (cfg->'box_prices'->>(cfg->>'scrap_key_tier'))::NUMERIC
                 / (cfg->>'scrap_coins_per_key')::NUMERIC;
   v_coins    := GREATEST(1, ROUND((cfg->>'scrap_ev_frac')::NUMERIC * v_c / v_coin_usd)::INT);
-  v_v_scrap  := v_coins * v_coin_usd;
 
   -- ---- Snapshot the pool once, so totals and the CDF cannot disagree -------
+  --
+  -- NATIVE prizes belong to this tier. FILLER is cheap tier-1 junk borrowed as
+  -- the floor anchor. They must stay separate: merging filler into the prize
+  -- pool makes probability rather than budget the binding constraint, and since
+  -- lambda scales uniformly it then shrinks the expensive items too -- the only
+  -- ones able to spend the budget. Measured effect of merging: a $50 box paid
+  -- out $23.68 against a $47.50 budget, a silent 53% margin.
   SELECT array_agg(t.id      ORDER BY t.id), array_agg(t.name      ORDER BY t.id),
          array_agg(t.est_value ORDER BY t.id), array_agg(t.rarity  ORDER BY t.id),
          array_agg(t.scrap_value ORDER BY t.id), array_agg(t.image_url ORDER BY t.id),
          array_agg(t.stock_qty ORDER BY t.id)
     INTO ids, nms, vals, rars, scrs, imgs, stks
     FROM public.items t
-   WHERE t.box_tier = p_box_tier AND t.is_active AND t.stock_qty > 0 AND t.est_value > 0;
+   WHERE t.box_tier = p_box_tier
+     AND t.is_active AND t.stock_qty > 0 AND t.est_value > 0;
 
   n := COALESCE(array_length(ids, 1), 0);
+
+  -- Filler pool: cheap junk from a lower tier, used as the consolation object.
+  SELECT COALESCE(SUM(t.stock_qty), 0),
+         COALESCE(SUM(t.est_value * t.stock_qty), 0)
+    INTO v_fill_stock, v_fill_value
+    FROM public.items t
+   WHERE t.box_tier <> p_box_tier
+     AND p_box_tier IN ('tier_2','tier_3')
+     AND t.box_tier = 'tier_1' AND t.est_value <= 15
+     AND t.is_active AND t.stock_qty > 0 AND t.est_value > 0;
+
+  -- A junk object beats abstract coins for the same money: in CS:GO the usual
+  -- result is a cheap skin, not "nothing". Fall back to coins when the junk
+  -- runs out, so there is always a terminal branch.
+  IF v_fill_stock > 0 THEN
+    v_floor_kind := 'item';
+    v_v_scrap    := v_fill_value / v_fill_stock;   -- stock-weighted mean
+  ELSE
+    v_floor_kind := 'coins';
+    v_v_scrap    := v_coins * v_coin_usd;
+  END IF;
 
   -- ---- Raw weights: the spec's expression, used as a SHAPE ----------------
   FOR i IN 1..n LOOP
@@ -192,6 +223,8 @@ BEGIN
     'p_scrap',             v_p_scrap,
     'ev_scrap',            v_p_scrap * v_v_scrap,
     'scrap_coins_awarded', v_coins,
+    'floor_kind',          v_floor_kind,
+    'floor_value',         v_v_scrap,
     'shard_value',         v_v_shard,
     'total_ev',            v_ev_phys + v_p_shard * v_v_shard + v_p_respin * v_c + v_p_scrap * v_v_scrap,
     'scale_factor',        v_lambda,
@@ -236,6 +269,12 @@ DECLARE
   v_result    JSONB;
   v_override  UUID;
   v_scrap_val INT;
+  v_fid       UUID;
+  v_fname     TEXT;
+  v_fimg      TEXT;
+  v_frar      TEXT;
+  v_fval      NUMERIC;
+  v_fscrap    INT;
 BEGIN
   -- ---- Idempotency: a double-tap must not charge twice --------------------
   IF p_client_roll_id IS NOT NULL THEN
@@ -395,7 +434,48 @@ BEGIN
     RETURN v_result;
   END IF;
 
-  -- ---- Scrap (floor anchor) ----------------------------------------------
+  -- ---- Floor anchor -------------------------------------------------------
+  -- Preferably a real, cheap object rather than abstract coins. Winning a $4
+  -- cable bundle reads as a win; "+5 Scrap Coins" reads as a loss, even when
+  -- the coins are worth more. Its value is charged to the EV budget in
+  -- box_odds exactly like any other item, so this is not free generosity.
+  IF (odds->>'floor_kind') = 'item' AND p_box_tier IN ('tier_2','tier_3') THEN
+    -- Stock-weighted sample: a pile of 8 cable bundles is 8x likelier than a
+    -- single desk lamp. -LN(random())/weight is the standard weighted-sampling
+    -- trick and needs no expansion of the row set.
+    SELECT id, name, image_url, rarity, est_value, scrap_value
+      INTO v_fid, v_fname, v_fimg, v_frar, v_fval, v_fscrap
+      FROM public.items
+     WHERE box_tier = 'tier_1' AND est_value <= 15
+       AND is_active AND stock_qty > 0 AND est_value > 0
+     ORDER BY -LN(random()) / stock_qty
+     LIMIT 1;
+
+    IF FOUND THEN
+      UPDATE public.items SET stock_qty = stock_qty - 1
+       WHERE id = v_fid AND stock_qty > 0;
+      GET DIAGNOSTICS v_affected = ROW_COUNT;
+
+      IF v_affected = 1 THEN
+        INSERT INTO public.rolls (user_id, box_tier, kind, item_id, item_name,
+                                  item_rarity, status, box_price, client_roll_id)
+        VALUES (p_user_id, p_box_tier, 'physical', v_fid, v_fname, v_frar,
+                'inventory', v_price, p_client_roll_id)
+        RETURNING id INTO v_roll_id;
+
+        v_result := jsonb_build_object(
+          'type','physical', 'item_id', v_fid, 'item_name', v_fname,
+          'image_url', v_fimg, 'rarity', v_frar, 'est_value', v_fval,
+          'scrap_value', CASE WHEN v_frar IN ('purple','pink','gold') THEN 0 ELSE v_fscrap END,
+          'roll_id', v_roll_id);
+        UPDATE public.rolls SET payload = v_result WHERE id = v_roll_id;
+        RETURN v_result;
+      END IF;
+    END IF;
+    -- Junk pool raced empty: fall through to coins.
+  END IF;
+
+  -- ---- Scrap coins (terminal fallback) ------------------------------------
   v_coins := (odds->>'scrap_coins_awarded')::INT;
   UPDATE public.profiles SET scrap_coins = scrap_coins + v_coins WHERE id = p_user_id;
   INSERT INTO public.rolls (user_id, box_tier, kind, item_name, item_rarity,
