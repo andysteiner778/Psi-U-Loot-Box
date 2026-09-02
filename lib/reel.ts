@@ -408,10 +408,10 @@ export const MOCK_RESULTS: OpenBoxResult[] = [
   },
   {
     type: 'shard',
-    item_name: 'PC Core Shard (3/5)',
+    item_name: 'PC Core Shard (1/2)',
     rarity: 'gold',
-    current_shards: 3,
-    shards_required: 5,
+    current_shards: 1,
+    shards_required: 2,
     roll_id: 'mock-roll-shard',
   },
   {

@@ -23,7 +23,7 @@ export async function fetchAllOdds(): Promise<PlayerBoxOdds[]> {
 }
 
 /**
- * The economy knobs the UI quotes back to the player: 5 shards, 100 coins per
+ * The economy knobs the UI quotes back to the player: shard count, coins per
  * key, and the undiscounted prices a flash sale is measured against.
  *
  * Falls back to the shipped defaults rather than throwing — a missing config
