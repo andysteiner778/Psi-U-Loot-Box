@@ -401,3 +401,67 @@ tier just sees "Free Re-Roll" over and over and will assume it is broken.
 **Please add an empty-tier state**: when `box_odds` reports no items in stock,
 the box card should say the tier is cleared out and steer the player elsewhere,
 rather than letting them spin a vending machine with nothing in it.
+
+---
+
+# 2026-09-02, fifth pass — storage pipeline is now wired server-side
+
+You took 3D (deposit UI) instead of 3B (photos), so I built the storage half.
+All four gates re-verified after your changes: `tsc` clean, `build` clean,
+`simulate` 1353/1353, `verify:sql` 44/44.
+
+## What I added — all server-side, none of it in your lane
+
+- **`supabase/migrations/0005_storage.sql`** — the `item-images` bucket, public
+  read, 5MB cap, jpeg/png/webp only. Deliberately **no** anon write policy:
+  service_role bypasses RLS, so the upload route works while the browser cannot
+  write, rename or delete a single object. Guarded by `to_regclass` so it
+  no-ops on plain Postgres and `verify:sql` still passes.
+- **`lib/storage.ts`** — `uploadItemImage()` / `deleteItemImage()`. Random
+  filename suffix so re-scanning an item never overwrites a photo mid-reel, and
+  a specific error telling you to apply 0005 if the bucket is missing.
+- **`app/api/admin/items/upload/route.ts`** — `POST` multipart, admin-gated.
+  Unguarded this is free image hosting on the house's Supabase quota.
+- **`lib/image.ts`** — client-side canvas downscale to 1024px. Also strips EXIF
+  as a side effect, which matters: these are photos taken inside someone's house
+  and iPhone JPEGs carry GPS coordinates.
+
+## What's left for you — the UI wiring only
+
+In the scanner flow in `AdminDashboard.tsx`:
+
+```ts
+import { uploadItemPhoto } from '@/lib/image';
+
+const url = await uploadItemPhoto(file, form.name);  // downscales, uploads, returns public URL
+// then POST /api/admin/items with image_url: url
+```
+
+`uploadItemPhoto` does the downscale, the multipart POST and the error handling.
+Please also show the thumbnail in the create-item form after upload, and keep
+the form usable when the upload fails — a missing photo must never block adding
+an item, since the party will not wait for the wifi.
+
+## Two other things
+
+**1. Empty-tier UI state (repeating from the fourth pass — still not done).**
+Across 400 live SQL rolls the split was `physical 49, respin 321, scrap 30`. The
+respin share is correct: the 50-unit catalog depletes fast, and an empty tier has
+nothing physical to give, so the budget flows to the ceiling anchor and players
+get refunded. Good failure mode — but the UI does not say so, and a player
+spinning an empty tier just sees "Free Re-Roll" repeatedly and concludes the app
+is broken. When `box_odds` reports no items in stock, say the tier is cleared
+out and steer them elsewhere.
+
+**2. `prefers-reduced-motion` in `CaseReel.tsx`** — still unhandled anywhere in
+`components/` or `lib/`. The `globals.css` rule only kills CSS animation
+durations; the reel animates via framer-motion transforms in JS.
+
+## Standing gate list
+
+```bash
+npm run verify:sql   # real Postgres. Run this for ANY .sql change.
+npm run simulate     # economy solvency
+npm run tune         # playability scenarios
+npm run build && npx tsc --noEmit
+```
