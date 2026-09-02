@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Package, Sparkles, Eye, Zap, Flame, Lock } from 'lucide-react';
+import { Package, Sparkles, Eye, Zap, Flame, Lock, PackageOpen } from 'lucide-react';
 import type { BoxTier, OpenBoxResult } from '@/lib/types';
 import { RARITY_COLOR } from '@/lib/types';
 import { BOX_META, money, type PlayerBoxOdds } from '@/app/(player)/_lib/shared';
@@ -30,6 +30,14 @@ export function BoxCard({ odds, isFlashSale = false }: BoxCardProps) {
   const effectivePrice = odds.box_price;
   const basePrice = isFlashSale ? effectivePrice / 0.8 : effectivePrice;
   const hasFunds = stats.balance >= effectivePrice;
+
+  // Once a tier's physical stock is gone the engine has nothing left to hand
+  // over, so the whole payout budget flows to the ceiling anchor and the player
+  // just gets refunded. That is a sane failure mode -- the house stops taking
+  // money when it has nothing to sell -- but without saying so, a player sees
+  // "Free Re-Roll" a dozen times in a row and concludes the app is broken.
+  const unitsLeft = odds.items.reduce((a, i) => a + i.stock_qty, 0);
+  const isCleanedOut = unitsLeft === 0 && odds.filler.length === 0;
 
   const handleOpen = async () => {
     if (!hasFunds) {
@@ -149,15 +157,35 @@ export function BoxCard({ odds, isFlashSale = false }: BoxCardProps) {
             {/* Open Button */}
             <button
               onClick={handleOpen}
+              disabled={isCleanedOut}
+              title={isCleanedOut ? 'Every item in this tier has been won' : undefined}
               className={`col-span-2 flex items-center justify-center gap-2 rounded-xl py-3 font-mono font-bold text-sm shadow-xl transition active:scale-95 ${
-                hasFunds
-                  ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-indigo-600/30 hover:brightness-110'
-                  : 'bg-gun-800 text-gun-400 border border-gun-700 cursor-pointer hover:border-gun-600'
+                isCleanedOut
+                  ? 'cursor-not-allowed border border-gun-700 bg-gun-850 text-gun-400 shadow-none active:scale-100'
+                  : hasFunds
+                    ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-indigo-600/30 hover:brightness-110'
+                    : 'bg-gun-800 text-gun-400 border border-gun-700 cursor-pointer hover:border-gun-600'
               }`}
             >
-              <Sparkles className="h-4 w-4" />
-              <span>{hasFunds ? `Open Box ($${effectivePrice})` : `Add $${effectivePrice}`}</span>
+              {isCleanedOut ? (
+                <>
+                  <PackageOpen className="h-4 w-4" />
+                  <span>Cleaned Out</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  <span>{hasFunds ? `Open Box ($${effectivePrice})` : `Add $${effectivePrice}`}</span>
+                </>
+              )}
             </button>
+
+            {isCleanedOut && (
+              <p className="col-span-2 -mt-1 text-center text-[11px] leading-snug text-gun-400">
+                Every item in this tier has been won. Spinning now would only
+                refund you — try another tier.
+              </p>
+            )}
           </div>
         </div>
       </div>

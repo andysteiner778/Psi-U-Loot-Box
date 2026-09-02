@@ -20,6 +20,7 @@ import {
   Trash2,
   Lock,
 } from 'lucide-react';
+import { uploadItemPhoto } from '@/lib/image';
 import type { BoxTier, EconomyConfig, Item, Rarity, SessionUser } from '@/lib/types';
 import { RARITIES, BOX_TIERS, RARITY_COLOR, RARITY_LABEL, isScrappable } from '@/lib/types';
 import { usd, pct, oneIn, ago, countdown, TIER_LABEL } from './format';
@@ -53,6 +54,8 @@ export function AdminDashboard({
   const [scanImage, setScanImage] = useState<string | null>(null);
   const [scanMediaType, setScanMediaType] = useState<string>('image/jpeg');
   const [scanning, setScanning] = useState(false);
+  const [scanFile, setScanFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [itemForm, setItemForm] = useState<{
     name: string;
     description: string;
@@ -205,6 +208,7 @@ export function AdminDashboard({
       }
       URL.revokeObjectURL(img.src);
     };
+    setScanFile(file);
     img.src = URL.createObjectURL(file);
   };
 
@@ -231,9 +235,32 @@ export function AdminDashboard({
           rarity: scan.rarity,
           scrap_value: String(scan.scrap_value),
           stock_qty: '1',
-          image_url: scanImage, // use base64 preview or blank
+          // Deliberately blank: `scanImage` is a base64 data URI. Persisting it
+          // would put a multi-hundred-KB string in every items row, every
+          // box_odds payload and every reel frame. The real photo is uploaded
+          // to Supabase Storage below and referenced by URL instead.
+          image_url: '',
         });
         showMsg(`AI Identified: "${scan.name}" ($${scan.est_value.toFixed(2)})`);
+
+        // Upload in the background. A failed upload must never block adding the
+        // item -- the party will not wait for the wifi.
+        if (scanFile) {
+          setUploading(true);
+          uploadItemPhoto(scanFile, scan.name)
+            .then((url) => {
+              setItemForm((f) => ({ ...f, image_url: url }));
+              showMsg('Photo stored');
+            })
+            .catch((e: unknown) => {
+              showMsg(
+                'Photo upload failed (item can still be saved): ' +
+                  (e instanceof Error ? e.message : 'unknown'),
+                'bad'
+              );
+            })
+            .finally(() => setUploading(false));
+        }
       } else {
         showMsg(json.error || 'AI scan failed', 'bad');
       }
@@ -664,6 +691,25 @@ export function AdminDashboard({
                     <Sparkles className={`h-4 w-4 ${scanning ? 'animate-spin' : ''}`} />
                     <span>{scanning ? 'Analyzing with Vision AI...' : 'Scan Item with AI Vision'}</span>
                   </button>
+                )}
+
+                {uploading && (
+                  <p className="mt-2 text-center font-mono text-[11px] text-gun-300">
+                    Storing photo&hellip;
+                  </p>
+                )}
+                {!uploading && itemForm.image_url && (
+                  <div className="mt-2 flex items-center gap-2 rounded-lg border border-emerald-700/50 bg-emerald-950/30 p-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={itemForm.image_url}
+                      alt=""
+                      className="h-10 w-10 rounded object-cover"
+                    />
+                    <span className="font-mono text-[11px] text-emerald-300">
+                      Photo stored &mdash; this is what players will see on the reel.
+                    </span>
+                  </div>
                 )}
               </div>
             </div>

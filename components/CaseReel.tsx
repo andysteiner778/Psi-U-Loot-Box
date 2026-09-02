@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { motion, useAnimation } from 'framer-motion';
+import { motion, useAnimation, useReducedMotion } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { Sparkles, ArrowDown, ArrowUp, RefreshCw, X, Gift, ShieldAlert } from 'lucide-react';
 import type { OpenBoxResult, Rarity } from '@/lib/types';
@@ -45,6 +45,15 @@ export function CaseReel({
 }: CaseReelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const controls = useAnimation();
+  // A 5.5-second spinning carousel is exactly the kind of motion that triggers
+  // vestibular symptoms. The rule in globals.css only kills CSS animation
+  // durations -- this reel animates via framer-motion transforms in JS, so it
+  // was unaffected. Skip to the result with a short fade instead.
+  //
+  // Sound is kept: it is motion-independent, and losing the fanfare on a gold
+  // pull would take away the payoff rather than the discomfort. Only the tick
+  // train goes, since it exists to narrate movement that no longer happens.
+  const prefersReducedMotion = useReducedMotion();
   const [spinning, setSpinning] = useState(true);
   const [revealed, setRevealed] = useState(false);
   const [geometry, setGeometry] = useState<ReelGeometry>({
@@ -83,24 +92,27 @@ export function CaseReel({
       const g = geometry;
       const targetOffset = offsetForIndex(WINNER_INDEX, g);
 
-      // Schedule tick train based on distance fractions inverted through bezier
-      const fractions = tickFractions(g, WINNER_INDEX);
-      const times = tickTimes(REEL_DURATION_MS, fractions, REEL_EASE);
-      cancelTicks = sfx.scheduleTicks(times);
+      const durationMs = prefersReducedMotion ? 300 : REEL_DURATION_MS;
 
-      // Cue near miss sound
-      const cueTime = nearMissCueMs(REEL_DURATION_MS, g, REEL_EASE);
-      nearMissTimer = setTimeout(() => {
-        sfx.playNearMissWhoosh();
-      }, Math.max(0, cueTime));
+      if (!prefersReducedMotion) {
+        // Schedule tick train based on distance fractions inverted through bezier
+        const fractions = tickFractions(g, WINNER_INDEX);
+        const times = tickTimes(REEL_DURATION_MS, fractions, REEL_EASE);
+        cancelTicks = sfx.scheduleTicks(times);
+
+        // Cue near miss sound
+        const cueTime = nearMissCueMs(REEL_DURATION_MS, g, REEL_EASE);
+        nearMissTimer = setTimeout(() => {
+          sfx.playNearMissWhoosh();
+        }, Math.max(0, cueTime));
+      }
 
       // Animate track translation using Framer Motion
       controls.start({
         x: targetOffset,
-        transition: {
-          duration: REEL_DURATION_MS / 1000,
-          ease: REEL_EASE,
-        },
+        transition: prefersReducedMotion
+          ? { duration: durationMs / 1000, ease: 'easeOut' }
+          : { duration: durationMs / 1000, ease: REEL_EASE },
       });
 
       // Handle finish
@@ -128,7 +140,7 @@ export function CaseReel({
         if (onFinished) {
           onFinished(winner);
         }
-      }, REEL_DURATION_MS + 200);
+      }, durationMs + 200);
     };
 
     startSpin();
@@ -138,7 +150,7 @@ export function CaseReel({
       if (nearMissTimer) clearTimeout(nearMissTimer);
       if (finishTimer) clearTimeout(finishTimer);
     };
-  }, [winner, geometry, controls, onFinished]);
+  }, [winner, geometry, controls, onFinished, prefersReducedMotion]);
 
   const winnerCard = cardFromResult(winner);
   const winColor = RARITY_COLOR[winner.rarity] || '#3b82f6';
