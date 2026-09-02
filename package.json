@@ -1,0 +1,43 @@
+{
+  "name": "house-loot",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "simulate": "tsx scripts/simulate.ts",
+    "seed:gen": "tsx scripts/gen-seed.ts",
+    "db:push": "supabase db push",
+    "db:lint": "supabase db lint"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.123.0",
+    "@google/genai": "^2.20.0",
+    "@supabase/supabase-js": "^2.113.0",
+    "canvas-confetti": "^1.9.4",
+    "framer-motion": "^13.1.1",
+    "jose": "^6.2.10",
+    "lucide-react": "^1.39.0",
+    "next": "16.3.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "server-only": "^0.0.1",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/canvas-confetti": "^1.9.0",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "dotenv": "^17.4.2",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.4",
+    "supabase": "^2.116.0",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.13",
+    "typescript": "^5"
+  }
+}

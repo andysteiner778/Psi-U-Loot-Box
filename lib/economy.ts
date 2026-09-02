@@ -1,0 +1,276 @@
+/**
+ * DUAL-ANCHOR DYNAMIC EV ENGINE
+ *
+ * This is the reference implementation. `open_box` in SQL mirrors it exactly;
+ * `scripts/simulate.ts` proves it solvent; the admin dashboard renders it.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THIS DIVERGES FROM SPEC.md SECTION 2B
+ * ---------------------------------------------------------------------------
+ * The spec's formula is insolvent at every tier (116% / 136% / 128% payout).
+ * Three independent causes, all fixed here:
+ *
+ *   1. UNBOUNDED PROBABILITY MASS.  Sum(P_i) can exceed 1.0 outright, and
+ *      because the spec walks items ORDER BY est_value DESC, everything past
+ *      the point where the CDF saturates becomes unreachable. Cheap items
+ *      could never drop, which defeats the point of liquidating a house.
+ *
+ *   2. SHARD VALUE WAS NEVER BUDGETED.  EV_phys summed physical items only,
+ *      then P_shard x V_shard got paid on top of an already-spent budget.
+ *      On tier 3 that alone is $24 of unfunded payout on a $50 box.
+ *
+ *   3. THE FLOOR ANCHOR IS NOT WORTH $0.  The spec prices "scrap junk" at zero,
+ *      but scrap coins buy a Tier-2 key (100 coins -> $20), making each coin
+ *      worth $0.20 and the "+15 coins" consolation worth a very real $3.00 --
+ *      60% of a Tier-1 box, entirely unaccounted for.
+ *
+ * The structural bug worth understanding is #1's cousin. For any item priced
+ * at or above 2C, the 0.10 cap does not bind, so the spec's own expression is:
+ *
+ *      P_i x V_i  =  (C x 0.20 / V_i) x V_i  =  0.20 x C
+ *
+ * V_i cancels. Every such item costs a flat 20% of the box price no matter what
+ * it is worth. The budget is 80%. So the 4th item in a tier exhausts it and the
+ * 5th makes the tier structurally insolvent, regardless of pricing.
+ *
+ * FIX: treat min(0.10, C x 0.20 / V_i) as a *shape*, not a probability, then
+ * solve for the scale factor that balances the books. Both anchors are priced
+ * honestly and the budget equation is closed rather than assumed.
+ * ---------------------------------------------------------------------------
+ */
+
+import type { BoxOdds, BoxTier, EconomyConfig, Item, ItemOdds, Rarity } from './types';
+
+export const DEFAULT_CONFIG: EconomyConfig = {
+  house_margin: 0.2,
+  pot_revenue_threshold: 400.0,
+  box_prices: { tier_1: 5, tier_2: 20, tier_3: 50 },
+  shard_probs: { tier_1: 0.015, tier_2: 0.06, tier_3: 0.2 },
+  pc_value: 600,
+  shards_required: 5,
+  pc_total_supply: 1,
+  pc_shards_minted: 0,
+  max_item_prob: 0.1,
+  ev_weight_factor: 0.2,
+  scrap_ev_frac: 0.05,
+  scrap_coins_per_key: 100,
+  scrap_key_tier: 'tier_2',
+  flash_sale: false,
+  flash_sale_pct: 0.2,
+  flash_sale_ends_at: null,
+};
+
+/** Dollar value of one scrap coin, derived from what the compactor buys. */
+export function scrapCoinUsd(cfg: EconomyConfig): number {
+  return cfg.box_prices[cfg.scrap_key_tier] / cfg.scrap_coins_per_key;
+}
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
+
+/** Box price after any live flash sale. The server clock is authoritative. */
+export function effectiveBoxPrice(cfg: EconomyConfig, tier: BoxTier, now = new Date()): number {
+  const base = cfg.box_prices[tier];
+  if (!cfg.flash_sale) return base;
+  if (cfg.flash_sale_ends_at && new Date(cfg.flash_sale_ends_at) <= now) return base;
+  return round2(base * (1 - cfg.flash_sale_pct));
+}
+
+export interface OddsInput {
+  tier: BoxTier;
+  items: Item[];
+  config: EconomyConfig;
+  /** Approved deposits have crossed pot_revenue_threshold. Gates shards to 0 below it. */
+  potGateMet: boolean;
+  now?: Date;
+}
+
+/**
+ * Compute the full probability distribution for one box tier.
+ *
+ * Solves the closed system:
+ *      sum(P_i) + P_shard + P_respin + P_scrap                        = 1
+ *      sum(P_i.V_i) + P_shard.V_shard + P_respin.C + P_scrap.V_scrap  = target_ev
+ *
+ * Two equations, two unknowns (P_respin, P_scrap), given P_i and P_shard.
+ */
+export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: OddsInput): BoxOdds {
+  const warnings: string[] = [];
+  const C = effectiveBoxPrice(cfg, tier, now);
+  const target = C * (1 - cfg.house_margin);
+
+  // --- Ceiling-adjacent anchor: shards, gated by pot floor AND global supply ---
+  const shardCapacity = cfg.pc_total_supply * cfg.shards_required;
+  const shardsAvailable = cfg.pc_shards_minted < shardCapacity;
+  const pShard = potGateMet && shardsAvailable ? cfg.shard_probs[tier] ?? 0 : 0;
+  const vShard = cfg.pc_value / cfg.shards_required;
+  if (potGateMet && !shardsAvailable) {
+    warnings.push(
+      'PC shard supply exhausted (' + cfg.pc_shards_minted + '/' + shardCapacity + ') - shard odds forced to 0'
+    );
+  }
+
+  // --- Floor anchor: priced honestly, never $0 ------------------------------
+  const coinUsd = scrapCoinUsd(cfg);
+  const vScrapTarget = cfg.scrap_ev_frac * C;
+  const coins = Math.max(1, Math.round(vScrapTarget / coinUsd));
+  const vScrap = coins * coinUsd; // what we actually pay, after rounding to whole coins
+
+  // --- Raw weights: the spec's expression, used as a SHAPE ------------------
+  const pool = items.filter((i) => i.is_active && i.stock_qty > 0 && i.est_value > 0);
+  const weights = pool.map((i) => Math.min(cfg.max_item_prob, (C * cfg.ev_weight_factor) / i.est_value));
+  const Wp = weights.reduce((a, w) => a + w, 0);
+  const Wv = weights.reduce((a, w, k) => a + w * pool[k].est_value, 0);
+
+  // --- Scale pass 1: probability mass must fit under 1 ----------------------
+  const lambdaProb = Wp > 0 ? (1 - pShard) / Wp : Infinity;
+
+  // --- Scale pass 2: expected value must fit the budget ---------------------
+  // Need: target - lam*Wv - pShard*vShard >= (1 - lam*Wp - pShard) * vScrap
+  const spendable = target - pShard * vShard - (1 - pShard) * vScrap;
+  const denom = Wv - Wp * vScrap;
+  const lambdaEv = denom > 1e-12 ? spendable / denom : Infinity;
+
+  if (spendable < 0) {
+    warnings.push(
+      'INSOLVENT CONFIG: shard EV ($' +
+        (pShard * vShard).toFixed(2) +
+        ') + scrap floor ($' +
+        vScrap.toFixed(2) +
+        ') exceed the $' +
+        target.toFixed(2) +
+        ' budget before any item drops. Lower shard_probs, scrap_ev_frac, or house_margin.'
+    );
+  }
+
+  const lambda = clamp(Math.min(1, lambdaProb, lambdaEv), 0, 1);
+  if (lambda < 1 - 1e-9 && Wp > 0) {
+    warnings.push(
+      'Item probabilities scaled to ' +
+        (lambda * 100).toFixed(1) +
+        '% to stay solvent (' +
+        pool.length +
+        ' items in tier; raw mass ' +
+        Wp.toFixed(3) +
+        ', raw EV $' +
+        Wv.toFixed(2) +
+        ').'
+    );
+  }
+
+  const pPhysical = lambda * Wp;
+  const evPhysical = lambda * Wv;
+
+  // --- Solve the two virtual anchors ---------------------------------------
+  const K = 1 - pPhysical - pShard; // probability left over
+  const B = target - evPhysical - pShard * vShard; // EV left over
+
+  let pRespin: number;
+  if (K <= 1e-12) {
+    pRespin = 0;
+  } else if (C - vScrap <= 1e-12) {
+    pRespin = 0;
+    warnings.push('Scrap consolation is worth as much as the box; respin anchor disabled.');
+  } else {
+    pRespin = clamp((B - K * vScrap) / (C - vScrap), 0, K);
+  }
+  const pScrap = Math.max(0, K - pRespin);
+
+  const itemOdds: ItemOdds[] = pool.map((i, k) => ({
+    item_id: i.id,
+    name: i.name,
+    est_value: i.est_value,
+    rarity: i.rarity,
+    stock_qty: i.stock_qty,
+    probability: lambda * weights[k],
+  }));
+
+  const evShard = pShard * vShard;
+  const evRespin = pRespin * C;
+  const evScrap = pScrap * vScrap;
+  const totalEv = evPhysical + evShard + evRespin + evScrap;
+
+  const pSum = pPhysical + pShard + pRespin + pScrap;
+  if (Math.abs(pSum - 1) > 1e-9) {
+    warnings.push('Probabilities sum to ' + pSum.toFixed(9) + ', not 1.0 - this is a bug.');
+  }
+  if (totalEv > target + 1e-9) {
+    warnings.push(
+      'Payout $' + totalEv.toFixed(2) + ' exceeds budget $' + target.toFixed(2) + ' - the house is losing money.'
+    );
+  }
+
+  return {
+    tier,
+    box_price: C,
+    target_ev: target,
+    items: itemOdds,
+    p_physical: pPhysical,
+    ev_physical: evPhysical,
+    p_shard: pShard,
+    ev_shard: evShard,
+    p_respin: pRespin,
+    ev_respin: evRespin,
+    p_scrap: pScrap,
+    ev_scrap: evScrap,
+    scrap_coins_awarded: coins,
+    total_ev: totalEv,
+    realized_margin: C > 0 ? 1 - totalEv / C : 0,
+    scale_factor: lambda,
+    warnings,
+  };
+}
+
+/**
+ * Walk the CDF. Order: items, then shard, then respin, then scrap.
+ * `rand` must be a fresh uniform in [0,1). Never reuse one draw across several
+ * decisions -- the spec's original reused a single random() for the shard check,
+ * the item walk, and the respin/scrap split, which correlates all three.
+ */
+export type Outcome =
+  | { kind: 'physical'; index: number }
+  | { kind: 'shard' }
+  | { kind: 'respin' }
+  | { kind: 'scrap' };
+
+export function drawOutcome(odds: BoxOdds, rand: number): Outcome {
+  let cum = 0;
+  for (let k = 0; k < odds.items.length; k++) {
+    cum += odds.items[k].probability;
+    if (rand < cum) return { kind: 'physical', index: k };
+  }
+  cum += odds.p_shard;
+  if (rand < cum) return { kind: 'shard' };
+  cum += odds.p_respin;
+  if (rand < cum) return { kind: 'respin' };
+  return { kind: 'scrap' };
+}
+
+/** Dollar value actually handed to the player. Used by the ledger and the simulation. */
+export function outcomeValue(odds: BoxOdds, o: Outcome, cfg: EconomyConfig): number {
+  switch (o.kind) {
+    case 'physical':
+      return odds.items[o.index].est_value;
+    case 'shard':
+      return cfg.pc_value / cfg.shards_required;
+    case 'respin':
+      return odds.box_price;
+    case 'scrap':
+      return odds.scrap_coins_awarded * scrapCoinUsd(cfg);
+  }
+}
+
+/** Spec rarity bands. Used by the vision scanner and the seed catalog. */
+export function rarityForValue(v: number): Rarity {
+  if (v >= 150) return 'pink';
+  if (v >= 90) return 'purple';
+  if (v >= 25) return 'blue';
+  return 'grey';
+}
+
+/** Spec tier bands: tier_1 <= $30, tier_2 <= $120, tier_3 > $120. */
+export function tierForValue(v: number): BoxTier {
+  if (v > 120) return 'tier_3';
+  if (v > 30) return 'tier_2';
+  return 'tier_1';
+}
