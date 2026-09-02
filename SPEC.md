@@ -55,6 +55,13 @@ Box prices remain static. As physical items are won, odds dynamically rebalance 
 
 Execute this migration in Supabase:
 
+> **NOTE — this SQL is the original brief and has known defects.**
+> The authoritative, corrected implementation lives in `supabase/migrations/`.
+> Fixed there: an unassigned-RECORD dereference that threw on every non-winning
+> roll; unnormalized probability mass; a client-supplied box price; and an EV
+> formula that pays out 116-136% of every box. See `lib/economy.ts` for the
+> corrected math and `npm run simulate` for the proof.
+
 ```sql
 -- Profiles & Balances
 CREATE TABLE profiles (
@@ -126,12 +133,93 @@ CREATE OR REPLACE FUNCTION open_box(
 ) RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-AS $$ DECLARE   v_balance NUMERIC;   v_shards INT;   v_total_pot NUMERIC;   v_threshold NUMERIC;   v_rand FLOAT := random();   v_cum_prob FLOAT := 0.0;   v_shard_prob FLOAT := 0.0;   v_item RECORD;   v_winning_item RECORD;   v_is_respin BOOLEAN := FALSE;   v_is_shard BOOLEAN := FALSE;   v_is_scrap BOOLEAN := FALSE; BEGIN   -- 1. Lock user profile & verify funds   SELECT balance, pc_shards INTO v_balance, v_shards    FROM profiles WHERE id = p_user_id FOR UPDATE;      IF v_balance < p_box_price THEN     RAISE EXCEPTION 'Insufficient balance';   END IF;    -- 2. Deduct box price   UPDATE profiles SET balance = balance - p_box_price WHERE id = p_user_id;    -- 3. Check PC Pot Gate Threshold   SELECT COALESCE(SUM(amount), 0) INTO v_total_pot FROM deposits WHERE status = 'approved';   v_threshold := ((SELECT value->>'pot_revenue_threshold' FROM config WHERE key = 'settings'))::NUMERIC;    IF v_total_pot >= v_threshold THEN     IF p_box_tier = 'tier_1' THEN v_shard_prob := 0.015;     ELSIF p_box_tier = 'tier_2' THEN v_shard_prob := 0.06;     ELSIF p_box_tier = 'tier_3' THEN v_shard_prob := 0.20;     END IF;   END IF;    -- 4. Determine if player hits PC Shard   IF v_rand < v_shard_prob THEN     UPDATE profiles SET pc_shards = pc_shards + 1 WHERE id = p_user_id;     INSERT INTO rolls (user_id, box_tier, item_name, item_rarity, status)     VALUES (p_user_id, p_box_tier, 'PC Core Shard (' \vert{}\vert{} (v_shards + 1) \vert{}\vert{} '/5)', 'gold', 'inventory');      RETURN jsonb_build_object(       'type', 'shard',       'item_name', 'PC Core Shard (' \vert{}\vert{} (v_shards + 1) \vert{}\vert{} '/5)',       'rarity', 'gold',       'current_shards', v_shards + 1     );   END IF;    -- 5. Roll from Physical Inventory   FOR v_item IN      SELECT * FROM items      WHERE box_tier = p_box_tier AND stock_qty > 0 AND is_active = TRUE      ORDER BY est_value DESC      FOR UPDATE   LOOP     -- Base calculation: 20\% factor scaled by price     DECLARE       v_p FLOAT := LEAST(0.10, (p_box_price * 0.20) / v_item.est_value);     BEGIN       v_cum_prob := v_cum_prob + v_p;       IF v_rand < (v_shard_prob + v_cum_prob) THEN         v_winning_item := v_item;         EXIT;       END IF;     END;   END LOOP;    -- 6. If physical item won, decrement stock and log   IF v_winning_item.id IS NOT NULL THEN     UPDATE items SET stock_qty = stock_qty - 1 WHERE id = v_winning_item.id;     INSERT INTO rolls (user_id, box_tier, item_id, item_name, item_rarity, status)     VALUES (p_user_id, p_box_tier, v_winning_item.id, v_winning_item.name, v_winning_item.rarity, 'inventory');      RETURN jsonb_build_object(       'type', 'physical',       'item_id', v_winning_item.id,       'item_name', v_winning_item.name,       'image_url', v_winning_item.image_url,       'rarity', v_winning_item.rarity,       'scrap_value', v_winning_item.scrap_value     );   END IF;    -- 7. Virtual Anchors (Respin vs Scrap)   -- 10\% chance of free respin, otherwise Trade Scrap   IF v_rand < (v_shard_prob + v_cum_prob + 0.10) THEN     UPDATE profiles SET balance = balance + p_box_price WHERE id = p_user_id;     INSERT INTO rolls (user_id, box_tier, item_name, item_rarity, status)     VALUES (p_user_id, p_box_tier, 'Free Re-Roll Token', 'blue', 'respin');      RETURN jsonb_build_object(       'type', 'respin',       'item_name', 'Free Re-Roll Token',       'rarity', 'blue',       'refund_amount', p_box_price     );   ELSE     UPDATE profiles SET scrap_coins = scrap_coins + 15 WHERE id = p_user_id;     INSERT INTO rolls (user_id, box_tier, item_name, item_rarity, status)     VALUES (p_user_id, p_box_tier, '+15 Scrap Coins', 'grey', 'scrapped');      RETURN jsonb_build_object(       'type', 'scrap',       'item_name', '+15 Scrap Coins',       'rarity', 'grey',       'scrap_gained', 15     );   END IF; END; $$;
-4. CS:GO REEL SPINNER & SOUND ENGINE SPECIFICATION
-A. Procedural Web Audio API Synthesizer (lib/sound.ts)
+AS $
+DECLARE   v_balance NUMERIC;
+  v_shards INT;
+  v_total_pot NUMERIC;
+  v_threshold NUMERIC;
+  v_rand FLOAT := random();
+  v_cum_prob FLOAT := 0.0;
+  v_shard_prob FLOAT := 0.0;
+  v_item RECORD;
+  v_winning_item RECORD;
+  v_is_respin BOOLEAN := FALSE;
+  v_is_shard BOOLEAN := FALSE;
+  v_is_scrap BOOLEAN := FALSE;
+BEGIN
+
+  -- 1. Lock user profile & verify funds
+  SELECT balance, pc_shards INTO v_balance, v_shards    FROM profiles WHERE id = p_user_id FOR UPDATE;
+  IF v_balance < p_box_price THEN     RAISE EXCEPTION 'Insufficient balance';
+  END IF;
+
+  -- 2. Deduct box price
+  UPDATE profiles SET balance = balance - p_box_price WHERE id = p_user_id;
+
+  -- 3. Check PC Pot Gate Threshold
+  SELECT COALESCE(SUM(amount), 0) INTO v_total_pot FROM deposits WHERE status = 'approved';
+  v_threshold := ((SELECT value->>'pot_revenue_threshold' FROM config WHERE key = 'settings'))::NUMERIC;
+  IF v_total_pot >= v_threshold THEN
+  IF p_box_tier = 'tier_1' THEN v_shard_prob := 0.015;
+  ELSIF p_box_tier = 'tier_2' THEN v_shard_prob := 0.06;
+  ELSIF p_box_tier = 'tier_3' THEN v_shard_prob := 0.20;
+  END IF;
+  END IF;
+
+  -- 4. Determine if player hits PC Shard
+  IF v_rand < v_shard_prob THEN
+  UPDATE profiles SET pc_shards = pc_shards + 1 WHERE id = p_user_id;
+  INSERT INTO rolls (user_id, box_tier, item_name, item_rarity, status)
+  VALUES (p_user_id, p_box_tier, 'PC Core Shard (' || (v_shards + 1) || '/5)', 'gold', 'inventory');
+  RETURN jsonb_build_object(       'type', 'shard',       'item_name', 'PC Core Shard (' || (v_shards + 1) || '/5)',       'rarity', 'gold',       'current_shards', v_shards + 1     );
+  END IF;
+
+  -- 5. Roll from Physical Inventory
+  FOR v_item IN
+  SELECT * FROM items      WHERE box_tier = p_box_tier AND stock_qty > 0 AND is_active = TRUE      ORDER BY est_value DESC
+  FOR UPDATE
+  LOOP
+
+  -- Base calculation: 20% factor scaled by price
+  DECLARE       v_p FLOAT := LEAST(0.10, (p_box_price * 0.20) / v_item.est_value);
+  BEGIN       v_cum_prob := v_cum_prob + v_p;
+  IF v_rand < (v_shard_prob + v_cum_prob) THEN         v_winning_item := v_item;
+  EXIT;
+  END IF;
+  END;
+  END LOOP;
+
+  -- 6. If physical item won, decrement stock and log
+  IF v_winning_item.id IS NOT NULL THEN
+  UPDATE items SET stock_qty = stock_qty - 1 WHERE id = v_winning_item.id;
+  INSERT INTO rolls (user_id, box_tier, item_id, item_name, item_rarity, status)
+  VALUES (p_user_id, p_box_tier, v_winning_item.id, v_winning_item.name, v_winning_item.rarity, 'inventory');
+  RETURN jsonb_build_object(       'type', 'physical',       'item_id', v_winning_item.id,       'item_name', v_winning_item.name,       'image_url', v_winning_item.image_url,       'rarity', v_winning_item.rarity,       'scrap_value', v_winning_item.scrap_value     );
+  END IF;
+
+  -- 7. Virtual Anchors (Respin vs Scrap)
+
+  -- 10\% chance of free respin, otherwise Trade Scrap
+  IF v_rand < (v_shard_prob + v_cum_prob + 0.10) THEN
+  UPDATE profiles SET balance = balance + p_box_price WHERE id = p_user_id;
+  INSERT INTO rolls (user_id, box_tier, item_name, item_rarity, status)
+  VALUES (p_user_id, p_box_tier, 'Free Re-Roll Token', 'blue', 'respin');
+  RETURN jsonb_build_object(       'type', 'respin',       'item_name', 'Free Re-Roll Token',       'rarity', 'blue',       'refund_amount', p_box_price     );
+  ELSE
+  UPDATE profiles SET scrap_coins = scrap_coins + 15 WHERE id = p_user_id;
+  INSERT INTO rolls (user_id, box_tier, item_name, item_rarity, status)
+  VALUES (p_user_id, p_box_tier, '+15 Scrap Coins', 'grey', 'scrapped');
+  RETURN jsonb_build_object(       'type', 'scrap',       'item_name', '+15 Scrap Coins',       'rarity', 'grey',       'scrap_gained', 15     );
+  END IF;
+END;
+$;
+```
+
+## 4. CS:GO Reel Spinner & Sound Engine
+### A. Procedural Web Audio API Synthesizer (`lib/sound.ts`)
 Zero external MP3 dependencies. Implement a lightweight audio engine:
 
-TypeScript
+```typescript
 class SoundEffects {
   private ctx: AudioContext | null = null;
 
@@ -194,7 +282,8 @@ class SoundEffects {
   }
 }
 export const sfx = new SoundEffects();
-B. Framer Motion Reel Spinner with Near-Miss Logic
+```
+### B. Framer Motion Reel Spinner with Near-Miss Logic
 The reel consists of 60 rendered item cards horizontally.
 
 Each item card displays: item image, title, and a glowing neon border matching rarity:
@@ -213,7 +302,7 @@ Physics: Deceleration lasts 5.5 seconds using cubic-bezier(0.10, 0.90, 0.15, 1.0
 
 At 4.8 seconds, trigger sfx.playNearMissWhoosh() as Card 49 passes under the center marker. When Card 50 stops precisely under the vertical indicator, fire canvas-confetti and sfx.playGoldFanfare().
 
-5. USER INVENTORY & SCRAP COMPACTOR
+## 5. User Inventory & Scrap Compactor
 Inventory Page (/inventory):
 
 Displays cards for all unboxed items.
@@ -232,7 +321,7 @@ A persistent HUD bar displaying PC Shards: [X/5].
 
 When 5/5 shards are collected, reveal the [Claim $800 Gaming PC] button and trigger a full-screen gold celebration.
 
-6. ADMIN PORTAL & VISION INGESTION (/admin)
+## 6. Admin Portal & Vision Ingestion (`/admin`)
 Protect /admin with a simple PIN prompt.
 
 AI Item Scanner (/api/vision/scan-item):
@@ -259,7 +348,7 @@ Flash Sale Trigger: 15-minute countdown slashing box prices by 20% across all cl
 
 Manual Drop Override: Force the next roll for a user to hit a specific item.
 
-7. REALTIME SOCIAL FEED (TICKER BANNER)
+## 7. Realtime Social Feed (Ticker Banner)
 Add a persistent scrolling banner across the header of the app:
 
 Listens to Supabase Realtime INSERT events on the rolls table.
@@ -272,7 +361,7 @@ Formats events dynamically:
 
 💀 "[Name] scrapped an HDMI cable for 15 coins."
 
-8. STEP-BY-STEP VERIFICATION & EXECUTION ORDER
+## 8. Step-by-Step Verification & Execution Order
 Execute the following implementation phases sequentially:
 
 Phase 1: Project Scaffolding & Database Migration
