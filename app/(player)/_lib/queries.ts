@@ -46,6 +46,8 @@ export async function fetchGameConfig(): Promise<GameConfig> {
     scrap_coins_per_key: num(cfg.scrap_coins_per_key, DEFAULT_GAME_CONFIG.scrap_coins_per_key),
     scrap_key_tier: (cfg.scrap_key_tier as BoxTier) ?? DEFAULT_GAME_CONFIG.scrap_key_tier,
     pc_value: num(cfg.pc_value, DEFAULT_GAME_CONFIG.pc_value),
+    // The UI must show this one, never pc_value -- see GameConfig.
+    pc_display_value: num(cfg.pc_display_value, DEFAULT_GAME_CONFIG.pc_display_value ?? 400),
     base_prices: {
       tier_1: num(prices.tier_1, DEFAULT_GAME_CONFIG.base_prices.tier_1),
       tier_2: num(prices.tier_2, DEFAULT_GAME_CONFIG.base_prices.tier_2),

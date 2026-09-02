@@ -15,7 +15,7 @@ export interface ShardHudProps {
 
 export function ShardHud({
   potTotal = 0,
-  potThreshold = 400,
+  potThreshold = 150,
   potGateMet = false,
 }: ShardHudProps) {
   const { stats, config, commit, toast } = usePlayer();
@@ -25,8 +25,11 @@ export function ShardHud({
   const [showWinModal, setShowWinModal] = useState(false);
 
   const shardsHeld = stats.pc_shards;
-  const shardsReq = config.shards_required || 5;
-  const pcValue = config.pc_value || 400;
+  const shardsReq = config.shards_required || 2;
+  // MUST be pc_display_value, not pc_value. `pc_value` is what the ECONOMY
+  // charges for the shard track ($50) so the odds stay solvent; it is not what
+  // the machine is worth. Showing it advertised a "$50 Rig" for a $400 PC.
+  const pcValue = config.pc_display_value || config.pc_value || 400;
   const hasCompletedPc = shardsHeld >= shardsReq;
 
   const handleClaimPc = async () => {

@@ -33,16 +33,20 @@ export interface GameConfig {
   shards_required: number;
   scrap_coins_per_key: number;
   scrap_key_tier: BoxTier;
+  /** What the ECONOMY charges for the shard track. Never show this to players. */
   pc_value: number;
+  /** What the machine is actually worth. This is the number the UI displays. */
+  pc_display_value?: number;
   /** Undiscounted prices, so a flash sale can be shown as a strike-through. */
   base_prices: Record<BoxTier, number>;
 }
 
 export const DEFAULT_GAME_CONFIG: GameConfig = {
-  shards_required: 5,
+  shards_required: 2,
   scrap_coins_per_key: 100,
   scrap_key_tier: 'tier_2',
-  pc_value: 400,
+  pc_value: 50,
+  pc_display_value: 400,
   base_prices: { tier_1: 5, tier_2: 20, tier_3: 50 },
 };
 

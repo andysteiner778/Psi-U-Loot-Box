@@ -20,6 +20,7 @@ import {
   Trash2,
   Lock,
   Users,
+  ImagePlus,
 } from 'lucide-react';
 import { uploadItemPhoto } from '@/lib/image';
 import type { BoxTier, EconomyConfig, Item, Rarity, SessionUser } from '@/lib/types';
@@ -214,6 +215,32 @@ export function AdminDashboard({
     };
     setScanFile(file);
     img.src = URL.createObjectURL(file);
+  };
+
+  /**
+   * Attach a photo WITHOUT running the AI scan.
+   *
+   * Uploading used to happen only inside handleScanItem, so with no vision API
+   * key configured -- the default -- there was no way to give an item a picture
+   * at all. The reel is mostly images, so that made every card a placeholder.
+   */
+  const handleDirectPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await uploadItemPhoto(file, itemForm.name || 'item');
+      setItemForm((f) => ({ ...f, image_url: url }));
+      showMsg('Photo stored');
+    } catch (err) {
+      showMsg(
+        'Photo upload failed: ' + (err instanceof Error ? err.message : 'unknown'),
+        'bad'
+      );
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleScanItem = async () => {
@@ -735,6 +762,25 @@ export function AdminDashboard({
                     Storing photo&hellip;
                   </p>
                 )}
+                {/* Works with no AI key configured, which is the default. */}
+                <div className="mt-2">
+                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-gun-600 bg-gun-800 py-2.5 font-mono text-[11px] font-bold text-gun-200 transition hover:border-gun-500 hover:text-white">
+                    <ImagePlus className="h-4 w-4" />
+                    <span>{itemForm.image_url ? 'Replace Photo' : 'Add Photo (no AI needed)'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={handleDirectPhoto}
+                      disabled={uploading}
+                    />
+                  </label>
+                  <p className="mt-1 text-center font-mono text-[10px] text-gun-500">
+                    Resized on your phone before upload, so it works on house wifi.
+                  </p>
+                </div>
+
                 {!uploading && itemForm.image_url && (
                   <div className="mt-2 flex items-center gap-2 rounded-lg border border-emerald-700/50 bg-emerald-950/30 p-2">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
