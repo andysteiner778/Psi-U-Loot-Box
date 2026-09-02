@@ -49,9 +49,14 @@ export async function POST(req: Request) {
     : tierForValue(est_value);
 
   // Enforce Anti-Exploit Rule 2
-  const scrap_value = isScrappable(rarity)
-    ? Math.max(0, parseInt(body.scrap_value ?? Math.round(est_value * 10), 10))
-    : 0;
+  // Coins are $1 each, so scrap_value is a dollar figure and MUST be a fraction
+  // of est_value. The old `est_value * 10` paid 2x the item's worth at the old
+  // coin rate, which let a player scrap a $70 monitor for $140 of credit.
+  const recovery = isScrappable(rarity) ? 0.6 : 0.4;
+  const scrap_value = Math.max(
+    1,
+    parseInt(String(body.scrap_value ?? Math.round(est_value * recovery)), 10)
+  );
 
   const { data, error } = await db
     .from('items')

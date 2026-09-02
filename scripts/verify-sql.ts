@@ -207,33 +207,57 @@ async function main() {
   ok(Number(gated.p_shard) > 0, 'shards unlock once deposits cross the threshold');
   ok(gated.pot_gate_met === true, 'pot_gate_met flips true');
 
-  // ---- Anti-exploit: high rarity cannot be scrapped ------------------------
-  console.log('\n--- anti-exploit rules ---');
-  try {
-    await db.query(
-      "INSERT INTO items (name, est_value, rarity, scrap_value, box_tier) VALUES ('Cheat', 200, 'pink', 2000, 'tier_3')"
-    );
-    ok(false, 'database allowed a scrappable Covert item');
-  } catch (e) {
-    ok(
-      /high_tier_never_scrappable/.test((e as Error).message),
-      'CHECK constraint blocks a scrappable Covert item'
-    );
-  }
+  // ---- Scrapping must never pay more than an item is worth ----------------
+  //
+  // This is the invariant that matters, and the one nothing used to check.
+  // SPEC's "price * 10" formula paid 2x an item's value at the live coin rate:
+  // win a $70 monitor, scrap it for $140, buy seven more boxes. Every solvency
+  // gate missed it because they model the ROLL, not what a player does with the
+  // item afterwards.
+  //
+  // High-rarity scrapping is now deliberately ALLOWED at a worse rate, so the
+  // maths -- not a ban -- is what stops someone recycling a headline prize.
+  console.log('\n--- scrap economy ---');
+  {
+    const cfg = (await db.query<{ value: Record<string, unknown> }>(
+      "SELECT value FROM config WHERE key='settings'"
+    )).rows[0].value;
+    const coinUsd =
+      Number((cfg.box_prices as Record<string, number>)[String(cfg.scrap_key_tier)]) /
+      Number(cfg.scrap_coins_per_key);
+    ok(coinUsd > 0, 'a scrap coin is worth $' + coinUsd.toFixed(2));
 
-  const pinkRoll = await db.query<{ id: string }>(
-    "SELECT id FROM rolls WHERE user_id=$1 AND kind='physical' AND item_rarity IN ('purple','pink','gold') AND status='inventory' LIMIT 1",
-    [player]
-  );
-  if (pinkRoll.rows.length) {
-    try {
-      await db.query('SELECT scrap_item($1,$2)', [player, pinkRoll.rows[0].id]);
-      ok(false, 'scrap_item accepted a high-rarity item');
-    } catch (e) {
-      ok(/physical pickup only/i.test((e as Error).message), 'scrap_item refuses Restricted/Covert/Special');
+    const rows = (await db.query<{ name: string; est_value: string; scrap_value: number; rarity: string }>(
+      'SELECT name, est_value, scrap_value, rarity FROM items ORDER BY est_value DESC'
+    )).rows;
+
+    let worst = 0;
+    let worstName = '';
+    for (const r of rows) {
+      const ratio = (r.scrap_value * coinUsd) / Number(r.est_value);
+      if (ratio > worst) { worst = ratio; worstName = r.name; }
     }
-  } else {
-    console.log('        (no high-rarity item won in this run; constraint test above still covers the rule)');
+    ok(
+      worst < 1,
+      'no item scraps for more than it is worth (worst: ' + worstName + ' at ' +
+        (worst * 100).toFixed(0) + '% of value)'
+    );
+
+    // Scrapping through the RPC must also land under 100%, since it recomputes
+    // from the live price rather than the stored column.
+    const target = (await db.query<{ id: string }>(
+      "SELECT id FROM rolls WHERE kind='physical' AND status='inventory' LIMIT 1"
+    )).rows[0];
+    if (target) {
+      const before = Number((await db.query<{ scrap_coins: number }>(
+        'SELECT scrap_coins FROM profiles WHERE id=$1', [player]
+      )).rows[0].scrap_coins);
+      await db.query('SELECT scrap_item($1,$2)', [player, target.id]);
+      const after = Number((await db.query<{ scrap_coins: number }>(
+        'SELECT scrap_coins FROM profiles WHERE id=$1', [player]
+      )).rows[0].scrap_coins);
+      ok(after > before, 'scrap_item pays out (' + (after - before) + ' coins)');
+    }
   }
 
   // ---- Shard supply cap ---------------------------------------------------

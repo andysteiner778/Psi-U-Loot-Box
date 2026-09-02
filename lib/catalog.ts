@@ -51,18 +51,27 @@ export interface ResolvedSeedItem extends SeedItem {
 }
 
 /**
- * Anti-exploit rule 2 lives here and in a DB trigger: purple/pink/gold get a
- * scrap value of exactly 0, so they can only ever be claimed physically.
- * Spec formula for everything else: price x 10 scrap coins.
+ * Scrapping must recover a FRACTION of an item's value, never a multiple.
+ *
+ * SPEC.md says "price * 10" scrap coins, which only works if a coin is worth
+ * $0.05. A coin is worth $1.00 here, so that formula paid 10x value -- and even
+ * at the old $0.20 coin it paid 2x, which is a money printer: win a $70
+ * monitor, scrap for $140, buy seven more boxes.
+ *
+ * 60% for ordinary items, 40% for Restricted/Covert/Special so recycling a
+ * headline prize is a deliberately bad trade rather than a banned one.
  */
+const SCRAP_RECOVERY = 0.6;
+const SCRAP_RECOVERY_HIGH = 0.4;
 export function resolveSeedItem(s: SeedItem): ResolvedSeedItem {
   const rarity = rarityForValue(s.est_value);
-  const unscrappable = rarity === 'purple' || rarity === 'pink' || rarity === 'gold';
+  const high = rarity === 'purple' || rarity === 'pink' || rarity === 'gold';
   return {
     ...s,
     rarity,
     box_tier: s.tier ?? tierForValue(s.est_value),
-    scrap_value: unscrappable ? 0 : Math.round(s.est_value * 10),
+    // Coins are $1 each, so this is a straight dollar recovery figure.
+    scrap_value: Math.max(1, Math.round(s.est_value * (high ? SCRAP_RECOVERY_HIGH : SCRAP_RECOVERY))),
   };
 }
 

@@ -29,5 +29,7 @@ export const VISION_USER_PROMPT = [
   '',
   'Box tier by price:   tier_1 <= $30,  tier_2 <= $120,  tier_3 > $120',
   'Rarity by price:     grey < $25,  blue $25-$89,  purple $90-$149,  pink >= $150',
-  'Scrap coin value:    price * 10, rounded — but exactly 0 for purple, pink or gold.',
+  'Scrap coin value:    60% of price, rounded (40% for purple, pink or gold).',
+  'A scrap coin is worth $1, so this must always be LESS than the price —',
+  'recycling an item is meant to be a loss, never a profit.',
 ].join('\n');

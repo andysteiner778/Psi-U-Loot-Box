@@ -92,8 +92,20 @@ async function main() {
       Number(o.total_ev) <= Number(o.target_ev) + 1e-6,
       'live payout $' + Number(o.total_ev).toFixed(2) + ' within budget $' + Number(o.target_ev).toFixed(2)
     );
-    ok(o.pot_gate_met === false, 'pot gate is shut (no approved deposits yet)');
-    ok(Number(o.p_shard) === 0, 'shard odds locked at 0 below the gate');
+    // Assert the RELATIONSHIP, not a fixed state: this runs against a live
+    // database whose pot grows as real deposits are approved, so "no deposits
+    // yet" stops being true the moment the party starts.
+    const gateMet = o.pot_gate_met === true;
+    ok(
+      gateMet ? Number(o.p_shard) > 0 : Number(o.p_shard) === 0,
+      'shard odds track the pot gate (pot $' + Number(o.pot_total).toFixed(2) +
+        ', gate ' + (gateMet ? 'OPEN' : 'shut') + ', P(shard) ' +
+        (Number(o.p_shard) * 100).toFixed(1) + '%)'
+    );
+    ok(
+      Number(o.shards_minted) <= Number(o.shard_capacity),
+      'shards minted ' + o.shards_minted + ' is within the mint cap ' + o.shard_capacity
+    );
   }
 
   const { data: roster } = await svc.rpc('player_roster');

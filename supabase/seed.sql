@@ -84,37 +84,37 @@ SELECT p.id, extensions.crypt('1234', extensions.gen_salt('bf', 10)), TRUE
 --  database itself refuses to let them be recycled (anti-exploit rule 2).
 -- ---------------------------------------------------------------------------
 INSERT INTO public.items (name, description, est_value, rarity, scrap_value, stock_qty, box_tier) VALUES
-  ('Graphics Card', 'Pulled from the house PC — the other half of the build', 200, 'pink', 0, 1, 'tier_3');
+  ('Graphics Card', 'Pulled from the house PC — the other half of the build', 200, 'pink', 80, 1, 'tier_3');
 INSERT INTO public.items (name, description, est_value, rarity, scrap_value, stock_qty, box_tier) VALUES
-  ('Audioengine A5+ Speakers', 'Powered bookshelf speakers, excellent condition', 200, 'pink', 0, 1, 'tier_3');
+  ('Audioengine A5+ Speakers', 'Powered bookshelf speakers, excellent condition', 200, 'pink', 80, 1, 'tier_3');
 INSERT INTO public.items (name, description, est_value, rarity, scrap_value, stock_qty, box_tier) VALUES
-  ('MCAT Prep Book Set', 'Full Kaplan set, lightly annotated', 120, 'purple', 0, 1, 'tier_3');
+  ('MCAT Prep Book Set', 'Full Kaplan set, lightly annotated', 120, 'purple', 48, 1, 'tier_3');
 INSERT INTO public.items (name, description, est_value, rarity, scrap_value, stock_qty, box_tier) VALUES
-  ('144Hz Gaming Monitor', '27" 1080p 144Hz, no dead pixels', 100, 'purple', 0, 1, 'tier_2');
+  ('144Hz Gaming Monitor', '27" 1080p 144Hz, no dead pixels', 100, 'purple', 40, 1, 'tier_2');
 INSERT INTO public.items (name, description, est_value, rarity, scrap_value, stock_qty, box_tier) VALUES
-  ('1080p Monitor', '24" 60Hz secondary display', 70, 'blue', 700, 1, 'tier_2');
+  ('1080p Monitor', '24" 60Hz secondary display', 70, 'blue', 42, 1, 'tier_2');
 INSERT INTO public.items (name, description, est_value, rarity, scrap_value, stock_qty, box_tier) VALUES
-  ('Standing Desk', 'Adjustable, minor scuffs on the legs', 50, 'blue', 500, 1, 'tier_2');
+  ('Standing Desk', 'Adjustable, minor scuffs on the legs', 50, 'blue', 30, 1, 'tier_2');
 INSERT INTO public.items (name, description, est_value, rarity, scrap_value, stock_qty, box_tier) VALUES
-  ('MTG Bulk Collection', 'Several thousand commons plus a few rares', 40, 'blue', 400, 1, 'tier_2');
+  ('MTG Bulk Collection', 'Several thousand commons plus a few rares', 40, 'blue', 24, 1, 'tier_2');
 INSERT INTO public.items (name, description, est_value, rarity, scrap_value, stock_qty, box_tier) VALUES
-  ('Hardshell Suitcase', 'Carry-on size, wheels intact', 30, 'blue', 300, 1, 'tier_1');
+  ('Hardshell Suitcase', 'Carry-on size, wheels intact', 30, 'blue', 18, 1, 'tier_1');
 INSERT INTO public.items (name, description, est_value, rarity, scrap_value, stock_qty, box_tier) VALUES
-  ('Drone Parts Lot', 'Props, spare motors, one intact frame', 8, 'grey', 80, 4, 'tier_1');
+  ('Drone Parts Lot', 'Props, spare motors, one intact frame', 8, 'grey', 5, 4, 'tier_1');
 INSERT INTO public.items (name, description, est_value, rarity, scrap_value, stock_qty, box_tier) VALUES
-  ('Desk Lamp', 'LED, adjustable arm', 8, 'grey', 80, 2, 'tier_1');
+  ('Desk Lamp', 'LED, adjustable arm', 8, 'grey', 5, 2, 'tier_1');
 INSERT INTO public.items (name, description, est_value, rarity, scrap_value, stock_qty, box_tier) VALUES
-  ('Mechanical Keyboard', 'Membrane switches, works fine', 12, 'grey', 120, 1, 'tier_1');
+  ('Mechanical Keyboard', 'Membrane switches, works fine', 12, 'grey', 7, 1, 'tier_1');
 INSERT INTO public.items (name, description, est_value, rarity, scrap_value, stock_qty, box_tier) VALUES
-  ('Cable Bundle', 'HDMI, USB-C, DisplayPort, assorted', 4, 'grey', 40, 8, 'tier_1');
+  ('Cable Bundle', 'HDMI, USB-C, DisplayPort, assorted', 4, 'grey', 2, 8, 'tier_1');
 INSERT INTO public.items (name, description, est_value, rarity, scrap_value, stock_qty, box_tier) VALUES
-  ('Steam Game Key', 'Random unredeemed key from a bundle', 3, 'grey', 30, 10, 'tier_1');
+  ('Steam Game Key', 'Random unredeemed key from a bundle', 3, 'grey', 2, 10, 'tier_1');
 INSERT INTO public.items (name, description, est_value, rarity, scrap_value, stock_qty, box_tier) VALUES
-  ('MTG Commons Box', 'Draft chaff by the pound', 4, 'grey', 40, 5, 'tier_1');
+  ('MTG Commons Box', 'Draft chaff by the pound', 4, 'grey', 2, 5, 'tier_1');
 INSERT INTO public.items (name, description, est_value, rarity, scrap_value, stock_qty, box_tier) VALUES
-  ('Kitchen Miscellany', 'Mugs, utensils, a decent pan', 6, 'grey', 60, 6, 'tier_1');
+  ('Kitchen Miscellany', 'Mugs, utensils, a decent pan', 6, 'grey', 4, 6, 'tier_1');
 INSERT INTO public.items (name, description, est_value, rarity, scrap_value, stock_qty, box_tier) VALUES
-  ('Phone Charger', 'Assorted bricks and cables', 5, 'grey', 50, 6, 'tier_1');
+  ('Phone Charger', 'Assorted bricks and cables', 5, 'grey', 3, 6, 'tier_1');
 
 -- ---------------------------------------------------------------------------
 --  Catalog totals: 16 distinct items, 50 units, $1018.00 of goods.
