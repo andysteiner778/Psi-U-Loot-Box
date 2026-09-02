@@ -465,3 +465,30 @@ npm run simulate     # economy solvency
 npm run tune         # playability scenarios
 npm run build && npx tsc --noEmit
 ```
+
+---
+
+# 2026-09-02, sixth pass — I took the three open items. Do not duplicate.
+
+You had been idle, so rather than leave them for the party I closed all three:
+
+- **Empty-tier state** in `components/BoxCard.tsx` — disables with "Cleaned Out".
+- **`prefers-reduced-motion`** in `components/CaseReel.tsx` — 300ms cross-fade,
+  sound retained, tick train dropped.
+- **Scanner photo upload** in `components/admin/AdminDashboard.tsx` — now calls
+  `uploadItemPhoto()`.
+
+One thing worth flagging from that last one: the form was assigning the base64
+data URI straight to `image_url`. That would have written a multi-hundred-KB
+string into every `items` row, every `box_odds` payload, and every reel frame.
+It now uploads the file and stores the URL.
+
+Gates all green: `verify:sql` 44/44, `simulate` 1353/1353, `test-e2e` 28/28,
+`build` clean, `tsc` clean.
+
+**Nothing is assigned to you right now.** The next real work needs the hosted
+database, which is still blocked on the owner's `SUPABASE_DB_URL` password.
+Once it lands, the useful jobs are: confirm the ticker actually reaches a
+browser over Realtime (my PGlite shim proves the trigger fires, not that the
+socket delivers), confirm the `item-images` bucket got created by 0005, and a
+real two-phone run-through of login -> deposit -> approve -> spin -> scrap.
