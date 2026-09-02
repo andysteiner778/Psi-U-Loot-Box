@@ -47,18 +47,21 @@ every workstream:
 
 ## Auth helpers (use these; do not hand-roll)
 
- is invisible to PostgREST by design, so supabase-js cannot touch the
-sessions or PIN tables directly. Migration 0004 exposes single-verb SECURITY DEFINER
-wrappers in , and  wraps those:
+`app_private` is invisible to PostgREST by design, so supabase-js cannot touch
+the sessions or PIN tables directly — that is what makes it a hard boundary
+rather than a policy someone could misconfigure later. Migration 0004 exposes
+single-verb `SECURITY DEFINER` wrappers in `public` (granted to `service_role`
+only), and `lib/session.ts` wraps those. Note the single-verb design: there is
+no function anywhere that returns a PIN hash.
 
 | Helper | Does |
 |---|---|
-|  | Verifies the PIN **and** opens the session. Returns . Throws with  when locked out. |
-|  | First-login PIN change. |
-|  |  for the login dropdown. Server-side only. |
-|  |  — adds . |
-|  /  | Throw 401 / 403. |
-|  | Sign out. |
+| `login(name, pin)` | Verifies the PIN **and** opens the session. Returns `SessionUserFull \| null`. Throws with `code === 'PT429'` when locked out. |
+| `setPin(profileId, pin)` | First-login PIN change. |
+| `playerRoster()` | `{id, name}[]` for the login dropdown. Server-side only. |
+| `getSession()` | `SessionUserFull \| null` — adds `mustChangePin`. |
+| `requireUser()` / `requireAdmin()` | Throw 401 / 403. |
+| `destroySession()` | Sign out. |
 
 ## Server contract
 
