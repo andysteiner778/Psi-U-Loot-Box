@@ -1,3 +1,5 @@
+import { AdminUnlock } from '@/components/admin/AdminUnlock';
+import { adminPinConfigured } from '@/lib/admin-lock';
 import { adminPageGate } from '../_lib/guard';
 import { PlayerRoster } from '@/components/admin/PlayerRoster';
 import Link from 'next/link';
@@ -7,6 +9,14 @@ export const dynamic = 'force-dynamic';
 
 export default async function AdminPlayersPage() {
   const gate = await adminPageGate();
+
+  if (!gate.ok && gate.reason === 'locked') {
+    return (
+      <main className="flex min-h-dvh items-center justify-center bg-gun-950 p-4 text-white">
+        <AdminUnlock configured={adminPinConfigured()} />
+      </main>
+    );
+  }
 
   if (!gate.ok) {
     return (

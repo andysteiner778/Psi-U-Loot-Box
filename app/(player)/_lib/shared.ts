@@ -42,7 +42,7 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
   shards_required: 5,
   scrap_coins_per_key: 100,
   scrap_key_tier: 'tier_2',
-  pc_value: 600,
+  pc_value: 400,
   base_prices: { tier_1: 5, tier_2: 20, tier_3: 50 },
 };
 

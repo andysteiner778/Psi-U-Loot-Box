@@ -55,6 +55,13 @@ export const WINNER_POSITION = 50;
 export const NEAR_MISS_INDEX = NEAR_MISS_POSITION - 1; // 48
 export const WINNER_INDEX = WINNER_POSITION - 1; //       49
 
+/**
+ * Probability that a given spin gets a near-miss card at all.
+ * ~0.45 means most players see one every one to three openings, which reads as
+ * luck rather than as a scripted beat.
+ */
+export const NEAR_MISS_CHANCE = 0.45;
+
 /** Rarities that qualify as near-miss bait. */
 export const BAIT_RARITIES: readonly Rarity[] = ['gold', 'pink'];
 
@@ -157,17 +164,27 @@ export function buildReel(
     cards[i] = { ...src, id: `reel-${i}-${src.id}`, isWinner: false, isNearMiss: false };
   }
 
-  const bait =
-    pool.find((c) => c.rarity === 'gold') ??
-    pool.find((c) => c.rarity === 'pink') ??
-    SHARD_BAIT;
+  // The near-miss is DELIBERATELY not guaranteed.
+  //
+  // Firing it on every single spin makes it predictable: after three or four
+  // openings a player learns that the card before the line is always a fake
+  // jackpot, and the tension it exists to create evaporates. Landing it on
+  // roughly half of spins keeps it unpredictable -- typically one in every one
+  // to three openings -- which is what makes the occasional real gold land
+  // feel earned.
+  if (rng() < NEAR_MISS_CHANCE) {
+    const bait =
+      pool.find((c) => c.rarity === 'gold') ??
+      pool.find((c) => c.rarity === 'pink') ??
+      SHARD_BAIT;
 
-  cards[NEAR_MISS_INDEX] = {
-    ...bait,
-    id: `reel-${NEAR_MISS_INDEX}-bait`,
-    isNearMiss: true,
-    isWinner: false,
-  };
+    cards[NEAR_MISS_INDEX] = {
+      ...bait,
+      id: `reel-${NEAR_MISS_INDEX}-bait`,
+      isNearMiss: true,
+      isWinner: false,
+    };
+  }
 
   cards[WINNER_INDEX] = {
     ...cardFromResult(winner),

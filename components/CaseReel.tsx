@@ -62,8 +62,10 @@ export function CaseReel({
     viewportWidth: typeof window !== 'undefined' ? window.innerWidth : 800,
   });
 
-  // Build the 60-card strip with card 49 bait and card 50 winner
+  // Build the 60-card strip. The near-miss in slot 49 is probabilistic, so
+  // some spins have no bait at all -- see NEAR_MISS_CHANCE in lib/reel.ts.
   const cards = useMemo(() => buildReel(winner, decoys), [winner, decoys]);
+  const hasNearMiss = useMemo(() => cards.some((c) => c.isNearMiss), [cards]);
 
   // Measure container viewport width
   useLayoutEffect(() => {
@@ -100,11 +102,16 @@ export function CaseReel({
         const times = tickTimes(REEL_DURATION_MS, fractions, REEL_EASE);
         cancelTicks = sfx.scheduleTicks(times);
 
-        // Cue near miss sound
-        const cueTime = nearMissCueMs(REEL_DURATION_MS, g, REEL_EASE);
-        nearMissTimer = setTimeout(() => {
-          sfx.playNearMissWhoosh();
-        }, Math.max(0, cueTime));
+        // Only cue the whoosh when there is actually a near-miss card to
+        // narrate. Playing it on a spin with no bait is a false tell: the
+        // player hears the tension sting, sees an ordinary card, and learns
+        // the sound means nothing.
+        if (hasNearMiss) {
+          const cueTime = nearMissCueMs(REEL_DURATION_MS, g, REEL_EASE);
+          nearMissTimer = setTimeout(() => {
+            sfx.playNearMissWhoosh();
+          }, Math.max(0, cueTime));
+        }
       }
 
       // Animate track translation using Framer Motion
@@ -150,13 +157,13 @@ export function CaseReel({
       if (nearMissTimer) clearTimeout(nearMissTimer);
       if (finishTimer) clearTimeout(finishTimer);
     };
-  }, [winner, geometry, controls, onFinished, prefersReducedMotion]);
+  }, [winner, geometry, controls, onFinished, prefersReducedMotion, hasNearMiss]);
 
   const winnerCard = cardFromResult(winner);
   const winColor = RARITY_COLOR[winner.rarity] || '#3b82f6';
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-y-auto bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-300">
       {/* Background radial glow */}
       <div
         className="pointer-events-none absolute h-[500px] w-[500px] rounded-full opacity-20 blur-3xl transition-colors duration-1000"
@@ -173,7 +180,7 @@ export function CaseReel({
         {onClose && !spinning && (
           <button
             onClick={onClose}
-            className="rounded-full bg-gun-800 p-2 text-gun-300 transition hover:bg-gun-700 hover:text-white"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-gun-800 p-2 text-gun-300 transition hover:bg-gun-700 hover:text-white"
           >
             <X className="h-5 w-5" />
           </button>
@@ -226,12 +233,11 @@ export function CaseReel({
                 style={{
                   width: `${CARD_WIDTH}px`,
                   height: '220px',
-                  boxShadow:
-                    isTarget && revealed
-                      ? `0 0 25px ${cardColor}`
-                      : card.isNearMiss
-                        ? '0 0 15px rgba(236, 72, 153, 0.4)'
-                        : undefined,
+                  // No special glow for the near-miss card. Giving it a shadow
+                  // nothing else had marked it out visually, which told the
+                  // player which card was the fake before it even arrived. Its
+                  // rarity colour is the only signal it should carry.
+                  boxShadow: isTarget && revealed ? `0 0 25px ${cardColor}` : undefined,
                 }}
               >
                 {/* Rarity Tag */}
@@ -242,9 +248,11 @@ export function CaseReel({
                   >
                     {card.rarity}
                   </span>
-                  {card.isNearMiss && (
-                    <span className="text-[10px] text-pink-400 animate-pulse font-bold">BAIT</span>
-                  )}
+                  {/* The near-miss card is deliberately NOT labelled. Marking it
+                      announced the trick and killed the tension it exists to
+                      create -- the whole effect depends on the player believing
+                      that card might land. It still reads as a big pull because
+                      of its rarity colour, which is the honest tell. */}
                 </div>
 
                 {/* Card Graphic */}
@@ -356,7 +364,7 @@ export function CaseReel({
             {onSpinAgain && (
               <button
                 onClick={onSpinAgain}
-                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3 font-bold text-white shadow-lg transition hover:brightness-110 active:scale-95"
+                className="flex-1 flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3 font-bold text-white shadow-lg transition hover:brightness-110 active:scale-95"
               >
                 <RefreshCw className="h-4 w-4" />
                 <span>Spin Again</span>
@@ -366,7 +374,7 @@ export function CaseReel({
             {onClose && (
               <button
                 onClick={onClose}
-                className="flex-1 rounded-xl border border-gun-600 bg-gun-800 px-4 py-3 font-semibold text-gun-200 transition hover:bg-gun-700 hover:text-white"
+                className="flex-1 flex min-h-[44px] items-center justify-center rounded-xl border border-gun-600 bg-gun-800 px-4 py-3 font-semibold text-gun-200 transition hover:bg-gun-700 hover:text-white"
               >
                 Done
               </button>

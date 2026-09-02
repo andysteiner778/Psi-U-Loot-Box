@@ -145,7 +145,7 @@ export function LoginForm({ roster, initialMustChange = false, userName = '' }: 
           <button
             type="submit"
             disabled={loading || newPin.length !== 4 || confirmPin.length !== 4}
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 py-3 font-bold text-black shadow-lg shadow-yellow-500/20 transition hover:brightness-110 active:scale-95 disabled:opacity-50"
+            className="w-full flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 py-3 font-bold text-black shadow-lg shadow-yellow-500/20 transition hover:brightness-110 active:scale-95 disabled:opacity-50"
           >
             <ShieldCheck className="h-4 w-4" />
             <span>{loading ? 'Saving...' : 'Set PIN & Enter Game'}</span>
@@ -213,7 +213,7 @@ export function LoginForm({ roster, initialMustChange = false, userName = '' }: 
         <button
           type="submit"
           disabled={loading || !name || pin.length !== 4}
-          className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 py-3 font-bold text-white shadow-lg shadow-purple-600/30 transition hover:brightness-110 active:scale-95 disabled:opacity-50"
+          className="w-full flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 py-3 font-bold text-white shadow-lg shadow-purple-600/30 transition hover:brightness-110 active:scale-95 disabled:opacity-50"
         >
           <span>{loading ? 'Authenticating...' : 'Sign In'}</span>
           <ArrowRight className="h-4 w-4" />

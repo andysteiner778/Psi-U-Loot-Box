@@ -42,7 +42,7 @@
 import type { BoxOdds, BoxTier, EconomyConfig, Item, ItemOdds, Rarity } from './types';
 
 export const DEFAULT_CONFIG: EconomyConfig = {
-  house_margin: 0.05,
+  house_margin: 0.125,
   pot_revenue_threshold: 400.0,
   box_prices: { tier_1: 5, tier_2: 20, tier_3: 50 },
   shard_probs: { tier_1: 0.0075, tier_2: 0.03, tier_3: 0.1 },

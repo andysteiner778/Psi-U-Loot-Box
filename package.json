@@ -14,7 +14,9 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "tune": "tsx scripts/tune.ts",
     "verify:sql": "tsx scripts/verify-sql.ts",
-    "verify:live": "tsx scripts/verify-live.ts"
+    "verify:live": "tsx scripts/verify-live.ts",
+    "pin": "tsx scripts/pin-tool.ts",
+    "shards": "tsx scripts/shards.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

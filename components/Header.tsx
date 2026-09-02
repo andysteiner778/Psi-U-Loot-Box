@@ -103,7 +103,7 @@ export function Header() {
             <Link
               href="/inventory"
               title="View Scrap & Compactor"
-              className="hidden sm:flex items-center rounded-xl border border-cyan-500/30 bg-gun-950/80 px-3 py-1.5 shadow-inner hover:border-cyan-400 transition"
+              className="hidden sm:flex min-h-[44px] items-center rounded-xl border border-cyan-500/30 bg-gun-950/80 px-3 py-1.5 shadow-inner hover:border-cyan-400 transition"
             >
               <Coins className="h-3.5 w-3.5 text-cyan-400 mr-1.5" />
               <span className="font-mono text-sm font-bold text-cyan-300">
@@ -111,11 +111,20 @@ export function Header() {
               </span>
             </Link>
 
+            {/* Mobile Inventory Link (visible when < md) */}
+            <Link
+              href="/inventory"
+              title="Inventory & Scrap Compactor"
+              className="flex md:hidden min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-gun-750 bg-gun-850 text-gun-300 hover:border-purple-500/40 hover:text-white transition"
+            >
+              <Layers className="h-4 w-4 text-purple-400" />
+            </Link>
+
             {/* Mute Button */}
             <button
               onClick={handleToggleSound}
               title={isMuted ? 'Unmute' : 'Mute'}
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-gun-750 bg-gun-850 text-gun-300 hover:border-gun-600 hover:text-white transition"
+              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-gun-750 bg-gun-850 text-gun-300 hover:border-gun-600 hover:text-white transition"
             >
               {isMuted ? <VolumeX className="h-4 w-4 text-red-400" /> : <Volume2 className="h-4 w-4 text-emerald-400" />}
             </button>
@@ -124,7 +133,7 @@ export function Header() {
             {user.role === 'admin' && (
               <Link
                 href="/admin"
-                className="flex items-center gap-1 rounded-xl border border-purple-500/40 bg-purple-950/50 px-2.5 py-1.5 text-xs font-mono font-bold text-purple-300 hover:bg-purple-900/60 transition shadow-sm"
+                className="flex min-h-[44px] items-center gap-1.5 rounded-xl border border-purple-500/40 bg-purple-950/50 px-3 py-2 text-xs font-mono font-bold text-purple-300 hover:bg-purple-900/60 transition shadow-sm"
               >
                 <Shield className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Admin</span>
@@ -140,7 +149,7 @@ export function Header() {
                 onClick={handleLogout}
                 disabled={loggingOut}
                 title="Sign Out"
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-gun-750 bg-gun-850 text-gun-400 hover:border-red-500/40 hover:bg-red-950/40 hover:text-red-300 transition"
+                className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-gun-750 bg-gun-850 text-gun-400 hover:border-red-500/40 hover:bg-red-950/40 hover:text-red-300 transition"
               >
                 <LogOut className="h-4 w-4" />
               </button>

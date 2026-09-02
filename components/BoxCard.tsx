@@ -22,6 +22,7 @@ export function BoxCard({ odds, isFlashSale = false }: BoxCardProps) {
   const [inspectOpen, setInspectOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
   const [spinning, setSpinning] = useState(false);
+  const [opening, setOpening] = useState(false);
   const [activeWinner, setActiveWinner] = useState<OpenBoxResult | null>(null);
 
   const tier = odds.tier;
@@ -40,11 +41,13 @@ export function BoxCard({ odds, isFlashSale = false }: BoxCardProps) {
   const isCleanedOut = unitsLeft === 0 && odds.filler.length === 0;
 
   const handleOpen = async () => {
+    if (opening || spinning) return;
     if (!hasFunds) {
       setDepositOpen(true);
       return;
     }
 
+    setOpening(true);
     // Optimistic balance adjustment for instant UI tap feedback
     adjust({ balance: -effectivePrice });
 
@@ -65,6 +68,8 @@ export function BoxCard({ odds, isFlashSale = false }: BoxCardProps) {
       adjust({ balance: effectivePrice });
       sfx.playError();
       toast('Network error rolling box. Please retry.', 'bad');
+    } finally {
+      setOpening(false);
     }
   };
 
@@ -147,7 +152,7 @@ export function BoxCard({ odds, isFlashSale = false }: BoxCardProps) {
             {/* Inspect Button */}
             <button
               onClick={() => setInspectOpen(true)}
-              className="flex items-center justify-center gap-1.5 rounded-xl border border-gun-700 bg-gun-800/80 py-3 text-xs font-semibold text-gun-300 hover:border-gun-600 hover:text-white transition"
+              className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-gun-700 bg-gun-800/80 py-3 text-xs font-semibold text-gun-300 hover:border-gun-600 hover:text-white transition"
               title="View Loot Table & Realtime Odds"
             >
               <Eye className="h-4 w-4" />
@@ -157,20 +162,27 @@ export function BoxCard({ odds, isFlashSale = false }: BoxCardProps) {
             {/* Open Button */}
             <button
               onClick={handleOpen}
-              disabled={isCleanedOut}
+              disabled={isCleanedOut || opening || spinning}
               title={isCleanedOut ? 'Every item in this tier has been won' : undefined}
-              className={`col-span-2 flex items-center justify-center gap-2 rounded-xl py-3 font-mono font-bold text-sm shadow-xl transition active:scale-95 ${
+              className={`col-span-2 flex min-h-[44px] items-center justify-center gap-2 rounded-xl py-3 font-mono font-bold text-sm shadow-xl transition active:scale-95 ${
                 isCleanedOut
                   ? 'cursor-not-allowed border border-gun-700 bg-gun-850 text-gun-400 shadow-none active:scale-100'
-                  : hasFunds
-                    ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-indigo-600/30 hover:brightness-110'
-                    : 'bg-gun-800 text-gun-400 border border-gun-700 cursor-pointer hover:border-gun-600'
+                  : opening || spinning
+                    ? 'cursor-wait border border-indigo-500/50 bg-indigo-950/60 text-indigo-300 shadow-none active:scale-100'
+                    : hasFunds
+                      ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-indigo-600/30 hover:brightness-110'
+                      : 'bg-gun-800 text-gun-400 border border-gun-700 cursor-pointer hover:border-gun-600'
               }`}
             >
               {isCleanedOut ? (
                 <>
                   <PackageOpen className="h-4 w-4" />
                   <span>Cleaned Out</span>
+                </>
+              ) : opening ? (
+                <>
+                  <Sparkles className="h-4 w-4 animate-spin" />
+                  <span>Rolling…</span>
                 </>
               ) : (
                 <>
@@ -181,7 +193,7 @@ export function BoxCard({ odds, isFlashSale = false }: BoxCardProps) {
             </button>
 
             {isCleanedOut && (
-              <p className="col-span-2 -mt-1 text-center text-[11px] leading-snug text-gun-400">
+              <p className="col-span-3 -mt-1 text-center text-[11px] leading-snug text-gun-400">
                 Every item in this tier has been won. Spinning now would only
                 refund you — try another tier.
               </p>

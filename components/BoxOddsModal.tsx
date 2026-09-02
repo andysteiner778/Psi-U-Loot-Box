@@ -60,8 +60,14 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
               <span className="text-yellow-300 font-bold text-sm">{pct(odds.p_shard)}</span>
             </div>
             <div className="rounded-xl bg-cyan-950/30 p-3 border border-cyan-500/20">
-              <span className="text-cyan-400 block text-[10px]">Scrap Consolation</span>
-              <span className="text-cyan-300 font-bold text-sm">+{odds.scrap_coins_awarded} coins</span>
+              <span className="text-cyan-400 block text-[10px]">
+                {odds.floor_kind === 'item' ? 'Floor Prize' : 'Scrap Consolation'}
+              </span>
+              <span className="text-cyan-300 font-bold text-sm">
+                {odds.floor_kind === 'item'
+                  ? `House Item (~$${odds.floor_value.toFixed(2)})`
+                  : `+${odds.scrap_coins_awarded} coins`}
+              </span>
             </div>
           </div>
 
@@ -89,11 +95,20 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
                 <span className="font-bold text-blue-400">{pct(odds.p_respin)}</span>
               </div>
 
-              {/* Floor Scrap Anchor */}
+              {/* Floor Anchor */}
               <div className="flex items-center justify-between rounded-xl bg-gun-950 border border-gun-800 p-3">
                 <div className="flex items-center gap-2">
-                  <Skull className="h-4 w-4 text-gun-400" />
-                  <span className="text-gun-300">Scrap Coins</span>
+                  {odds.floor_kind === 'item' ? (
+                    <>
+                      <Package className="h-4 w-4 text-cyan-400" />
+                      <span className="text-gun-200">Floor Junk Item</span>
+                    </>
+                  ) : (
+                    <>
+                      <Skull className="h-4 w-4 text-gun-400" />
+                      <span className="text-gun-300">Scrap Coins</span>
+                    </>
+                  )}
                 </div>
                 <span className="font-bold text-gun-400">{pct(odds.p_scrap)}</span>
               </div>
@@ -104,10 +119,10 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-gun-300">
-                Physical Loot Pool ({odds.items.length} items)
+                Physical Loot Pool ({odds.items.length} native prizes)
               </h3>
               <span className="text-[11px] font-mono text-emerald-400 font-semibold">
-                Total Item Chance: {pct(odds.p_physical)}
+                Total Physical Chance: {pct(odds.p_physical + (odds.floor_kind === 'item' ? odds.p_scrap : 0))}
               </span>
             </div>
 
@@ -173,7 +188,7 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
         <div className="border-t border-gun-800 p-4 bg-gun-950/60 flex justify-end">
           <button
             onClick={onClose}
-            className="rounded-xl bg-gun-800 px-5 py-2 text-xs font-semibold text-white hover:bg-gun-700 transition"
+            className="flex min-h-[44px] items-center justify-center rounded-xl bg-gun-800 px-6 py-2.5 text-xs font-semibold text-white hover:bg-gun-700 transition"
           >
             Close
           </button>

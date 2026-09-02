@@ -88,13 +88,13 @@ export function InventoryView({ initialItems, recentRolls }: InventoryViewProps)
             <div className="flex items-center justify-center gap-3 pt-2">
               <Link
                 href="/"
-                className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg hover:brightness-110 transition"
+                className="flex min-h-[44px] items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg hover:brightness-110 transition"
               >
                 Open Boxes ↗
               </Link>
               <button
                 onClick={() => setDepositOpen(true)}
-                className="rounded-xl border border-gun-700 bg-gun-800 px-4 py-2.5 text-xs font-semibold text-gun-200 hover:border-emerald-500/50 hover:text-emerald-300 transition"
+                className="flex min-h-[44px] items-center justify-center rounded-xl border border-gun-700 bg-gun-800 px-4 py-2.5 text-xs font-semibold text-gun-200 hover:border-emerald-500/50 hover:text-emerald-300 transition"
               >
                 + Deposit via Venmo
               </button>
@@ -162,13 +162,13 @@ export function InventoryView({ initialItems, recentRolls }: InventoryViewProps)
                       <button
                         onClick={() => handleScrap(roll)}
                         disabled={isScrapping}
-                        className="w-full flex items-center justify-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-950/40 py-2.5 font-mono text-xs font-bold text-cyan-300 shadow-sm transition hover:bg-cyan-900/60 active:scale-95 disabled:opacity-50"
+                        className="w-full flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-950/40 py-2.5 font-mono text-xs font-bold text-cyan-300 shadow-sm transition hover:bg-cyan-900/60 active:scale-95 disabled:opacity-50"
                       >
                         <Trash2 className="h-3.5 w-3.5 text-cyan-400" />
                         <span>{isScrapping ? 'Recycling...' : `Scrap for +${scrapCoins} Coins`}</span>
                       </button>
                     ) : (
-                      <div className="flex items-center justify-center gap-1.5 rounded-xl bg-amber-950/40 border border-amber-500/40 py-2 px-2 text-center text-[11px] font-mono font-semibold text-amber-300">
+                      <div className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-amber-950/40 border border-amber-500/40 py-2 px-2 text-center text-[11px] font-mono font-semibold text-amber-300">
                         <MapPin className="h-3.5 w-3.5 text-amber-400 shrink-0" />
                         <span>Physical Pickup (Room 4)</span>
                       </div>

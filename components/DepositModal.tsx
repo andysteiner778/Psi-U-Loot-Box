@@ -68,7 +68,7 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
         {/* Close Button */}
         <button
           onClick={handleReset}
-          className="absolute right-4 top-4 rounded-full bg-gun-800 p-1.5 text-gun-400 hover:bg-gun-700 hover:text-white transition"
+          className="absolute right-3 top-3 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-gun-800 p-2 text-gun-400 hover:bg-gun-700 hover:text-white transition"
         >
           <X className="h-4 w-4" />
         </button>
@@ -122,7 +122,7 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
                         setAmount(amt);
                         setCustomAmount('');
                       }}
-                      className={`rounded-xl py-2.5 font-mono text-sm font-bold border transition ${
+                      className={`flex min-h-[44px] items-center justify-center rounded-xl py-2.5 font-mono text-sm font-bold border transition ${
                         !customAmount && amount === amt
                           ? 'border-emerald-500 bg-emerald-950/60 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.3)]'
                           : 'border-gun-750 bg-gun-850 text-gun-300 hover:border-gun-600 hover:text-white'
@@ -147,7 +147,7 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
                     placeholder="Other amount..."
                     value={customAmount}
                     onChange={(e) => setCustomAmount(e.target.value)}
-                    className="w-full rounded-xl border border-gun-700 bg-gun-950 py-2 pl-7 pr-3 font-mono text-sm text-white placeholder-gun-500 focus:border-emerald-500 focus:outline-none"
+                    className="w-full min-h-[44px] rounded-xl border border-gun-700 bg-gun-950 py-2 pl-7 pr-3 font-mono text-sm text-white placeholder-gun-500 focus:border-emerald-500 focus:outline-none"
                   />
                 </div>
               </div>
@@ -155,7 +155,7 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
               <button
                 type="submit"
                 disabled={submitting || !activeAmount || activeAmount <= 0}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3 font-bold text-white shadow-lg shadow-emerald-600/30 transition hover:brightness-110 active:scale-95 disabled:opacity-50"
+                className="w-full flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3 font-bold text-white shadow-lg shadow-emerald-600/30 transition hover:brightness-110 active:scale-95 disabled:opacity-50"
               >
                 <Send className="h-4 w-4" />
                 <span>{submitting ? 'Submitting...' : `I Sent $${activeAmount || 0} via Venmo`}</span>
@@ -177,7 +177,7 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
             </p>
             <button
               onClick={handleReset}
-              className="w-full rounded-xl bg-gun-800 py-2.5 font-semibold text-white hover:bg-gun-700 transition"
+              className="w-full flex min-h-[44px] items-center justify-center rounded-xl bg-gun-800 py-2.5 font-semibold text-white hover:bg-gun-700 transition"
             >
               Back to Boxes
             </button>

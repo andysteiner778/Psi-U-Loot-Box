@@ -138,7 +138,7 @@ CREATE TABLE public.config (
 -- Every tunable the economy reads. Nothing is hardcoded in the RPC, so all of
 -- this is hot-editable mid-party from the admin dashboard.
 INSERT INTO public.config (key, value) VALUES ('settings', jsonb_build_object(
-  'house_margin',          0.05,
+  'house_margin',          0.125,
   'pot_revenue_threshold', 400.00,
   'box_prices',            jsonb_build_object('tier_1', 5, 'tier_2', 20, 'tier_3', 50),
   'shard_probs',           jsonb_build_object('tier_1', 0.0075, 'tier_2', 0.03, 'tier_3', 0.10),

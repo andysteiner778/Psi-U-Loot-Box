@@ -26,7 +26,7 @@ export function ShardHud({
 
   const shardsHeld = stats.pc_shards;
   const shardsReq = config.shards_required || 5;
-  const pcValue = config.pc_value || 600;
+  const pcValue = config.pc_value || 400;
   const hasCompletedPc = shardsHeld >= shardsReq;
 
   const handleClaimPc = async () => {
@@ -145,10 +145,10 @@ export function ShardHud({
               <button
                 onClick={handleClaimPc}
                 disabled={claiming}
-                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 px-4 py-2 text-xs font-bold uppercase tracking-wider text-black shadow-lg shadow-yellow-500/30 transition hover:brightness-110 active:scale-95 disabled:opacity-50 animate-pulse"
+                className="flex min-h-[44px] items-center gap-2 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 px-4 py-2 text-xs font-bold uppercase tracking-wider text-black shadow-lg shadow-yellow-500/30 transition hover:brightness-110 active:scale-95 disabled:opacity-50 animate-pulse"
               >
                 <Trophy className="h-4 w-4" />
-                <span>{claiming ? 'Claiming...' : 'Claim $800 Gaming PC'}</span>
+                <span>{claiming ? 'Claiming...' : `Claim $${pcValue} Gaming PC`}</span>
               </button>
             )}
 
@@ -156,7 +156,7 @@ export function ShardHud({
             {shardsHeld > 0 && !hasCompletedPc && (
               <button
                 onClick={() => setShowSalvageModal(true)}
-                className="rounded-xl border border-gun-700 bg-gun-850 px-3 py-1.5 text-xs font-mono text-gun-300 transition hover:border-gun-600 hover:text-white"
+                className="flex min-h-[44px] items-center rounded-xl border border-gun-700 bg-gun-850 px-3.5 py-2 text-xs font-mono text-gun-300 transition hover:border-gun-600 hover:text-white"
               >
                 Salvage Shards ($20 ea)
               </button>
@@ -217,7 +217,7 @@ export function ShardHud({
             </div>
             <h2 className="text-3xl font-black text-white">GAMING PC CLAIMED!</h2>
             <p className="mt-3 text-sm text-gun-300 leading-relaxed">
-              You successfully forged all 5 PC Core Shards! The house $800 custom gaming rig is
+              You successfully forged all 5 PC Core Shards! The house ${pcValue} custom gaming rig is
               yours.
             </p>
             <div className="my-6 rounded-2xl bg-gun-950 p-4 border border-yellow-500/30">
@@ -230,7 +230,7 @@ export function ShardHud({
             </div>
             <button
               onClick={() => setShowWinModal(false)}
-              className="w-full rounded-xl bg-yellow-500 py-3 font-bold text-black transition hover:bg-yellow-400 active:scale-95 shadow-lg shadow-yellow-500/30"
+              className="w-full min-h-[44px] rounded-xl bg-yellow-500 py-3 font-bold text-black transition hover:bg-yellow-400 active:scale-95 shadow-lg shadow-yellow-500/30"
             >
               Close & Celebrate
             </button>

@@ -101,7 +101,7 @@ export function ScrapCompactor() {
             disabled={!canCompact || crunching}
             animate={crunching ? { scale: [1, 0.9, 1.05, 1], rotate: [0, -2, 2, 0] } : {}}
             transition={{ duration: 0.8 }}
-            className={`flex items-center justify-center gap-2 rounded-xl px-5 py-3 font-mono text-sm font-bold shadow-lg transition active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed ${
+            className={`flex min-h-[44px] items-center justify-center gap-2 rounded-xl px-5 py-3 font-mono text-sm font-bold shadow-lg transition active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed ${
               canCompact
                 ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-cyan-500/25 hover:brightness-110 animate-pulse'
                 : 'bg-gun-800 text-gun-400 border border-gun-700'
