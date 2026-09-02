@@ -357,14 +357,17 @@ BEGIN
     IF v_affected = 1 THEN
       v_scrap_val := CASE WHEN v_it->>'rarity' IN ('purple','pink','gold')
                           THEN 0 ELSE (v_it->>'scrap_value')::INT END;
+      -- NOTE: box_odds emits the key `name`, not `item_name`. Reading the wrong
+      -- key here inserted NULL into rolls.item_name and threw a not-null
+      -- violation on EVERY physical win -- the single most common success path.
       INSERT INTO public.rolls (user_id, box_tier, kind, item_id, item_name, item_rarity,
                                 status, box_price, client_roll_id)
       VALUES (p_user_id, p_box_tier, 'physical', (v_it->>'item_id')::UUID,
-              v_it->>'item_name', v_it->>'rarity', 'inventory', v_price, p_client_roll_id)
+              v_it->>'name', v_it->>'rarity', 'inventory', v_price, p_client_roll_id)
       RETURNING id INTO v_roll_id;
 
       v_result := jsonb_build_object(
-        'type','physical', 'item_id', v_it->>'item_id', 'item_name', v_it->>'item_name',
+        'type','physical', 'item_id', v_it->>'item_id', 'item_name', v_it->>'name',
         'image_url', v_it->'image_url', 'rarity', v_it->>'rarity',
         'est_value', (v_it->>'est_value')::NUMERIC, 'scrap_value', v_scrap_val,
         'roll_id', v_roll_id);

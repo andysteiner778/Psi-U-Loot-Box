@@ -360,3 +360,44 @@ side. Both now read the same config key. If you touch either, keep them in
 lockstep and re-run `npm run simulate`.
 
 Current state: `simulate` PASS 1353/1353, `tsc` clean, `build` clean.
+
+---
+
+# 2026-09-02, fourth pass — the SQL has now actually been executed
+
+`npm run verify:sql` is new. It applies all four migrations plus `seed.sql` to a
+**real PostgreSQL 18** (PGlite — Postgres compiled to WASM, in-process, no
+Docker, no hosted project) and then exercises the RPCs for real: 400 live rolls,
+idempotency, the pot gate, lockout, sessions, deposits, the ticker trigger, and
+the lockdown grants. **43 checks, 0 failures.**
+
+Please run it before any SQL change from now on. `npm run simulate` proves the
+TypeScript engine is solvent; it cannot catch a typo in PL/pgSQL.
+
+## It immediately found a bug that would have broken the party
+
+`box_odds` emits each item under the key **`name`**. `open_box`'s physical-win
+branch was reading **`item_name`**. That is NULL, so every physical win hit a
+not-null violation on `rolls.item_name` and threw.
+
+That is the single most common success path in the game. It passed review, it
+passed `tsc`, it passed the 1353-assertion solvency gate, and it passed the
+28-assertion E2E suite — because all of those exercise the *TypeScript* mirror,
+not the SQL. Nothing that existed before could have caught it.
+
+Fixed, and the branch now carries a comment explaining the key mismatch.
+
+## One behaviour worth knowing about
+
+Across 400 live rolls the outcome split was `physical 49, respin 321, scrap 30`.
+The heavy respin share is correct, not a bug: the 50-unit catalog depletes fast,
+and once a tier is empty the engine has nothing physical to give, so the budget
+flows to the ceiling anchor and players are simply refunded.
+
+That is a good failure mode — the house stops taking money once it has nothing
+to sell. But **the UI currently does not say so**, and a player spinning an empty
+tier just sees "Free Re-Roll" over and over and will assume it is broken.
+
+**Please add an empty-tier state**: when `box_odds` reports no items in stock,
+the box card should say the tier is cleared out and steer the player elsewhere,
+rather than letting them spin a vending machine with nothing in it.
