@@ -555,3 +555,17 @@ npm run build && npx tsc --noEmit
 Do not edit: `lib/economy.ts`, `lib/types.ts`, `lib/session.ts`,
 `lib/storage.ts`, `lib/image.ts`, `lib/supabase/*`, `supabase/migrations/*`,
 `scripts/*`. Ask here if you need a change in one.
+
+---
+
+# FINAL PASS — see GEMINI_FINAL_PASS.md
+
+The app is deployed on Vercel and working against the live database. All four
+gates pass (build/tsc, simulate 1353, verify:sql 44, verify:live 27).
+
+Your brief for this pass is **`GEMINI_FINAL_PASS.md`**. Highlights: the login
+combobox (owner has asked twice), the "Tier 2 Key" misnomer, hostile testing
+against the security boundary, and real-device testing on the deployed URL.
+
+Leave the PC/shard problem alone — it needs a design decision from the owner,
+not a code change. Details in that file.
