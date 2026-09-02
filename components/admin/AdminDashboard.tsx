@@ -19,11 +19,14 @@ import {
   Sliders,
   Trash2,
   Lock,
+  Users,
 } from 'lucide-react';
 import { uploadItemPhoto } from '@/lib/image';
 import type { BoxTier, EconomyConfig, Item, Rarity, SessionUser } from '@/lib/types';
 import { RARITIES, BOX_TIERS, RARITY_COLOR, RARITY_LABEL, isScrappable } from '@/lib/types';
+import { rarityForValue, tierForValue } from '@/lib/economy';
 import { usd, pct, oneIn, ago, countdown, TIER_LABEL } from './format';
+import { PlayerRoster } from './PlayerRoster';
 
 export interface AdminDashboardProps {
   admin: SessionUser;
@@ -42,7 +45,7 @@ export function AdminDashboard({
   initialOverrides,
   roster,
 }: AdminDashboardProps) {
-  const [tab, setTab] = useState<'deposits' | 'vision' | 'controls' | 'solvency'>('deposits');
+  const [tab, setTab] = useState<'deposits' | 'vision' | 'controls' | 'solvency' | 'players'>('deposits');
   const [config, setConfig] = useState<EconomyConfig>(initialConfig);
   const [deposits, setDeposits] = useState<any[]>(initialDeposits);
   const [items, setItems] = useState<Item[]>(initialItems);
@@ -50,7 +53,8 @@ export function AdminDashboard({
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{ text: string; type: 'good' | 'bad' } | null>(null);
 
-  // Vision scanner state
+  // Vision scanner & Quick Add state
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const [scanImage, setScanImage] = useState<string | null>(null);
   const [scanMediaType, setScanMediaType] = useState<string>('image/jpeg');
   const [scanning, setScanning] = useState(false);
@@ -68,10 +72,10 @@ export function AdminDashboard({
   }>({
     name: '',
     description: '',
-    est_value: '25.00',
+    est_value: '4.00',
     box_tier: 'tier_1',
     rarity: 'grey',
-    scrap_value: '250',
+    scrap_value: '40',
     stock_qty: '1',
     image_url: '',
   });
@@ -271,39 +275,60 @@ export function AdminDashboard({
     }
   };
 
-  const handleCreateItem = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleEstValueChange = (valStr: string) => {
+    const num = Math.max(0, parseFloat(valStr) || 0);
+    const derivedRarity = rarityForValue(num);
+    const derivedTier = tierForValue(num);
+    const derivedScrap = isScrappable(derivedRarity) ? String(Math.round(num * 10)) : '0';
+
+    setItemForm((prev) => ({
+      ...prev,
+      est_value: valStr,
+      rarity: derivedRarity,
+      box_tier: derivedTier,
+      scrap_value: derivedScrap,
+    }));
+  };
+
+  const handleCreateItem = async (e?: React.FormEvent, keepFocus = false) => {
+    if (e) e.preventDefault();
+    if (!itemForm.name.trim()) return;
+
     setLoading(true);
     try {
+      const valNum = Math.max(0.01, parseFloat(itemForm.est_value) || 0.01);
+      const autoRarity = rarityForValue(valNum);
+      const autoTier = tierForValue(valNum);
+      const autoScrap = isScrappable(autoRarity) ? Math.round(valNum * 10) : 0;
+
       const res = await fetch('/api/admin/items', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: itemForm.name,
-          description: itemForm.description,
-          est_value: parseFloat(itemForm.est_value),
-          box_tier: itemForm.box_tier,
-          rarity: itemForm.rarity,
-          scrap_value: parseInt(itemForm.scrap_value, 10),
-          stock_qty: parseInt(itemForm.stock_qty, 10),
-          image_url: itemForm.image_url || null,
+          name: itemForm.name.trim(),
+          description: itemForm.description.trim() || undefined,
+          est_value: valNum,
+          box_tier: autoTier,
+          rarity: autoRarity,
+          scrap_value: autoScrap,
+          stock_qty: parseInt(itemForm.stock_qty || '1', 10),
+          image_url: itemForm.image_url || undefined,
         }),
       });
       const json = await res.json();
       if (json.ok) {
-        showMsg(`Added "${itemForm.name}" to ${itemForm.box_tier}!`);
-        setItemForm({
+        showMsg(`Added "${itemForm.name}" (${autoRarity.toUpperCase()} · ${autoTier})!`);
+        setItemForm((prev) => ({
+          ...prev,
           name: '',
           description: '',
-          est_value: '25.00',
-          box_tier: 'tier_1',
-          rarity: 'grey',
-          scrap_value: '250',
-          stock_qty: '1',
           image_url: '',
-        });
+        }));
         setScanImage(null);
         refreshItems();
+        if (keepFocus && nameInputRef.current) {
+          nameInputRef.current.focus();
+        }
       } else {
         showMsg(json.error || 'Failed to create item', 'bad');
       }
@@ -517,6 +542,18 @@ export function AdminDashboard({
           <Sparkles className="h-4 w-4" />
           <span>Economy Solvency</span>
         </button>
+
+        <button
+          onClick={() => setTab('players')}
+          className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-mono font-bold transition ${
+            tab === 'players'
+              ? 'border-purple-500 text-purple-300'
+              : 'border-transparent text-gun-400 hover:text-white'
+          }`}
+        >
+          <Users className="h-4 w-4" />
+          <span>Players & PINs</span>
+        </button>
       </div>
 
       {/* ========================================================================= */}
@@ -715,18 +752,24 @@ export function AdminDashboard({
             </div>
 
             {/* Right: Item Form */}
-            <form onSubmit={handleCreateItem} className="rounded-2xl border border-gun-700 bg-gun-900/90 p-5 shadow-xl space-y-4">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Plus className="h-5 w-5 text-emerald-400" />
-                <span>Create / Populate Item</span>
-              </h3>
+            <form onSubmit={(e) => handleCreateItem(e, false)} className="rounded-2xl border border-gun-700 bg-gun-900/90 p-5 shadow-xl space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <Plus className="h-5 w-5 text-emerald-400" />
+                  <span>Item Entry & Configuration</span>
+                </h3>
+                <span className="text-[10px] font-mono text-purple-300 bg-purple-950/60 border border-purple-500/30 px-2 py-0.5 rounded-full">
+                  Auto-Tiered by Value
+                </span>
+              </div>
 
               <div>
                 <label className="text-xs font-mono text-gun-300 block mb-1">Item Title</label>
                 <input
+                  ref={nameInputRef}
                   type="text"
                   required
-                  placeholder="e.g., Audioengine A5+ Wireless Speakers"
+                  placeholder="e.g., HDMI Cable / Keychron Keyboard"
                   value={itemForm.name}
                   onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
                   className="w-full rounded-xl border border-gun-700 bg-gun-950 px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
@@ -734,78 +777,27 @@ export function AdminDashboard({
               </div>
 
               <div>
-                <label className="text-xs font-mono text-gun-300 block mb-1">Description / Condition</label>
+                <label className="text-xs font-mono text-gun-300 block mb-1">Description / Location (Optional)</label>
                 <input
                   type="text"
-                  placeholder="e.g., Mint condition, comes with power cables"
+                  placeholder="e.g., Room 4 closet, mint condition"
                   value={itemForm.description}
                   onChange={(e) => setItemForm({ ...itemForm, description: e.target.value })}
                   className="w-full rounded-xl border border-gun-700 bg-gun-950 px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
                 />
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-mono text-gun-300 block mb-1">Est. Value ($)</label>
                   <input
                     type="number"
                     step="0.01"
+                    min="0.01"
                     required
                     value={itemForm.est_value}
-                    onChange={(e) => setItemForm({ ...itemForm, est_value: e.target.value })}
+                    onChange={(e) => handleEstValueChange(e.target.value)}
                     className="w-full rounded-xl border border-gun-700 bg-gun-950 px-3 py-2 font-mono text-sm text-white focus:border-purple-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-mono text-gun-300 block mb-1">Box Tier</label>
-                  <select
-                    value={itemForm.box_tier}
-                    onChange={(e) => setItemForm({ ...itemForm, box_tier: e.target.value as BoxTier })}
-                    className="w-full rounded-xl border border-gun-700 bg-gun-950 px-3 py-2 text-xs font-mono text-white focus:border-purple-500 focus:outline-none"
-                  >
-                    {BOX_TIERS.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-mono text-gun-300 block mb-1">Rarity</label>
-                  <select
-                    value={itemForm.rarity}
-                    onChange={(e) => {
-                      const r = e.target.value as Rarity;
-                      setItemForm({
-                        ...itemForm,
-                        rarity: r,
-                        scrap_value: isScrappable(r) ? itemForm.scrap_value : '0',
-                      });
-                    }}
-                    className="w-full rounded-xl border border-gun-700 bg-gun-950 px-3 py-2 text-xs font-mono text-white focus:border-purple-500 focus:outline-none"
-                  >
-                    {RARITIES.map((r) => (
-                      <option key={r} value={r}>
-                        {r.toUpperCase()}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-mono text-gun-300 block mb-1">
-                    Scrap Coins {isScrappable(itemForm.rarity) ? '' : '(0 - Restricted)'}
-                  </label>
-                  <input
-                    type="number"
-                    disabled={!isScrappable(itemForm.rarity)}
-                    value={isScrappable(itemForm.rarity) ? itemForm.scrap_value : '0'}
-                    onChange={(e) => setItemForm({ ...itemForm, scrap_value: e.target.value })}
-                    className="w-full rounded-xl border border-gun-700 bg-gun-950 px-3 py-2 font-mono text-sm text-white disabled:opacity-40 focus:border-purple-500 focus:outline-none"
                   />
                 </div>
 
@@ -822,13 +814,56 @@ export function AdminDashboard({
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={loading || !itemForm.name}
-                className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3 font-mono text-xs font-bold text-white shadow-lg shadow-emerald-600/30 hover:brightness-110 active:scale-95 disabled:opacity-50"
-              >
-                {loading ? 'Adding Item...' : 'Add Item to Mystery Box Pool'}
-              </button>
+              {/* Auto-derived anti-exploit badges */}
+              <div className="rounded-xl border border-gun-800 bg-gun-950/80 p-3">
+                <span className="text-[10px] font-mono text-gun-400 block mb-2 uppercase tracking-wider">
+                  Mathematical Attributes (Anti-Exploit Protected)
+                </span>
+                <div className="grid grid-cols-3 gap-2 text-center text-xs font-mono">
+                  <div className="rounded-lg bg-gun-900 border border-gun-800 p-2">
+                    <span className="text-gun-500 text-[9px] block">BOX TIER</span>
+                    <span className="font-bold text-indigo-300 uppercase text-[11px]">
+                      {itemForm.box_tier.replace('_', ' ')}
+                    </span>
+                  </div>
+                  <div className="rounded-lg bg-gun-900 border border-gun-800 p-2">
+                    <span className="text-gun-500 text-[9px] block">RARITY</span>
+                    <span
+                      className="font-bold uppercase text-[11px]"
+                      style={{ color: RARITY_COLOR[itemForm.rarity] || '#fff' }}
+                    >
+                      {itemForm.rarity}
+                    </span>
+                  </div>
+                  <div className="rounded-lg bg-gun-900 border border-gun-800 p-2">
+                    <span className="text-gun-500 text-[9px] block">SCRAP COINS</span>
+                    <span className="font-bold text-cyan-300 text-[11px]">
+                      +{itemForm.scrap_value}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                <button
+                  type="submit"
+                  disabled={loading || !itemForm.name.trim()}
+                  className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3 font-mono text-xs font-bold text-white shadow-lg shadow-emerald-600/30 hover:brightness-110 active:scale-95 disabled:opacity-50"
+                >
+                  {loading ? 'Adding...' : 'Add Item'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleCreateItem(undefined, true)}
+                  disabled={loading || !itemForm.name.trim()}
+                  className="w-full rounded-xl border border-indigo-500/40 bg-indigo-950/60 py-3 font-mono text-xs font-bold text-indigo-200 shadow-lg hover:bg-indigo-900/80 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  title="Adds item and readies form for rapid sequential scanning"
+                >
+                  <Zap className="h-3.5 w-3.5 text-indigo-400" />
+                  <span>Quick Add & Next ⚡</span>
+                </button>
+              </div>
             </form>
           </div>
 
@@ -1153,6 +1188,13 @@ export function AdminDashboard({
             </div>
           </div>
         </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 5: PLAYER ROSTER & PIN RESETS */}
+      {/* ========================================================================= */}
+      {tab === 'players' && (
+        <PlayerRoster />
       )}
     </div>
   );

@@ -7,41 +7,17 @@ import type { TickerEvent } from '@/lib/types';
 import { RARITY_COLOR, RARITY_LABEL } from '@/lib/types';
 import { Trophy, Zap, Skull, RefreshCw } from 'lucide-react';
 
-const INITIAL_EVENTS: TickerEvent[] = [
-  {
-    player: 'Tyler',
-    item: 'Audioengine A5+ Speakers',
-    rarity: 'pink',
-    kind: 'physical',
-    tier: 'tier_3',
-    at: new Date().toISOString(),
-  },
-  {
-    player: 'Alex',
-    item: 'PC Core Shard (3/5)',
-    rarity: 'gold',
-    kind: 'shard',
-    tier: 'tier_2',
-    shards: 3,
-    at: new Date().toISOString(),
-  },
-  {
-    player: 'Marcus',
-    item: '144Hz Gaming Monitor',
-    rarity: 'purple',
-    kind: 'physical',
-    tier: 'tier_2',
-    at: new Date().toISOString(),
-  },
-  {
-    player: 'Dave',
-    item: 'HDMI Cable',
-    rarity: 'grey',
-    kind: 'scrap',
-    tier: 'tier_1',
-    at: new Date().toISOString(),
-  },
-];
+/**
+ * The ticker starts EMPTY.
+ *
+ * It previously shipped three fabricated wins -- "Tyler pulled the Audioengine
+ * A5+ Speakers", "Alex found a PC Core Shard (3/5)" -- with names that are not
+ * even in the roster. In an app where people put real money in, that is
+ * fabricated social proof of the exact top prizes: players would believe the
+ * speakers were already gone and that shards were dropping while the pot gate
+ * was still locked. Every line here must correspond to a real roll.
+ */
+const INITIAL_EVENTS: TickerEvent[] = [];
 
 export function Ticker() {
   const [events, setEvents] = useState<TickerEvent[]>(INITIAL_EVENTS);
@@ -136,7 +112,7 @@ export function Ticker() {
         animate={{ x: [0, -1000] }}
         transition={{
           x: {
-            repeat: Infinity,
+            repeat: events.length === 0 ? 0 : Infinity,
             repeatType: 'loop',
             duration: 25,
             ease: 'linear',
@@ -144,9 +120,17 @@ export function Ticker() {
         }}
         className="flex w-max pl-20"
       >
-        {events.map((evt, idx) => formatEvent(evt, idx))}
-        {events.map((evt, idx) => formatEvent(evt, idx + events.length))}
-        {events.map((evt, idx) => formatEvent(evt, idx + events.length * 2))}
+        {events.length === 0 ? (
+          <span className="px-4 py-1 font-mono text-[11px] text-gun-400">
+            No pulls yet &mdash; be the first to open a case.
+          </span>
+        ) : (
+          <>
+            {events.map((evt, idx) => formatEvent(evt, idx))}
+            {events.map((evt, idx) => formatEvent(evt, idx + events.length))}
+            {events.map((evt, idx) => formatEvent(evt, idx + events.length * 2))}
+          </>
+        )}
       </motion.div>
     </div>
   );
