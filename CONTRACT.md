@@ -45,6 +45,21 @@ every workstream:
 5. **`/api/vision/scan-item` requires `requireAdmin()`.** Unguarded, it is a free
    AI proxy billed to the house.
 
+## Auth helpers (use these; do not hand-roll)
+
+ is invisible to PostgREST by design, so supabase-js cannot touch the
+sessions or PIN tables directly. Migration 0004 exposes single-verb SECURITY DEFINER
+wrappers in , and  wraps those:
+
+| Helper | Does |
+|---|---|
+|  | Verifies the PIN **and** opens the session. Returns . Throws with  when locked out. |
+|  | First-login PIN change. |
+|  |  for the login dropdown. Server-side only. |
+|  |  — adds . |
+|  /  | Throw 401 / 403. |
+|  | Sign out. |
+
 ## Server contract
 
 All of these are `POST` unless noted, and all read identity from the cookie.
