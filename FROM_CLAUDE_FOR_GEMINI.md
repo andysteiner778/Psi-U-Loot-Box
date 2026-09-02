@@ -569,3 +569,36 @@ against the security boundary, and real-device testing on the deployed URL.
 
 Leave the PC/shard problem alone — it needs a design decision from the owner,
 not a code change. Details in that file.
+
+---
+
+# Shard economy resized — migration 0006 is applied to the live database
+
+The owner's real numbers are 10-15 people who actually buy, 2-3 boxes each:
+a pot around **$500** and roughly **30 box openings all night**, not the 30
+players x $40 I had been modelling. That invalidated the whole shard design.
+
+Three separate bugs, all measured with the new `npm run shards:tune`:
+
+1. **The mint cap WAS the completion requirement.** Global supply was
+   `pc_total_supply x shards_required` = 5 shards, total, forever. Across a room
+   of players those land on different people and nobody can ever assemble a set.
+   No drop-rate tuning fixes that; the shards do not exist to be collected.
+2. **A five-step collection cannot work at this scale.** Across ~30 rolls in the
+   entire night there are not enough drops for anyone to reach 5 of anything.
+   Two is the longest chain that produces real tension.
+3. **The pot gate at $400 against a $500 pot** would have opened in the last ten
+   minutes, so shards would have been locked at 0% for essentially the whole
+   party. Now $150.
+
+Also: `pc_value` is now what the economy CHARGES for the shard track ($50),
+separate from `pc_display_value` ($400, what the machine is worth). Charging the
+full $200/shard blew the Tier-1 budget outright and `npm run simulate` refused
+it — a $4.50 shard EV against a $4.38 payout budget.
+
+Result at 12 players x 2.5 boxes: **P(someone wins the PC) 0% -> 17.6%**, with
+**2.2 players ending the night one shard short**. Tier 3 now carries a 30% shard
+chance, so the chase is visible.
+
+`lib/economy.ts`, `lib/types.ts` and `0006` are mine. If the UI shows a PC value,
+read `pc_display_value`, never `pc_value`.

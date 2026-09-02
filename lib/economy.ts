@@ -43,11 +43,12 @@ import type { BoxOdds, BoxTier, EconomyConfig, Item, ItemOdds, Rarity } from './
 
 export const DEFAULT_CONFIG: EconomyConfig = {
   house_margin: 0.125,
-  pot_revenue_threshold: 400.0,
+  pot_revenue_threshold: 150.0,
   box_prices: { tier_1: 5, tier_2: 20, tier_3: 50 },
-  shard_probs: { tier_1: 0.0075, tier_2: 0.03, tier_3: 0.1 },
-  pc_value: 400,
-  shards_required: 5,
+  shard_probs: { tier_1: 0.0225, tier_2: 0.09, tier_3: 0.3 },
+  pc_value: 50,
+  pc_display_value: 400,
+  shards_required: 2,
   pc_total_supply: 1,
   pc_shards_minted: 0,
   max_item_prob: 0.3,
@@ -101,7 +102,8 @@ export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: Od
   const target = C * (1 - cfg.house_margin);
 
   // --- Ceiling-adjacent anchor: shards, gated by pot floor AND global supply ---
-  const shardCapacity = cfg.pc_total_supply * cfg.shards_required;
+  // Mint cap is deliberately NOT the completion requirement -- see 0006.
+  const shardCapacity = cfg.pc_shard_mint_cap ?? cfg.pc_total_supply * cfg.shards_required;
   const shardsAvailable = cfg.pc_shards_minted < shardCapacity;
   const pShard = potGateMet && shardsAvailable ? cfg.shard_probs[tier] ?? 0 : 0;
   const vShard = cfg.pc_value / cfg.shards_required;

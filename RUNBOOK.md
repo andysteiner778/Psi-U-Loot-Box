@@ -90,6 +90,7 @@ When high-end prizes (like the $200 Speakers, GPU, or 144Hz Monitor) are unboxed
 
 - **Pot Revenue Threshold ($400)**: PC Shard drops stay at 0% until $400 of gross Venmo deposits are approved. You can adjust this slider in `/admin` -> Emergency Controls.
 - **Soulbound Shards**: If a player has 2 or 3 shards but wants out, tell them to tap **[Salvage Shards]** in their Shard HUD — they get $20 of wallet credit per shard.
+- **Scrap Compactor ($20 Wallet Credit)**: 100 scrap coins crush into $20.00 of standard wallet credit, spendable on any tier (not locked to Tier 2). This matches the exact economic coin price ($0.20/coin) while allowing players to spend it on any box tier.
 - **Physical Pickup Only**: Remind winners that Purple (Restricted), Pink (Covert), and Gold (PC Shard/Gaming PC) items cannot be scrapped — they must be picked up physically in Room 4.
 
 ---

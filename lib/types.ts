@@ -145,9 +145,18 @@ export interface EconomyConfig {
   pot_revenue_threshold: number;
   box_prices: Record<BoxTier, number>;
   shard_probs: Record<BoxTier, number>;
+  /** What the ECONOMY charges for the shard track. Not the machine's worth. */
   pc_value: number;
+  /** What the machine is actually worth. Shown to players; never priced against. */
+  pc_display_value?: number;
   shards_required: number;
   pc_total_supply: number;
+  /**
+   * How many shards may EXIST. Deliberately larger than `shards_required`:
+   * tying the two together meant only 5 shards ever existed, so across a room
+   * of players nobody could assemble a set and the PC was unwinnable.
+   */
+  pc_shard_mint_cap?: number;
   pc_shards_minted: number;
   max_item_prob: number;
   ev_weight_factor: number;

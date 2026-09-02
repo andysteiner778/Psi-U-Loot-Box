@@ -355,7 +355,7 @@ export function CaseReel({
 
           {winner.type === 'scrap' && (
             <p className="my-4 text-sm font-mono text-gun-300">
-              +{winner.scrap_gained} scrap coins added to your bag. Compact 100 into a Tier 2 key!
+              +{winner.scrap_gained} scrap coins added to your bag. Compact 100 into $20 credit!
             </p>
           )}
 

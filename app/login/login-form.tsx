@@ -1,8 +1,18 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { KeyRound, Lock, User, ShieldCheck, AlertCircle, ArrowRight } from 'lucide-react';
+import {
+  KeyRound,
+  Lock,
+  User,
+  ShieldCheck,
+  AlertCircle,
+  ArrowRight,
+  ChevronDown,
+  Check,
+  X,
+} from 'lucide-react';
 import { apiLogin, apiSetPin } from '@/app/(player)/_lib/api';
 import { sfx } from '@/lib/sound';
 
@@ -14,7 +24,13 @@ export interface LoginFormProps {
 
 export function LoginForm({ roster, initialMustChange = false, userName = '' }: LoginFormProps) {
   const router = useRouter();
+  const [query, setQuery] = useState(userName || '');
   const [name, setName] = useState(userName);
+  const [isComboboxOpen, setIsComboboxOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const comboboxRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const [pin, setPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -22,12 +38,89 @@ export function LoginForm({ roster, initialMustChange = false, userName = '' }: 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const filteredRoster = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return roster;
+    return roster.filter((p) => p.name.toLowerCase().includes(q));
+  }, [query, roster]);
+
+  const selectedPlayer = useMemo(
+    () => roster.find((p) => p.name.toLowerCase() === name.toLowerCase()),
+    [name, roster]
+  );
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (comboboxRef.current && !comboboxRef.current.contains(e.target as Node)) {
+        setIsComboboxOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelectPlayer = (player: { id: string; name: string }) => {
+    setName(player.name);
+    setQuery(player.name);
+    setIsComboboxOpen(false);
+    setError(null);
+    setHighlightedIndex(-1);
+  };
+
+  const handleQueryChange = (val: string) => {
+    setQuery(val);
+    setIsComboboxOpen(true);
+    setHighlightedIndex(0);
+    setError(null);
+    const exact = roster.find((p) => p.name.toLowerCase() === val.trim().toLowerCase());
+    if (exact) {
+      setName(exact.name);
+    } else {
+      setName('');
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isComboboxOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setIsComboboxOpen(true);
+        setHighlightedIndex(0);
+        return;
+      }
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => (prev < filteredRoster.length - 1 ? prev + 1 : 0));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : filteredRoster.length - 1));
+    } else if (e.key === 'Enter') {
+      if (isComboboxOpen && highlightedIndex >= 0 && filteredRoster[highlightedIndex]) {
+        e.preventDefault();
+        handleSelectPlayer(filteredRoster[highlightedIndex]);
+      } else if (isComboboxOpen && filteredRoster.length === 1) {
+        e.preventDefault();
+        handleSelectPlayer(filteredRoster[0]);
+      }
+    } else if (e.key === 'Escape') {
+      setIsComboboxOpen(false);
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name) {
-      setError('Please choose your name');
+    const resolvedPlayer = roster.find(
+      (p) => p.name.toLowerCase() === (name || query).trim().toLowerCase()
+    );
+
+    if (!resolvedPlayer) {
+      setError('No such player. Please pick your name from the roster.');
+      setIsComboboxOpen(true);
       return;
     }
+
     if (pin.length !== 4) {
       setError('PIN must be exactly 4 digits');
       return;
@@ -38,7 +131,7 @@ export function LoginForm({ roster, initialMustChange = false, userName = '' }: 
     await sfx.unlock();
 
     try {
-      const res = await apiLogin(name, pin);
+      const res = await apiLogin(resolvedPlayer.name, pin);
       if (res.ok) {
         if (res.value.mustChangePin) {
           setStep('changePin');
@@ -165,27 +258,100 @@ export function LoginForm({ roster, initialMustChange = false, userName = '' }: 
       )}
 
       <form onSubmit={handleLogin} className="space-y-4">
-        {/* Name Selector */}
-        <div>
-          <label className="text-xs font-mono text-gun-300 block mb-1.5 flex items-center gap-1.5">
-            <User className="h-3.5 w-3.5 text-blue-400" />
-            <span>Select Player Name</span>
+        {/* Name Combobox */}
+        <div ref={comboboxRef} className="space-y-1.5">
+          <label className="text-xs font-mono text-gun-300 block flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <User className="h-3.5 w-3.5 text-blue-400" />
+              <span>Select or Type Player Name</span>
+            </span>
+            {selectedPlayer && (
+              <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-400">
+                <Check className="h-3 w-3" />
+                <span>Verified Roster</span>
+              </span>
+            )}
           </label>
-          <select
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              setError(null);
-            }}
-            className="w-full rounded-xl border border-gun-700 bg-gun-950 py-3 px-3 text-sm font-medium text-white focus:border-purple-500 focus:outline-none"
-          >
-            <option value="">-- Choose your profile --</option>
-            {roster.map((player) => (
-              <option key={player.id} value={player.name}>
-                {player.name}
-              </option>
-            ))}
-          </select>
+
+          <div className="relative">
+            <input
+              ref={inputRef}
+              type="text"
+              autoComplete="off"
+              value={query}
+              onChange={(e) => handleQueryChange(e.target.value)}
+              onFocus={() => setIsComboboxOpen(true)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type your name (e.g. Andy, Tyler)..."
+              className={`w-full min-h-[44px] rounded-xl border bg-gun-950 py-2.5 pl-3 pr-16 text-sm font-medium text-white transition focus:outline-none ${
+                selectedPlayer
+                  ? 'border-emerald-500/60 focus:border-emerald-400'
+                  : 'border-gun-700 focus:border-purple-500'
+              }`}
+            />
+
+            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1 text-gun-400">
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuery('');
+                    setName('');
+                    setIsComboboxOpen(true);
+                    inputRef.current?.focus();
+                  }}
+                  className="p-1 hover:text-white transition"
+                  title="Clear name"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsComboboxOpen((prev) => !prev)}
+                className="p-1 hover:text-white transition"
+                tabIndex={-1}
+              >
+                <ChevronDown
+                  className={`h-4 w-4 transition-transform ${isComboboxOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+            </div>
+          </div>
+
+          {/* In-flow suggestions list: pushes PIN field down instead of covering it */}
+          {isComboboxOpen && (
+            <div className="mt-1.5 max-h-44 overflow-y-auto rounded-xl border border-gun-750 bg-gun-950/95 p-1 shadow-xl backdrop-blur-md">
+              {filteredRoster.length > 0 ? (
+                filteredRoster.map((player, idx) => {
+                  const isHighlighted = idx === highlightedIndex;
+                  const isSelected = player.name.toLowerCase() === name.toLowerCase();
+
+                  return (
+                    <button
+                      key={player.id}
+                      type="button"
+                      onClick={() => handleSelectPlayer(player)}
+                      className={`flex w-full min-h-[40px] items-center justify-between rounded-lg px-3 py-2 text-left text-xs transition ${
+                        isHighlighted
+                          ? 'bg-purple-600/30 text-white font-semibold'
+                          : isSelected
+                            ? 'bg-gun-800 text-emerald-300 font-medium'
+                            : 'text-gun-200 hover:bg-gun-850 hover:text-white'
+                      }`}
+                    >
+                      <span>{player.name}</span>
+                      {isSelected && <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0" />}
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="px-3 py-3 text-center text-xs font-mono text-gun-400">
+                  No matching player found
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 4-Digit PIN */}

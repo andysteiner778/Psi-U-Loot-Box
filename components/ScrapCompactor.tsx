@@ -31,7 +31,7 @@ export function ScrapCompactor() {
       if (res.ok) {
         commit(res.value.stats);
         sfx.playScrapCrunch();
-        toast(`💥 CRUNCH! Converted ${cost} Scrap Coins into a $${res.value.data.credit}.00 Tier 2 Key!`, 'good');
+        toast(`💥 CRUNCH! Converted ${cost} Scrap Coins into $${res.value.data.credit}.00 Account Credit!`, 'good');
       } else {
         toast(res.error, 'bad');
       }
@@ -62,7 +62,7 @@ export function ScrapCompactor() {
                 </span>
               </h3>
               <p className="text-xs text-gun-400">
-                Crush junk scrap coins into free mystery box keys.
+                Crush 100 junk scrap coins into $20 account credit (spendable on any tier).
               </p>
             </div>
           </div>
@@ -91,8 +91,8 @@ export function ScrapCompactor() {
           <div className="rounded-xl bg-gun-950/80 border border-gun-800 px-3 py-2 text-center font-mono">
             <div className="text-[10px] uppercase text-gun-400 font-semibold">Reward</div>
             <div className="text-xs font-bold text-emerald-400 flex items-center justify-center gap-1">
-              <Key className="h-3.5 w-3.5 text-blue-400" />
-              <span>1 × Tier 2 Key (${keyPrice})</span>
+              <Coins className="h-3.5 w-3.5 text-emerald-400" />
+              <span>+${keyPrice}.00 Credit</span>
             </div>
           </div>
 
@@ -112,7 +112,7 @@ export function ScrapCompactor() {
               {crunching
                 ? 'CRUSHING...'
                 : canCompact
-                  ? `Crush ${cost} Coins into Key`
+                  ? `Crush ${cost} Scrap → $${keyPrice} Credit`
                   : `Need ${Math.max(0, cost - coinsHeld)} More Coins`}
             </span>
           </motion.button>

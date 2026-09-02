@@ -175,7 +175,7 @@ export function ShardHud({
             </h3>
             <p className="mt-2 text-xs text-gun-300 leading-relaxed">
               According to Anti-Exploit Rule 3, PC Shards cannot be traded to other players. You can
-              salvage them back to the house for <strong className="text-white">1 Free Tier 2 Key ($20.00 credit)</strong> per shard.
+              salvage them back to the house for <strong className="text-white">$20.00 Account Credit</strong> per shard.
             </p>
 
             <div className="my-4 rounded-xl bg-gun-950 p-4 border border-gun-800 font-mono text-sm space-y-1">
