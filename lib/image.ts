@@ -68,7 +68,20 @@ export async function uploadItemPhoto(file: File, itemName?: string): Promise<st
   if (itemName) body.append('name', itemName);
 
   const res = await fetch('/api/admin/items/upload', { method: 'POST', body });
-  const json = (await res.json().catch(() => null)) as { url?: string; error?: string } | null;
-  if (!res.ok || !json?.url) throw new Error(json?.error ?? 'Upload failed (' + res.status + ')');
-  return json.url;
+
+  // The route replies in the app's standard envelope, `{ ok, data: { url } }`.
+  // Reading `json.url` off the top level found `undefined` on a perfectly
+  // successful upload and threw "Upload failed (200)" -- a 200 with an error
+  // message, which is exactly the sort of contradiction that sends you looking
+  // at storage permissions instead of at the client. Accept either shape.
+  const json = (await res.json().catch(() => null)) as
+    | { ok?: boolean; error?: string; url?: string; data?: { url?: string } }
+    | null;
+
+  const url = json?.data?.url ?? json?.url;
+
+  if (!res.ok || json?.ok === false || !url) {
+    throw new Error(json?.error ?? 'Upload failed (HTTP ' + res.status + ')');
+  }
+  return url;
 }
