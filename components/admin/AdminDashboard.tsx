@@ -243,6 +243,42 @@ export function AdminDashboard({
     }
   };
 
+  /**
+   * Wipe the test run. Two-step on purpose: this deletes real rows on a live
+   * database, and one stray tap on a phone must not be able to clear a party
+   * that is already underway.
+   */
+  const [resetArmed, setResetArmed] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
+  const handleReset = async () => {
+    if (!resetArmed) { setResetArmed(true); return; }
+    setResetting(true);
+    try {
+      const res = await fetch('/api/admin/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: 'RESET' }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        const d = json.data ?? {};
+        showMsg(
+          'Reset done — cleared ' + (d.rolls_cleared ?? 0) + ' rolls and $' +
+            Number(d.pot_cleared ?? 0).toFixed(2) + ' of test pot. Stock restored.'
+        );
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        showMsg(json.error || 'Reset failed', 'bad');
+      }
+    } catch {
+      showMsg('Reset request failed', 'bad');
+    } finally {
+      setResetting(false);
+      setResetArmed(false);
+    }
+  };
+
   const handleScanItem = async () => {
     if (!scanImage) return;
     setScanning(true);
@@ -1011,6 +1047,46 @@ export function AdminDashboard({
       {/* ========================================================================= */}
       {tab === 'controls' && (
         <div className="space-y-6">
+          {/* Reset — clears the test run before the party starts for real */}
+          <div className="rounded-2xl border border-amber-500/40 bg-gun-900/90 p-5 shadow-xl">
+            <div className="mb-2 flex items-center gap-2">
+              <RefreshCw className="h-5 w-5 text-amber-400" />
+              <h3 className="text-base font-bold text-white">Reset Party State</h3>
+            </div>
+            <p className="mb-3 font-mono text-[11px] leading-relaxed text-gun-300">
+              Clears every roll, deposit, balance, scrap coin and shard, and restores
+              all items to their opening stock. Player names, roles and PINs are kept.
+              <br />
+              <span className="text-amber-300">
+                Run this when you finish testing — approved test deposits count toward
+                the pot and can unlock the shard gate before anyone has actually played.
+              </span>
+            </p>
+            <button
+              onClick={handleReset}
+              disabled={resetting}
+              className={`w-full rounded-xl py-3 font-mono text-xs font-bold transition active:scale-95 disabled:opacity-50 ${
+                resetArmed
+                  ? 'bg-red-600 text-white hover:bg-red-500'
+                  : 'border border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'
+              }`}
+            >
+              {resetting
+                ? 'Resetting…'
+                : resetArmed
+                  ? 'Tap again to confirm — this cannot be undone'
+                  : 'Reset Party State'}
+            </button>
+            {resetArmed && !resetting && (
+              <button
+                onClick={() => setResetArmed(false)}
+                className="mt-2 w-full font-mono text-[11px] text-gun-400 hover:text-white"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Flash Sale Control */}
             <div className="rounded-2xl border border-red-500/30 bg-gun-900/90 p-5 shadow-xl">
