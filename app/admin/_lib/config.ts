@@ -114,10 +114,28 @@ export function coerceConfig(raw: unknown): EconomyConfig {
 }
 
 export async function readConfig(): Promise<EconomyConfig> {
+  return coerceConfig(await readRawConfig());
+}
+
+/**
+ * The settings row EXACTLY as stored, including keys `coerceConfig` does not
+ * model.
+ *
+ * This matters more than it looks. `updateConfig` used to write back the
+ * COERCED object, which is rebuilt from a fixed list of fields — so every key
+ * the coercer did not know about was silently destroyed the first time an admin
+ * saved anything in House Controls. That quietly wiped `pc_shard_mint_cap`,
+ * `pc_display_value`, `scrap_recovery_frac` and `allow_high_rarity_scrap`, and
+ * the symptom (shards stopped dropping entirely) surfaced much later and looked
+ * like a completely different bug.
+ *
+ * Anything written back must be layered ON TOP of this, never instead of it.
+ */
+export async function readRawConfig(): Promise<Record<string, unknown>> {
   const { data, error } = await db.from('config').select('value').eq('key', 'settings').maybeSingle();
   if (error) throw new Error('Could not read config: ' + error.message);
   if (!data) throw new Error('Missing config row — has migration 0001 been applied?');
-  return coerceConfig(data.value);
+  return (data.value ?? {}) as Record<string, unknown>;
 }
 
 /** Merge a patch into the live config. Tier maps merge per-tier, not wholesale. */
@@ -149,8 +167,10 @@ export class ConfigConflictError extends Error {
  */
 export async function updateConfig(patch: Partial<EconomyConfig>): Promise<EconomyConfig> {
   for (let attempt = 0; attempt < 3; attempt++) {
-    const current = await readConfig();
-    const next = mergeConfig(current, patch);
+    const raw = await readRawConfig();
+    const current = coerceConfig(raw);
+    // Layer the merged known fields over the RAW row so unmodelled keys survive.
+    const next = { ...raw, ...mergeConfig(current, patch) };
 
     const cas = await db
       .from('config')

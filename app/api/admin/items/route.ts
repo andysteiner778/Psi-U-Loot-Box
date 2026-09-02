@@ -38,6 +38,9 @@ export async function POST(req: Request) {
   const description = body.description ? String(body.description).trim() : null;
   const image_url = body.image_url ? String(body.image_url).trim() : null;
   const est_value = Math.max(0.01, Number(body.est_value));
+  // Display only. Never feeds the odds -- see items.msrp in migration 0008.
+  const msrpRaw = Number(body.msrp);
+  const msrp = Number.isFinite(msrpRaw) && msrpRaw > 0 ? msrpRaw : null;
   const stock_qty = Math.max(0, parseInt(body.stock_qty ?? 1, 10));
 
   const rarity: Rarity = RARITIES.includes(body.rarity)
@@ -67,6 +70,7 @@ export async function POST(req: Request) {
       est_value,
       rarity,
       scrap_value,
+      msrp,
       stock_qty,
       box_tier,
       is_active: body.is_active !== false,

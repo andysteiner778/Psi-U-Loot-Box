@@ -63,7 +63,17 @@ export interface Item {
   name: string;
   description: string | null;
   image_url: string | null;
+  /** Realistic used value. Drives every probability and EV calculation. */
   est_value: number;
+  /**
+   * Display-only retail price, shown on the card as "$X retail".
+   *
+   * MUST NOT appear in any odds or EV computation. Inflating `est_value` to
+   * make an item look better makes it drop LESS often, because drop chance is
+   * `C * ev_weight_factor / est_value`. This column exists so perceived value
+   * can rise without the game quietly getting stingier.
+   */
+  msrp?: number | null;
   rarity: Rarity;
   scrap_value: number;
   stock_qty: number;
@@ -111,6 +121,8 @@ export type OpenBoxResult =
       image_url: string | null;
       rarity: Rarity;
       est_value: number;
+      /** Display only — see Item.msrp. */
+      msrp?: number | null;
       /** Always 0 for purple/pink/gold — enforced server-side, not in the client. */
       scrap_value: number;
       roll_id: string;
@@ -196,6 +208,8 @@ export interface ItemOdds {
   item_id: string;
   name: string;
   est_value: number;
+  /** Display only — see Item.msrp. */
+  msrp?: number | null;
   rarity: Rarity;
   stock_qty: number;
   probability: number;

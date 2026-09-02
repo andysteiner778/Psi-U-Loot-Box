@@ -109,7 +109,9 @@ export function InventoryView({ initialItems, recentRolls }: InventoryViewProps)
               const scrappable = isScrappable(rarity);
               const payload = roll.payload && roll.payload.type === 'physical' ? roll.payload : null;
               const scrapCoins = payload?.scrap_value ?? 0;
-              const estVal = payload?.est_value ?? 0;
+              // Show retail when the admin set one; it is display-only and does
+              // not affect what this item cost the pool or scraps for.
+              const estVal = (payload?.msrp && payload.msrp > 0 ? payload.msrp : payload?.est_value) ?? 0;
               const isScrapping = scrappingId === roll.id;
 
               return (

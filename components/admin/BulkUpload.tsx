@@ -28,6 +28,7 @@ interface Draft {
   error?: string;
   name: string;
   value: string;
+  msrp: string;
   qty: string;
   scanning?: boolean;
 }
@@ -67,6 +68,7 @@ export function BulkUpload({
       status: 'queued',
       name: nameFromFile(file),
       value: '',
+      msrp: '',
       qty: '1',
     }));
     setDrafts((d) => [...d, ...fresh]);
@@ -154,6 +156,7 @@ export function BulkUpload({
             stock_qty: Math.max(1, parseInt(d.qty, 10) || 1),
             rarity: rarityForValue(est),
             box_tier: tierForValue(est),
+            msrp: Number(d.msrp) > 0 ? Number(d.msrp) : null,
             image_url: d.url,
           }),
         });
@@ -180,6 +183,11 @@ export function BulkUpload({
         Pick every photo at once from your files. They upload in the background
         while you fill in names and prices. Rarity and tier are worked out from
         the price automatically.
+        <br />
+        <span className="text-gun-400">
+          &ldquo;$ value&rdquo; is the real used value and sets the odds. &ldquo;retail&rdquo; is
+          optional, shown to players, and changes nothing.
+        </span>
       </p>
 
       <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 py-3 font-mono text-xs font-bold text-white transition hover:brightness-110 active:scale-95">
@@ -232,6 +240,14 @@ export function BulkUpload({
                         inputMode="decimal"
                         placeholder="$ value"
                         className="w-20 rounded bg-gun-900 px-2 py-1 font-mono text-[11px] text-white outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                      <input
+                        value={d.msrp}
+                        onChange={(e) => patch(d.key, { msrp: e.target.value.replace(/[^\d.]/g, '') })}
+                        inputMode="decimal"
+                        placeholder="retail"
+                        title="Retail price shown to players. Display only — does not change the odds."
+                        className="w-20 rounded bg-gun-900 px-2 py-1 font-mono text-[11px] text-gun-200 outline-none focus:ring-1 focus:ring-purple-500"
                       />
                       <input
                         value={d.qty}

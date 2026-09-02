@@ -339,7 +339,9 @@ export function CaseReel({
           {winner.type === 'physical' && (
             <div className="my-4 flex flex-col items-center gap-1 text-sm font-mono">
               <span className="text-emerald-400 font-bold text-lg">
-                Est. Value: ${winner.est_value.toFixed(2)}
+                {winner.msrp && winner.msrp > 0
+                  ? `Retail: $${Number(winner.msrp).toFixed(2)}`
+                  : `Est. Value: $${winner.est_value.toFixed(2)}`}
               </span>
               {isScrappable(winner.rarity) ? (
                 <span className="text-cyan-400">Can be scrapped for +{winner.scrap_value} coins</span>

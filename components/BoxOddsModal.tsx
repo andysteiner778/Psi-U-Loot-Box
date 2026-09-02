@@ -156,7 +156,9 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
                           </span>
                         </td>
                         <td className="py-2.5 px-3 text-right text-emerald-400 font-bold">
-                          ${item.est_value.toFixed(2)}
+                          {item.msrp && item.msrp > 0
+                            ? `$${Number(item.msrp).toFixed(2)}`
+                            : `$${item.est_value.toFixed(2)}`}
                         </td>
                         <td className="py-2.5 px-3 text-right text-gun-300">
                           {item.stock_qty > 0 ? (

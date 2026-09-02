@@ -211,6 +211,9 @@ export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: Od
     item_id: i.id,
     name: i.name,
     est_value: i.est_value,
+    // Carried for display only. Note it is absent from `weights` above and from
+    // every EV term below -- that is deliberate and must stay true.
+    msrp: i.msrp ?? null,
     rarity: i.rarity,
     stock_qty: i.stock_qty,
     probability: lambda * weights[k],
