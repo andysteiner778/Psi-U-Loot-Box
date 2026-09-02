@@ -27,6 +27,8 @@ export function LoginForm({ roster, initialMustChange = false, userName = '' }: 
   const [query, setQuery] = useState(userName || '');
   const [name, setName] = useState(userName);
   const [isComboboxOpen, setIsComboboxOpen] = useState(false);
+  // Suggestions only appear if a roster was explicitly supplied (it is not).
+  const suggestionsEnabled = roster.length > 0;
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const comboboxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -39,10 +41,11 @@ export function LoginForm({ roster, initialMustChange = false, userName = '' }: 
   const [loading, setLoading] = useState(false);
 
   const filteredRoster = useMemo(() => {
+    if (!suggestionsEnabled) return [];
     const q = query.trim().toLowerCase();
     if (!q) return roster;
     return roster.filter((p) => p.name.toLowerCase().includes(q));
-  }, [query, roster]);
+  }, [query, roster, suggestionsEnabled]);
 
   const selectedPlayer = useMemo(
     () => roster.find((p) => p.name.toLowerCase() === name.toLowerCase()),
@@ -72,12 +75,11 @@ export function LoginForm({ roster, initialMustChange = false, userName = '' }: 
     setIsComboboxOpen(true);
     setHighlightedIndex(0);
     setError(null);
-    const exact = roster.find((p) => p.name.toLowerCase() === val.trim().toLowerCase());
-    if (exact) {
-      setName(exact.name);
-    } else {
-      setName('');
-    }
+    // The typed value IS the name. The server does an exact lookup and answers
+    // "no such player or wrong PIN" either way, so nothing here needs a roster
+    // -- and not shipping one means the login page no longer discloses who
+    // lives in the house to anyone who opens it.
+    setName(val.trim());
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {

@@ -25,12 +25,24 @@ export const RARITY_COLOR: Record<Rarity, string> = {
 };
 
 export const RARITY_LABEL: Record<Rarity, string> = {
-  grey: 'Consumer',
-  blue: 'Mil-Spec',
-  purple: 'Restricted',
-  pink: 'Covert',
-  gold: 'Special',
+  grey: 'Common',
+  blue: 'Rare',
+  purple: 'Legendary',
+  pink: 'Mythic',
+  gold: 'Exotic',
 };
+
+/** Ascending rank, for "is this better than that" comparisons and sound tiers. */
+export const RARITY_RANK: Record<Rarity, number> = {
+  grey: 0,
+  blue: 1,
+  purple: 2,
+  pink: 3,
+  gold: 4,
+};
+
+/** Anything at or above this gets a win sound. Grey stays silent. */
+export const SOUND_FLOOR: Rarity = 'blue';
 
 // ---------------------------------------------------------------------------
 // Database rows

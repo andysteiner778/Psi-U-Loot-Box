@@ -23,6 +23,7 @@ import {
   ImagePlus,
 } from 'lucide-react';
 import { uploadItemPhoto } from '@/lib/image';
+import { BulkUpload } from './BulkUpload';
 import type { BoxTier, EconomyConfig, Item, Rarity, SessionUser } from '@/lib/types';
 import { RARITIES, BOX_TIERS, RARITY_COLOR, RARITY_LABEL, isScrappable } from '@/lib/types';
 import { rarityForValue, tierForValue } from '@/lib/economy';
@@ -50,6 +51,15 @@ export function AdminDashboard({
   const [config, setConfig] = useState<EconomyConfig>(initialConfig);
   const [deposits, setDeposits] = useState<any[]>(initialDeposits);
   const [items, setItems] = useState<Item[]>(initialItems);
+  // Whether a vision provider is actually configured. Drives whether the
+  // auto-name button is offered at all -- both keys are commonly blank.
+  const [visionAvailable, setVisionAvailable] = useState(false);
+  useEffect(() => {
+    fetch('/api/vision/scan-item')
+      .then((r) => r.json())
+      .then((j) => setVisionAvailable(Boolean(j?.ok && j?.data?.available)))
+      .catch(() => setVisionAvailable(false));
+  }, []);
   const [overrides, setOverrides] = useState<any[]>(initialOverrides);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{ text: string; type: 'good' | 'bad' } | null>(null);
@@ -741,6 +751,11 @@ export function AdminDashboard({
       {/* ========================================================================= */}
       {tab === 'vision' && (
         <div className="space-y-8">
+          <BulkUpload
+            visionReady={visionAvailable}
+            showMsg={(m, k) => showMsg(m, k === 'bad' ? 'bad' : 'good')}
+            onDone={refreshItems}
+          />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Left: Camera & AI Scanner */}
             <div className="rounded-2xl border border-gun-700 bg-gun-900/90 p-5 shadow-xl">

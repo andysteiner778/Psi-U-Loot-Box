@@ -309,11 +309,19 @@ export function outcomeValue(odds: BoxOdds, o: Outcome, cfg: EconomyConfig): num
 }
 
 /** Spec rarity bands. Used by the vision scanner and the seed catalog. */
+/**
+ * Value -> rarity bands.
+ *
+ * Tuned so that most things a player actually wins register as SOMETHING rather
+ * than as grey filler: a $12 desk lamp reading as Mil-Spec blue is a small win,
+ * and a small win still gets a sound. Grey is reserved for genuine junk.
+ */
 export function rarityForValue(v: number): Rarity {
-  if (v >= 150) return 'pink';
-  if (v >= 90) return 'purple';
-  if (v >= 25) return 'blue';
-  return 'grey';
+  if (v >= 200) return 'gold'; // Exotic
+  if (v >= 100) return 'pink'; // Mythic
+  if (v >= 50) return 'purple'; // Legendary
+  if (v >= 10) return 'blue'; // Rare
+  return 'grey'; // Common
 }
 
 /** Spec tier bands: tier_1 <= $30, tier_2 <= $120, tier_3 > $120. */

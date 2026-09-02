@@ -686,6 +686,175 @@ class SoundEngine {
       /* ignore */
     }
   }
+  // -------------------------------------------------------------------------
+  //  Progressive win sounds
+  //
+  //  Every result at Rare or above gets an escalating payoff, so the great
+  //  majority of rolls now land with SOMETHING rather than silence. Common is
+  //  intentionally silent: if everything chimes, nothing feels rare.
+  //
+  //    Rare (blue)        two-note lift
+  //    Legendary (purple) four-note arpeggio with a shimmer on top
+  //    Mythic (pink)      arpeggio + rising riser + bell
+  //    Exotic (gold)      full fanfare + jackpot bell train
+  // -------------------------------------------------------------------------
+
+  /** Rare: a short, bright two-note lift. Cheap, and used often. */
+  playWinRare(at?: number): void {
+    const g = this.graph();
+    if (!g || this.mutedValue) return;
+    try {
+      const t0 = at ?? g.ctx.currentTime + LOOKAHEAD;
+      [523.25, 783.99].forEach((freq, i) => {
+        const start = t0 + i * 0.09;
+        const osc = g.ctx.createOscillator();
+        const env = g.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        env.gain.setValueAtTime(0.0008, start);
+        env.gain.linearRampToValueAtTime(0.14, start + 0.015);
+        env.gain.exponentialRampToValueAtTime(0.0008, start + 0.28);
+        osc.connect(env);
+        env.connect(g.master);
+        osc.start(start);
+        osc.stop(start + 0.3);
+        this.track(osc);
+      });
+    } catch {
+      /* audio must never break the game */
+    }
+  }
+
+  /** Legendary: a four-note major arpeggio with a shimmering fifth on top. */
+  playWinLegendary(at?: number): void {
+    const g = this.graph();
+    if (!g || this.mutedValue) return;
+    try {
+      const t0 = at ?? g.ctx.currentTime + LOOKAHEAD;
+      [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
+        const start = t0 + i * 0.075;
+        for (const detune of [-5, 6]) {
+          const osc = g.ctx.createOscillator();
+          const env = g.ctx.createGain();
+          const lp = g.ctx.createBiquadFilter();
+          osc.type = 'sawtooth';
+          osc.frequency.value = freq;
+          osc.detune.value = detune;
+          lp.type = 'lowpass';
+          lp.frequency.setValueAtTime(1600, start);
+          lp.frequency.exponentialRampToValueAtTime(5200, start + 0.1);
+          env.gain.setValueAtTime(0.0008, start);
+          env.gain.linearRampToValueAtTime(0.11, start + 0.018);
+          env.gain.exponentialRampToValueAtTime(0.0008, start + 0.45);
+          osc.connect(lp);
+          lp.connect(env);
+          env.connect(g.master);
+          osc.start(start);
+          osc.stop(start + 0.5);
+          this.track(osc);
+        }
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /**
+   * The slot-machine bell.
+   *
+   * A struck bell is inharmonic -- its overtones are NOT integer multiples of
+   * the fundamental, which is exactly why a bell sounds like metal and a stack
+   * of harmonics sounds like an organ. These ratios are the cheap approximation
+   * that casino machines use.
+   */
+  playJackpotBell(at?: number, strikes = 5): void {
+    const g = this.graph();
+    if (!g || this.mutedValue) return;
+    try {
+      const t0 = at ?? g.ctx.currentTime + LOOKAHEAD;
+      const partials = [1, 2.76, 5.4, 8.93];
+      for (let s = 0; s < strikes; s++) {
+        const start = t0 + s * 0.17;
+        const fundamental = 880 * (s % 2 === 0 ? 1 : 1.5);
+        partials.forEach((ratio, k) => {
+          const osc = g.ctx.createOscillator();
+          const env = g.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = fundamental * ratio;
+          const peak = 0.13 / (k + 1);
+          env.gain.setValueAtTime(0.0008, start);
+          env.gain.linearRampToValueAtTime(peak, start + 0.004);
+          // Higher partials die away faster, which is what makes it read as a
+          // strike rather than a sustained tone.
+          env.gain.exponentialRampToValueAtTime(0.0008, start + 0.9 / (k * 0.6 + 1));
+          osc.connect(env);
+          env.connect(g.master);
+          osc.start(start);
+          osc.stop(start + 1.1);
+          this.track(osc);
+        });
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /** A rising sweep under a big win, for the half-second before the bell. */
+  playRiser(at?: number, dur = 0.55): void {
+    const g = this.graph();
+    if (!g || this.mutedValue) return;
+    try {
+      const t0 = at ?? g.ctx.currentTime + LOOKAHEAD;
+      const osc = g.ctx.createOscillator();
+      const env = g.ctx.createGain();
+      const bp = g.ctx.createBiquadFilter();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(180, t0);
+      osc.frequency.exponentialRampToValueAtTime(1500, t0 + dur);
+      bp.type = 'bandpass';
+      bp.Q.value = 4;
+      bp.frequency.setValueAtTime(400, t0);
+      bp.frequency.exponentialRampToValueAtTime(3000, t0 + dur);
+      env.gain.setValueAtTime(0.0008, t0);
+      env.gain.linearRampToValueAtTime(0.09, t0 + dur * 0.8);
+      env.gain.exponentialRampToValueAtTime(0.0008, t0 + dur + 0.08);
+      osc.connect(bp);
+      bp.connect(env);
+      env.connect(g.master);
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.1);
+      this.track(osc);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /**
+   * One call for "the player won this". Pass the rarity and the engine picks
+   * how excited to get, so callers never have to remember the ladder.
+   */
+  playWinFor(rarity: 'grey' | 'blue' | 'purple' | 'pink' | 'gold'): void {
+    switch (rarity) {
+      case 'blue':
+        this.playWinRare();
+        break;
+      case 'purple':
+        this.playWinLegendary();
+        break;
+      case 'pink':
+        this.playRiser();
+        this.playWinLegendary();
+        this.playJackpotBell(undefined, 4);
+        break;
+      case 'gold':
+        this.playRiser(undefined, 0.7);
+        this.playGoldFanfare();
+        this.playJackpotBell(undefined, 7);
+        break;
+      default:
+        break; // Common is silent on purpose.
+    }
+  }
 }
 
 /** Module-level singleton. One AudioContext per tab is the browser's budget. */

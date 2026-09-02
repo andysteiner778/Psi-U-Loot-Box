@@ -1,4 +1,4 @@
-import { getSession, playerRoster } from '@/lib/session';
+import { getSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { LoginForm } from './login-form';
 
@@ -12,7 +12,10 @@ export default async function LoginPage() {
 
   let roster: { id: string; name: string }[] = [];
   try {
-    roster = await playerRoster();
+    // Deliberately NOT fetched. The owner wants a plain "type your name" field,
+    // and shipping the roster would list every housemate to anyone who loads
+    // the login page. The server resolves the typed name exactly.
+    roster = [];
   } catch (err) {
     console.error('[LoginPage] roster query failed', err);
   }

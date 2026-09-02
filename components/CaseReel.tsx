@@ -148,8 +148,12 @@ export function CaseReel({
         setRevealed(true);
 
         // Sound effect based on result
+        // Every result at Rare or above gets an escalating payoff sound, so the
+        // large majority of rolls now land with SOMETHING. Common stays silent
+        // on purpose: if everything chimes, nothing feels rare.
+        sfx.playWinFor(winner.rarity);
+
         if (isJackpot(winner)) {
-          sfx.playGoldFanfare();
           try {
             confetti({
               particleCount: 80,
