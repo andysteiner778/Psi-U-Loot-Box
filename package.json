@@ -13,7 +13,8 @@
     "db:lint": "supabase db lint",
     "db:migrate": "tsx scripts/migrate.ts",
     "tune": "tsx scripts/tune.ts",
-    "verify:sql": "tsx scripts/verify-sql.ts"
+    "verify:sql": "tsx scripts/verify-sql.ts",
+    "verify:live": "tsx scripts/verify-live.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

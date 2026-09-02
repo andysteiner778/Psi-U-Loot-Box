@@ -492,3 +492,66 @@ Once it lands, the useful jobs are: confirm the ticker actually reaches a
 browser over Realtime (my PGlite shim proves the trigger fires, not that the
 socket delivers), confirm the `item-images` bucket got created by 0005, and a
 real two-phone run-through of login -> deposit -> approve -> spin -> scrap.
+
+---
+
+# 2026-09-02, seventh pass — THE DATABASE IS LIVE
+
+The owner supplied the password. All five migrations plus `seed.sql` applied
+cleanly to the hosted project (PostgreSQL 17.6): **30 players, 16 items, 50
+units, $1018 of goods, 9/9 core functions.**
+
+New: `npm run verify:live` — the only script that touches the hosted project.
+**27 live checks, 0 failures.** It confirmed the four things nothing offline
+could:
+
+1. **The anon key is genuinely powerless.** Every table returns `42501`
+   (insufficient privilege), `open_box` and `box_odds` are not executable, and
+   `app_private` is invisible to PostgREST. Previously I had only asserted the
+   grants were absent; now I have watched a real anon key be refused.
+2. **Realtime actually delivers.** The PGlite shim proved the trigger fired; this
+   proves a browser receives it. A real roll produced:
+   `{"player":"Ben","item":"Kitchen Miscellany","kind":"physical","rarity":"grey",...}`
+   — player name present, no `user_id`, no balance.
+3. **Migration 0005 created the `item-images` bucket**, public-read. It no-ops on
+   PGlite, so it had never executed anywhere until now.
+4. **A real box opened**, returned a populated `item_name`, and the roll was
+   reversed afterwards. The NULL-`item_name` bug is confirmed dead in production.
+
+## Your next tasks — all need the live database, so they are unblocked now
+
+**A. Player renaming (do this first — it blocks the party).**
+The 30 seeded names in `lib/catalog.ts` are placeholders (`Andy`, `Ben`,
+`Caleb`...). The owner needs to put in 30 real housemates. Re-running the seed
+is wrong: it truncates `rolls` and `deposits`. Build an admin screen at
+`/admin/players`:
+- List the 30 profiles, edit names inline, `PATCH /api/admin/players/[id]`.
+- Reset a forgotten PIN back to `1234` with `must_change = TRUE`
+  (`auth_set_pin` then flip the flag) — someone WILL forget theirs at the party.
+- Show `role`, and let the owner promote a second admin. One admin holding the
+  only phone is a single point of failure for the whole night.
+- Guard with `adminOrError()` like everything else under `/admin`.
+
+**B. Bulk item entry.** Scanning ~40 junk items one at a time through the AI
+scanner will take an hour. Add a quick-add mode: a compact form (name, value,
+qty) that skips the camera entirely, plus an "add another" that keeps the tier
+selected. Rarity and tier still derive from value — never let it be typed
+directly, or the anti-exploit scrap rules can be bypassed by mislabelling.
+
+**C. Vercel deploy checklist in `RUNBOOK.md`.** Which env vars go in the Vercel
+dashboard, which are server-only, and the reminder that
+`SUPABASE_SERVICE_ROLE_KEY` must never be given a `NEXT_PUBLIC_` prefix. Add the
+`verify:live` command as the post-deploy smoke test.
+
+## Standing gates
+
+```bash
+npm run verify:live   # hosted project. Run after any deploy or migration.
+npm run verify:sql    # real Postgres, offline. Run for ANY .sql change.
+npm run simulate      # economy solvency
+npm run build && npx tsc --noEmit
+```
+
+Do not edit: `lib/economy.ts`, `lib/types.ts`, `lib/session.ts`,
+`lib/storage.ts`, `lib/image.ts`, `lib/supabase/*`, `supabase/migrations/*`,
+`scripts/*`. Ask here if you need a change in one.
