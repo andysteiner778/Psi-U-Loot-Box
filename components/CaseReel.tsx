@@ -67,7 +67,11 @@ export function CaseReel({
   const cards = useMemo(() => buildReel(winner, decoys), [winner, decoys]);
   const hasNearMiss = useMemo(() => cards.some((c) => c.isNearMiss), [cards]);
 
-  // Measure container viewport width
+  // Measure container viewport width.
+  // The spin waits on this: starting against the initial window-width guess
+  // would land the strip at the wrong offset, so the winner would not stop
+  // under the marker.
+  const [measured, setMeasured] = useState(false);
   useLayoutEffect(() => {
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
@@ -77,10 +81,26 @@ export function CaseReel({
         viewportWidth: rect.width || window.innerWidth,
       });
     }
+    setMeasured(true);
   }, []);
+
+  /**
+   * One spin per result, ever.
+   *
+   * This effect re-runs whenever geometry finishes measuring or the parent
+   * re-renders with a fresh `onFinished` identity -- and it re-ran on the final
+   * setState that reveals the winner. Each run called sfx.playReelStart() and
+   * re-scheduled the whole tick train, so the start sound fired a second time
+   * the moment the item landed. Latch on the roll id instead.
+   */
+  const spunFor = useRef<string | null>(null);
 
   // Run the deceleration animation & audio
   useEffect(() => {
+    const spinKey = winner?.roll_id ?? null;
+    if (!measured || !spinKey || spunFor.current === spinKey) return;
+    spunFor.current = spinKey;
+
     let cancelTicks: (() => void) | null = null;
     let nearMissTimer: NodeJS.Timeout | null = null;
     let finishTimer: NodeJS.Timeout | null = null;
@@ -157,7 +177,7 @@ export function CaseReel({
       if (nearMissTimer) clearTimeout(nearMissTimer);
       if (finishTimer) clearTimeout(finishTimer);
     };
-  }, [winner, geometry, controls, onFinished, prefersReducedMotion, hasNearMiss]);
+  }, [winner, geometry, controls, onFinished, prefersReducedMotion, hasNearMiss, measured]);
 
   const winnerCard = cardFromResult(winner);
   const winColor = RARITY_COLOR[winner.rarity] || '#3b82f6';
