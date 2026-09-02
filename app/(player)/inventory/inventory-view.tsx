@@ -9,6 +9,9 @@ import { apiScrap } from '@/app/(player)/_lib/api';
 import { sfx } from '@/lib/sound';
 import { ScrapCompactor } from '@/components/ScrapCompactor';
 
+import Link from 'next/link';
+import { DepositModal } from '@/components/DepositModal';
+
 export interface InventoryViewProps {
   initialItems: Roll[];
   recentRolls: Roll[];
@@ -18,6 +21,7 @@ export function InventoryView({ initialItems, recentRolls }: InventoryViewProps)
   const { stats, commit, adjust, toast } = usePlayer();
   const [items, setItems] = useState<Roll[]>(initialItems);
   const [scrappingId, setScrappingId] = useState<string | null>(null);
+  const [depositOpen, setDepositOpen] = useState(false);
 
   const handleScrap = async (roll: Roll) => {
     if (scrappingId) return;
@@ -73,12 +77,28 @@ export function InventoryView({ initialItems, recentRolls }: InventoryViewProps)
         </div>
 
         {items.length === 0 ? (
-          <div className="rounded-2xl border border-gun-800 bg-gun-900/60 p-12 text-center">
-            <Package className="mx-auto h-12 w-12 text-gun-600 mb-3" />
-            <h3 className="text-base font-bold text-white">Your inventory is empty</h3>
-            <p className="text-xs text-gun-400 mt-1 max-w-sm mx-auto">
-              Open some mystery boxes to win physical goods, scrap coins, and PC shards.
-            </p>
+          <div className="rounded-2xl border border-gun-800 bg-gun-900/60 p-10 text-center space-y-4">
+            <Package className="mx-auto h-12 w-12 text-gun-600" />
+            <div>
+              <h3 className="text-base font-bold text-white">Your shelf is currently empty</h3>
+              <p className="text-xs text-gun-400 mt-1 max-w-sm mx-auto">
+                Open some mystery boxes to win physical goods, scrap coins, and PC shards.
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <Link
+                href="/"
+                className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg hover:brightness-110 transition"
+              >
+                Open Boxes ↗
+              </Link>
+              <button
+                onClick={() => setDepositOpen(true)}
+                className="rounded-xl border border-gun-700 bg-gun-800 px-4 py-2.5 text-xs font-semibold text-gun-200 hover:border-emerald-500/50 hover:text-emerald-300 transition"
+              >
+                + Deposit via Venmo
+              </button>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -228,6 +248,11 @@ export function InventoryView({ initialItems, recentRolls }: InventoryViewProps)
           </div>
         </div>
       </div>
+
+      <DepositModal
+        isOpen={depositOpen}
+        onClose={() => setDepositOpen(false)}
+      />
     </div>
   );
 }

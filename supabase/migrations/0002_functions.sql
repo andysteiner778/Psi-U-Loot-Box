@@ -147,7 +147,8 @@ BEGIN
     FROM public.items t
    WHERE t.box_tier <> p_box_tier
      AND p_box_tier IN ('tier_2','tier_3')
-     AND t.box_tier = 'tier_1' AND t.est_value <= 15
+     AND t.box_tier = 'tier_1'
+     AND t.est_value <= COALESCE((cfg->>'filler_max_value')::NUMERIC, 15)
      AND t.is_active AND t.stock_qty > 0 AND t.est_value > 0;
 
   -- A junk object beats abstract coins for the same money: in CS:GO the usual
@@ -446,7 +447,8 @@ BEGIN
     SELECT id, name, image_url, rarity, est_value, scrap_value
       INTO v_fid, v_fname, v_fimg, v_frar, v_fval, v_fscrap
       FROM public.items
-     WHERE box_tier = 'tier_1' AND est_value <= 15
+     WHERE box_tier = 'tier_1'
+       AND est_value <= COALESCE(((SELECT value FROM public.config WHERE key='settings')->>'filler_max_value')::NUMERIC, 15)
        AND is_active AND stock_qty > 0 AND est_value > 0
      ORDER BY -LN(random()) / stock_qty
      LIMIT 1;

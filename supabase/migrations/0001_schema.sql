@@ -149,6 +149,7 @@ INSERT INTO public.config (key, value) VALUES ('settings', jsonb_build_object(
   'max_item_prob',         0.30,
   'ev_weight_factor',      0.20,
   'scrap_ev_frac',         0.05,
+  'filler_max_value',      15,
   'scrap_coins_per_key',   100,
   'scrap_key_tier',        'tier_2',
   'flash_sale',            false,

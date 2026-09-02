@@ -10,6 +10,7 @@ import { apiOpenBox, newRollId } from '@/app/(player)/_lib/api';
 import { sfx } from '@/lib/sound';
 import { CaseReel } from '@/components/CaseReel';
 import { BoxOddsModal } from '@/components/BoxOddsModal';
+import { DepositModal } from '@/components/DepositModal';
 
 export interface BoxCardProps {
   odds: PlayerBoxOdds;
@@ -19,6 +20,7 @@ export interface BoxCardProps {
 export function BoxCard({ odds, isFlashSale = false }: BoxCardProps) {
   const { stats, commit, adjust, toast } = usePlayer();
   const [inspectOpen, setInspectOpen] = useState(false);
+  const [depositOpen, setDepositOpen] = useState(false);
   const [spinning, setSpinning] = useState(false);
   const [activeWinner, setActiveWinner] = useState<OpenBoxResult | null>(null);
 
@@ -31,8 +33,7 @@ export function BoxCard({ odds, isFlashSale = false }: BoxCardProps) {
 
   const handleOpen = async () => {
     if (!hasFunds) {
-      sfx.playError();
-      toast(`Not enough balance ($${stats.balance.toFixed(2)} available, need $${effectivePrice.toFixed(2)}). Deposit funds via Venmo!`, 'bad');
+      setDepositOpen(true);
       return;
     }
 
@@ -167,6 +168,12 @@ export function BoxCard({ odds, isFlashSale = false }: BoxCardProps) {
         onClose={() => setInspectOpen(false)}
         odds={odds}
         meta={meta}
+      />
+
+      {/* Deposit Modal on Insufficient Funds */}
+      <DepositModal
+        isOpen={depositOpen}
+        onClose={() => setDepositOpen(false)}
       />
 
       {/* Reel Spinner Modal */}

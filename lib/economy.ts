@@ -53,6 +53,7 @@ export const DEFAULT_CONFIG: EconomyConfig = {
   max_item_prob: 0.3,
   ev_weight_factor: 0.2,
   scrap_ev_frac: 0.05,
+  filler_max_value: 15,
   scrap_coins_per_key: 100,
   scrap_key_tier: 'tier_2',
   flash_sale: false,
@@ -123,7 +124,12 @@ export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: Od
   // items, the only ones able to spend the budget. A $50 box paid out $23.68.
   const live = items.filter((i) => i.is_active && i.stock_qty > 0 && i.est_value > 0);
   const pool = live.filter((i) => i.box_tier === tier);
-  const fillerPool = live.filter((i) => i.box_tier !== tier);
+  // Predicate mirrors box_odds SQL exactly. Without the value cap, passing a
+  // full catalog would let an expensive tier-3 prize act as tier-2 "filler",
+  // and the floor anchor would be mispriced in a way the gate cannot see.
+  const fillerPool = live.filter(
+    (i) => i.box_tier !== tier && i.box_tier === 'tier_1' && i.est_value <= cfg.filler_max_value
+  );
 
   // --- Floor anchor: priced honestly, never $0 ------------------------------
   const coinUsd = scrapCoinUsd(cfg);

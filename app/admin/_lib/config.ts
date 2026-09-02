@@ -46,6 +46,7 @@ export const ConfigPatchSchema = z
     max_item_prob: z.number().gt(0).max(1),
     ev_weight_factor: z.number().min(0).max(1),
     scrap_ev_frac: z.number().min(0).max(0.5),
+    filler_max_value: z.number().min(0).max(1000),
     scrap_coins_per_key: z.number().int().min(1).max(100_000),
     scrap_key_tier: z.enum(BOX_TIERS),
     flash_sale_pct: z.number().min(0).max(0.9),
@@ -101,6 +102,7 @@ export function coerceConfig(raw: unknown): EconomyConfig {
     max_item_prob: n(r.max_item_prob, DEFAULT_CONFIG.max_item_prob),
     ev_weight_factor: n(r.ev_weight_factor, DEFAULT_CONFIG.ev_weight_factor),
     scrap_ev_frac: n(r.scrap_ev_frac, DEFAULT_CONFIG.scrap_ev_frac),
+    filler_max_value: n(r.filler_max_value, DEFAULT_CONFIG.filler_max_value),
     scrap_coins_per_key: n(r.scrap_coins_per_key, DEFAULT_CONFIG.scrap_coins_per_key),
     scrap_key_tier: (BOX_TIERS as readonly string[]).includes(String(r.scrap_key_tier))
       ? (r.scrap_key_tier as BoxTier)

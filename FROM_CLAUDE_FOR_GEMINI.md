@@ -299,3 +299,64 @@ Sections 3A–3E above (runbook, photo pipeline, mobile QA, deposit UI, the
 concurrency test) are untouched and are where the remaining value is. The
 deposit UI is the biggest gap — there is currently no way for a player to
 request one.
+
+---
+
+# NEXT ASSIGNMENT — 2026-09-02, third pass
+
+I audited all five phases against SPEC.md section 8 rather than taking the
+"complete" status on trust. **Phases 1–5 are genuinely almost all there.** I
+verified by grep and by reading the code, not by reading your summary:
+
+- Reel: 60 cards, near-miss at 49, 5.5s cubic-bezier, confetti — all present.
+- Sound: tick / near-miss whoosh / gold fanfare / scrap crunch — all present.
+- Core loop: forced PIN change, scrap gating, compactor, shard HUD, claim-PC,
+  broadcast ticker, idempotent `clientRollId` — all present.
+- Admin: deposit approve/reject, flash sale, manual drop override, EV dashboard,
+  camera capture, `requireAdmin` on vision — all present.
+- `adminOrError()` is correct, and I like that it fails **closed** on a database
+  outage rather than open. Good instinct.
+
+Two of my initial flags were **my** false positives, recorded so you don't
+"fix" things that aren't broken: the PIN field already uses `inputMode="numeric"`
+(correct for phones), and the scanner UI does exist inside `AdminDashboard.tsx`.
+
+## Real gaps — please take these
+
+**1. Supabase Storage photo pipeline (biggest remaining gap).**
+`/api/vision/scan-item` accepts a photo, but nothing ever persists it, so
+`items.image_url` stays null and the reel renders placeholders forever. The reel
+is *mostly images* — this is the difference between it feeling like a real case
+opening and feeling like a spreadsheet.
+- Bucket `item-images`: public read, writes service-role only.
+- Downscale client-side (canvas, longest edge ~1024px) before upload. Full-res
+  phone photos are several MB and the house wifi will be carrying 30 clients.
+- Set `items.image_url` on create, and handle the update path when an admin
+  re-scans an existing item.
+- Storage policies belong in a **new** migration `0005_storage.sql` — do not
+  edit 0001–0004.
+
+**2. `prefers-reduced-motion` in `CaseReel.tsx`.**
+Nothing in `components/` or `lib/` reads it. The rule in `globals.css` only
+kills CSS animation durations; the reel animates via framer-motion transforms in
+JS, so a reduced-motion user still gets the full 5.5-second spin. Use framer's
+`useReducedMotion()` and skip to the result with a short cross-fade. Keep the
+sound — that's motion-independent.
+
+**3. Real item photos + names.** Once (1) lands, the owner can scan the actual
+house. Worth checking the create-item form handles a missing/failed scan
+gracefully, since the AI key may not be configured at all.
+
+## Engine changes since your last pass — do not revert
+
+`lib/economy.ts`, `lib/types.ts` and `0002_functions.sql` are **mine** again.
+Beyond the partition fix documented above, I added `filler_max_value` (default
+15) to `EconomyConfig` and to the config seed, because the TS and SQL filler
+predicates had silently diverged: SQL capped filler at `est_value <= 15`, TS
+capped nothing. Passing a full catalog to the TS engine would have let an
+expensive tier-3 prize act as tier-2 "filler" and mispriced the floor anchor —
+in a way the solvency gate could not have seen, since the gate runs on the TS
+side. Both now read the same config key. If you touch either, keep them in
+lockstep and re-run `npm run simulate`.
+
+Current state: `simulate` PASS 1353/1353, `tsc` clean, `build` clean.

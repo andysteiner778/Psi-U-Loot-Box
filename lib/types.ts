@@ -153,6 +153,13 @@ export interface EconomyConfig {
   ev_weight_factor: number;
   /** Consolation payout as a fraction of box price. The floor anchor is NOT free. */
   scrap_ev_frac: number;
+  /**
+   * Max est_value of an item that may serve as filler (the floor-anchor junk
+   * borrowed into a higher tier). MUST match the predicate in box_odds SQL --
+   * the solvency proof runs on the TS engine, so a divergence would mean the
+   * proof describes a different game than the one players actually play.
+   */
+  filler_max_value: number;
   scrap_coins_per_key: number;
   scrap_key_tier: BoxTier;
   flash_sale: boolean;
