@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Sparkles, Eye, Zap, Flame, Lock, PackageOpen } from 'lucide-react';
 import { CaseArt } from './CaseArt';
 import type { BoxTier, OpenBoxResult } from '@/lib/types';
 import { RARITY_COLOR } from '@/lib/types';
 import { BOX_META, money, type PlayerBoxOdds } from '@/app/(player)/_lib/shared';
 import { usePlayer } from '@/app/(player)/_lib/player-store';
-import { apiOpenBox, newRollId } from '@/app/(player)/_lib/api';
+import { apiOdds, apiOpenBox, newRollId } from '@/app/(player)/_lib/api';
 import { sfx } from '@/lib/sound';
 import { CaseReel } from '@/components/CaseReel';
 import { BoxOddsModal } from '@/components/BoxOddsModal';
@@ -18,7 +18,39 @@ export interface BoxCardProps {
   isFlashSale?: boolean;
 }
 
-export function BoxCard({ odds, isFlashSale = false }: BoxCardProps) {
+export function BoxCard({ odds: initialOdds, isFlashSale = false }: BoxCardProps) {
+  /**
+   * Odds are server-rendered once at page load. Stock changes on every roll --
+   * yours and everyone else's -- so without refreshing them the card kept
+   * offering an item that had already been won, and the reel kept scrolling it
+   * past. Refetch after each spin, and poll while the tab is visible so another
+   * player's win shows up here too.
+   */
+  const [odds, setOdds] = useState<PlayerBoxOdds>(initialOdds);
+
+  const refreshOdds = useCallback(async () => {
+    const res = await apiOdds(initialOdds.tier);
+    if (res.ok) setOdds(res.value.data);
+  }, [initialOdds.tier]);
+
+  useEffect(() => {
+    setOdds(initialOdds);
+  }, [initialOdds]);
+
+  useEffect(() => {
+    // Only while the tab is actually on screen: thirty phones polling a
+    // backgrounded page is wasted bandwidth on one wifi connection.
+    const tick = () => {
+      if (document.visibilityState === 'visible') void refreshOdds();
+    };
+    const id = setInterval(tick, 20000);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [refreshOdds]);
+
   const { stats, commit, adjust, toast } = usePlayer();
   const [inspectOpen, setInspectOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
@@ -242,15 +274,22 @@ export function BoxCard({ odds, isFlashSale = false }: BoxCardProps) {
           decoys={decoys}
           winner={activeWinner}
           tierName={meta.name}
-          onFinished={() => {}}
+          // The item that just landed has had its stock decremented server
+          // side. Pull fresh odds now so it stops appearing in this card and on
+          // the next spin's reel.
+          onFinished={() => {
+            void refreshOdds();
+          }}
           onSpinAgain={() => {
             setActiveWinner(null);
             setSpinning(false);
+            void refreshOdds();
             setTimeout(() => handleOpen(), 100);
           }}
           onClose={() => {
             setActiveWinner(null);
             setSpinning(false);
+            void refreshOdds();
           }}
         />
       )}

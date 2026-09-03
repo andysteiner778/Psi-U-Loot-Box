@@ -61,6 +61,27 @@ export async function POST(req: Request) {
     parseInt(String(body.scrap_value ?? Math.round(est_value * recovery)), 10)
   );
 
+  // Adding the same name twice splits one pile into two entries with separate
+  // stock, which then compete for probability as if they were different items.
+  // Bulk intake makes this easy to do by accident -- two photos of the same
+  // drawer -- so fold the quantity into the existing row instead.
+  const { data: existing } = await db
+    .from('items')
+    .select('id, stock_qty')
+    .ilike('name', name)
+    .maybeSingle();
+
+  if (existing) {
+    const { data: merged, error: mErr } = await db
+      .from('items')
+      .update({ stock_qty: existing.stock_qty + stock_qty })
+      .eq('id', existing.id)
+      .select('*')
+      .single();
+    if (mErr) return jsonErr(400, mErr.message);
+    return jsonOk(merged);
+  }
+
   const { data, error } = await db
     .from('items')
     .insert({
