@@ -771,7 +771,17 @@ class SoundEngine {
    * Built rather than sampled because the sound wanted here -- the hand-pay
    * bell that will not shut up until an attendant walks over -- is
    * electromechanical, and recordings of it are all sirens, doorbells or
-   * copyrighted casino audio. Three things make it read as struck metal:
+   * copyrighted casino audio.
+   *
+   * TUNED AS A SCHOOL BELL, not a church one. The first version rang at 638Hz
+   * with eight strong low inharmonics and struck ten times a second, which is
+   * a stack of saucepans: too low, too slow, too clangy. A school bell is a
+   * SMALL bright dome -- high fundamental, few partials, and a clapper fast
+   * enough (~22/sec) that the ear stops hearing separate hits. Those three
+   * numbers are the ones to change if it ever needs retuning; everything
+   * else below is structure.
+   *
+   * Three things make it read as struck metal:
    *
    *  1. INHARMONIC partials. A bell's modes are not a harmonic series; a dome
    *     rings at ratios like 1 : 1.51 : 2.13 : 2.72. Feed it 1 : 2 : 3 and the
@@ -792,17 +802,20 @@ class SoundEngine {
       return this.bellBufferRef;
     }
     const sr = ctx.sampleRate;
-    const dur = 0.85;
+    const dur = 0.72;
     const len = Math.floor(sr * dur);
     const buf = ctx.createBuffer(1, len, sr);
     const data = buf.getChannelData(0);
 
-    const f0 = 638;
-    const ratios = [1, 1.51, 2.13, 2.72, 3.47, 4.35, 5.58, 6.91];
-    const amps = ratios.map((_, k) => 1 / (1 + k * 0.85));
-    const taus = ratios.map((_, k) => 0.72 / (1 + k * 0.5));
+    const f0 = 1850;
+    // Six partials, not eight, and closer together: a small dome rings mostly
+    // at its fundamental with a couple of bright overtones on top. A long tail
+    // of strong low inharmonics is precisely what cookware sounds like.
+    const ratios = [1, 1.34, 1.78, 2.31, 2.94, 3.76];
+    const amps = ratios.map((_, k) => 1 / (1 + k * 1.3));
+    const taus = ratios.map((_, k) => 0.3 / (1 + k * 0.5));
     // Beat rate climbs with the partial, as it does on a real casting.
-    const beats = ratios.map((_, k) => 1.1 + k * 0.75);
+    const beats = ratios.map((_, k) => 1.5 + k * 1.0);
 
     let peak = 0;
     for (let i = 0; i < len; i++) {
@@ -816,7 +829,7 @@ class SoundEngine {
         v += amps[k] * env * (Math.sin(w * f) + 0.72 * Math.sin(w * (f + beats[k])));
       }
       // Clapper contact: broadband, gone in ~15ms.
-      if (t < 0.02) v += (Math.random() * 2 - 1) * Math.exp(-t / 0.0035) * 1.6;
+      if (t < 0.02) v += (Math.random() * 2 - 1) * Math.exp(-t / 0.0025) * 0.7;
       data[i] = v;
       const a = v < 0 ? -v : v;
       if (a > peak) peak = a;
@@ -830,10 +843,11 @@ class SoundEngine {
   /**
    * The hand-pay bell: a continuous clanging ring, not a ding.
    *
-   * The clapper fires about ten times a second while each strike rings for the
-   * best part of a second, so roughly eight tails are always overlapping. That
-   * overlap IS the sound -- strike it slower and you get a school corridor at
-   * home time, strike it faster and it turns into a buzzer.
+   * The clapper fires about twenty-two times a second while each strike rings
+   * for ~0.3s, so roughly seven tails are always overlapping. That overlap IS
+   * the sound: at ten strikes a second the ear still resolves each hit and it
+   * reads as banging a pan, and only somewhere north of about eighteen does it
+   * fuse into the continuous brrrring of a bell over a classroom door.
    *
    * Every strike gets a little random detune and level, because thirty
    * identical copies of one buffer read as a looped sample; a real clapper
@@ -847,16 +861,21 @@ class SoundEngine {
     try {
       const t0 = at ?? g.ctx.currentTime + LOOKAHEAD;
       const buffer = this.bellBuffer(g.ctx);
-      const period = 0.096;
+      const period = 0.045;
       const strikes = Math.max(2, Math.round(seconds / period));
-      const fadeFrom = Math.max(1, strikes - 4);
+      // Wind down over ~0.4s rather than a fixed number of strikes -- at this
+      // rate "the last four" is under a fifth of a second and cuts off. Capped
+      // at a third of the ring so the short Rare burst, which is only eight
+      // strikes long, does not start fading on its first one.
+      const fadeStrikes = Math.min(Math.round(0.4 / period), Math.floor(strikes * 0.35));
+      const fadeFrom = Math.max(1, strikes - fadeStrikes);
 
       for (let s = 0; s < strikes; s++) {
-        const start = t0 + s * period * (0.94 + Math.random() * 0.12);
+        const start = t0 + s * period * (0.97 + Math.random() * 0.06);
         const src = g.ctx.createBufferSource();
         const env = g.ctx.createGain();
         src.buffer = buffer;
-        src.playbackRate.value = 1 + (Math.random() - 0.5) * 0.045;
+        src.playbackRate.value = 1 + (Math.random() - 0.5) * 0.03;
 
         // Ring out rather than stop dead.
         const fade = s < fadeFrom ? 1 : 1 - (s - fadeFrom + 1) / (strikes - fadeFrom + 1);
