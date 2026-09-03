@@ -63,7 +63,7 @@ export const WINNER_INDEX = WINNER_POSITION - 1; //       49
 export const NEAR_MISS_CHANCE = 0.45;
 
 /** Rarities that qualify as near-miss bait. */
-export const BAIT_RARITIES: readonly Rarity[] = ['gold', 'pink'];
+export const BAIT_RARITIES: readonly Rarity[] = ['gold', 'pink', 'purple'];
 
 // ---------------------------------------------------------------------------
 // Deceleration curve (spec section 4B)
@@ -153,9 +153,9 @@ export function buildReel(
 ): ReelCard[] {
   const pool = decoys.length > 0 ? decoys : FALLBACK_DECOYS;
 
-  // Keep gold out of the filler so the bait in slot 49 is the only gold the
+  // Keep the bait rarities out of the filler so slot 49 is the only one the
   // player sees coming. If the pool is all gold (it won't be), fall back to it.
-  const filler = pool.filter((c) => c.rarity !== 'gold');
+  const filler = pool.filter((c) => !BAIT_RARITIES.includes(c.rarity));
   const fillerPool = filler.length > 0 ? filler : pool;
 
   const cards: ReelCard[] = new Array<ReelCard>(REEL_LENGTH);
@@ -173,10 +173,12 @@ export function buildReel(
   // to three openings -- which is what makes the occasional real gold land
   // feel earned.
   if (rng() < NEAR_MISS_CHANCE) {
+    // Any Legendary-or-better item in this tier can be the near miss, picked at
+    // random rather than always the single best one -- seeing the same $400 PC
+    // slide past every time is how a player learns the beat is scripted.
+    const candidates = pool.filter((c) => BAIT_RARITIES.includes(c.rarity));
     const bait =
-      pool.find((c) => c.rarity === 'gold') ??
-      pool.find((c) => c.rarity === 'pink') ??
-      SHARD_BAIT;
+      candidates.length > 0 ? candidates[Math.floor(rng() * candidates.length)] : SHARD_BAIT;
 
     cards[NEAR_MISS_INDEX] = {
       ...bait,

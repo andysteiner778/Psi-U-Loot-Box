@@ -53,17 +53,17 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
 export const BOX_META: Record<BoxTier, { name: string; blurb: string; accent: Rarity }> = {
   tier_1: {
     name: 'Dorm Scraps',
-    blurb: 'Cables, Steam keys, drone parts, MTG bulk.',
+    blurb: 'The junk drawer. Cables, keys, odds and ends.',
     accent: 'grey',
   },
   tier_2: {
     name: 'Living Room Gear',
-    blurb: '144Hz monitors, audio peripherals, the MCAT books.',
+    blurb: 'The stuff worth carrying home. Best odds of a real win.',
     accent: 'blue',
   },
   tier_3: {
     name: 'High Roller',
-    blurb: 'The speakers. The good monitor. Best shard odds.',
+    blurb: 'The monitors, the books, the big pulls — and PC shards.',
     accent: 'gold',
   },
 };

@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Package, Sparkles, Eye, Zap, Flame, Lock, PackageOpen } from 'lucide-react';
+import { Sparkles, Eye, Zap, Flame, Lock, PackageOpen } from 'lucide-react';
+import { CaseArt } from './CaseArt';
 import type { BoxTier, OpenBoxResult } from '@/lib/types';
 import { RARITY_COLOR } from '@/lib/types';
 import { BOX_META, money, type PlayerBoxOdds } from '@/app/(player)/_lib/shared';
@@ -139,10 +140,9 @@ export function BoxCard({ odds, isFlashSale = false }: BoxCardProps) {
               className="absolute inset-0 bg-radial-gradient opacity-30"
               style={{ background: `radial-gradient(circle at center, ${accentColor}30, transparent 70%)` }}
             />
-            <Package
-              className="h-20 w-20 transition-transform duration-500 group-hover:scale-110"
-              style={{ color: accentColor, filter: `drop-shadow(0 0 15px ${accentColor}80)` }}
-            />
+            <div className="transition-transform duration-500 group-hover:scale-110">
+              <CaseArt tier={tier} color={accentColor} />
+            </div>
           </div>
 
           {/* Title & Blurb */}

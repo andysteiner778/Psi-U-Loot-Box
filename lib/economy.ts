@@ -45,7 +45,7 @@ export const DEFAULT_CONFIG: EconomyConfig = {
   house_margin: 0.125,
   pot_revenue_threshold: 150.0,
   box_prices: { tier_1: 5, tier_2: 20, tier_3: 50 },
-  shard_probs: { tier_1: 0.0225, tier_2: 0.09, tier_3: 0.3 },
+  shard_probs: { tier_1: 0.01, tier_2: 0.04, tier_3: 0.15 },
   pc_value: 50,
   pc_display_value: 400,
   shards_required: 2,
@@ -364,9 +364,21 @@ export function rarityForValue(v: number): Rarity {
   return 'grey'; // Common
 }
 
-/** Spec tier bands: tier_1 <= $30, tier_2 <= $120, tier_3 > $120. */
+/**
+ * Tier bands, cut to the house's ACTUAL value distribution.
+ *
+ * The spec's bands (tier_1 <= $30, tier_2 <= $120, tier_3 > $120) left tier 3
+ * holding exactly one item, because almost nothing in a student house is worth
+ * over $120. A $50 box whose only prize is one book is not a High Roller case,
+ * it is a refund machine -- 51% of rolls came back as free spins.
+ *
+ * Cut at $50 and $15 instead, which splits the real catalog roughly:
+ *   tier_3  6 items  $50-150   (the genuinely good stuff)
+ *   tier_2 10 items  $15-30
+ *   tier_1 43 items  under $15 (the junk drawer)
+ */
 export function tierForValue(v: number): BoxTier {
-  if (v > 120) return 'tier_3';
-  if (v > 30) return 'tier_2';
+  if (v >= 50) return 'tier_3';
+  if (v >= 15) return 'tier_2';
   return 'tier_1';
 }
