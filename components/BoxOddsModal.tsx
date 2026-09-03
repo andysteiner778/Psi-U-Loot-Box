@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { X, ShieldAlert, Zap, RefreshCw, Skull, Sparkles, Package } from 'lucide-react';
+import { X, ShieldAlert, Zap, RefreshCw, Skull, Sparkles, Package, Lock } from 'lucide-react';
 import { RARITY_COLOR, RARITY_LABEL, type Rarity } from '@/lib/types';
 import type { PlayerBoxOdds } from '@/app/(player)/_lib/shared';
 
@@ -85,9 +85,11 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
                 ${odds.total_ev.toFixed(2)} ({(100 - odds.realized_margin * 100).toFixed(0)}%)
               </span>
             </div>
-            <div className="rounded-xl bg-yellow-950/30 p-3 border border-yellow-500/20">
-              <span className="text-yellow-400 block text-[10px]">PC Shard Drop</span>
-              <span className="text-yellow-300 font-bold text-sm">{pct(odds.p_shard)}</span>
+            <div className={`rounded-xl p-3 border ${odds.pot_gate_met ? 'bg-yellow-950/30 border-yellow-500/20' : 'bg-gun-950 border-gun-800'}`}>
+              <span className={`block text-[10px] ${odds.pot_gate_met ? 'text-yellow-400' : 'text-gun-400'}`}>PC Shard Drop</span>
+              <span className={`font-bold text-sm ${odds.pot_gate_met ? 'text-yellow-300' : 'text-gun-400'}`}>
+                {odds.pot_gate_met ? pct(odds.p_shard) : 'Locked (Gate)'}
+              </span>
             </div>
             <div className="rounded-xl bg-cyan-950/30 p-3 border border-cyan-500/20">
               <span className="text-cyan-400 block text-[10px]">
@@ -108,12 +110,24 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs font-mono">
               {/* Shard Anchor */}
-              <div className="flex items-center justify-between rounded-xl bg-yellow-950/20 border border-yellow-500/30 p-3">
+              <div className={`flex items-center justify-between rounded-xl border p-3 ${
+                odds.pot_gate_met
+                  ? 'bg-yellow-950/20 border-yellow-500/30'
+                  : 'bg-gun-950/40 border-gun-800'
+              }`}>
                 <div className="flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-yellow-400" />
-                  <span className="text-yellow-200">PC Core Shard</span>
+                  {odds.pot_gate_met ? (
+                    <Zap className="h-4 w-4 text-yellow-400" />
+                  ) : (
+                    <Lock className="h-4 w-4 text-gun-400" />
+                  )}
+                  <span className={odds.pot_gate_met ? 'text-yellow-200' : 'text-gun-400'}>
+                    PC Core Shard
+                  </span>
                 </div>
-                <span className="font-bold text-yellow-400">{pct(odds.p_shard)}</span>
+                <span className={`font-bold ${odds.pot_gate_met ? 'text-yellow-400' : 'text-gun-400'}`}>
+                  {odds.pot_gate_met ? pct(odds.p_shard) : '0% (Gate Shut)'}
+                </span>
               </div>
 
               {/* Free Respin Anchor */}
@@ -143,6 +157,12 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
                 <span className="font-bold text-gun-400">{pct(odds.p_scrap)}</span>
               </div>
             </div>
+            {!odds.pot_gate_met && (
+              <div className="flex items-center gap-2 rounded-xl bg-gun-950/70 border border-amber-500/20 p-2.5 text-[11px] font-mono text-gun-400">
+                <Lock className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                <span>PC Shard drops are locked at 0% across all boxes until approved house deposits cross the pot threshold (${odds.pot_total.toFixed(0)} deposited so far).</span>
+              </div>
+            )}
           </div>
 
           {/* Physical Items Table */}
@@ -239,7 +259,7 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
                   })}
 
                   {/* The non-item outcomes, so the column genuinely sums to 100%. */}
-                  {odds.p_shard > 0 && (
+                  {odds.p_shard > 0 ? (
                     <tr className="bg-yellow-950/20">
                       <td className="py-2.5 px-3 font-sans font-semibold text-yellow-200">
                         PC Core Shard
@@ -258,7 +278,24 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
                         {pct(odds.p_shard)}
                       </td>
                     </tr>
-                  )}
+                  ) : !odds.pot_gate_met ? (
+                    <tr className="bg-gun-950/40 text-gun-400">
+                      <td className="py-2.5 px-3 font-sans font-medium text-gun-300 flex items-center gap-1.5">
+                        <Lock className="h-3 w-3 text-amber-500/80 shrink-0" />
+                        <span>PC Core Shard</span>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase text-gun-300 bg-gun-800">
+                          Exotic
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-gun-400">toward the PC</td>
+                      <td className="py-2.5 px-3 text-right text-gun-500">&mdash;</td>
+                      <td className="py-2.5 px-3 text-right font-mono text-[11px] font-semibold text-amber-400/90">
+                        0% (Pot Gate Locked)
+                      </td>
+                    </tr>
+                  ) : null}
                   {odds.p_respin > 0 && (
                     <tr className="bg-blue-950/20">
                       <td className="py-2.5 px-3 font-sans font-semibold text-blue-200">

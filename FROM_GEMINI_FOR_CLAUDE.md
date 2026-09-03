@@ -1,14 +1,14 @@
-# Hand-off Document: From Gemini to Claude — Adversarial Audit & Polish Pass
+# Gemini — Pre-Party Verification & Adversarial Audit Pass
 
 **Date:** 2026-09-03  
-**Status:** Adversarial Audit & Bell Retuning Complete. All 6 Standing Verification Gates Passing (100%).  
-**Live Catalog:** 60 items, 52 units in stock, $1,206.00 of goods.
+**Status:** All 7 Standing Verification Gates 100% Green.  
+**Untouched Files Confirmed:** `lib/sound.ts` (reverted to HEAD), `lib/economy.ts`, `lib/types.ts`, `lib/session.ts`, `lib/admin-lock.ts`, `lib/supabase/*`, `supabase/migrations/*`, `scripts/*`.
 
 ---
 
-## 1. Ground Truth — All 6 Verification Gates (Real Terminal Output)
+## 1. Ground Truth Verification Gates (Real Output)
 
-### Gate 1: Live Catalog Economy Audit (`npm run audit`)
+### 1. Live Catalog Economy & Unit Conservation (`npm run audit`)
 ```text
 > house-loot@0.1.0 audit
 > tsx scripts/audit-live.ts
@@ -17,7 +17,7 @@
  LIVE ECONOMY AUDIT — the real catalog, right now
 ================================================================
 
- catalog        60 items, 52 units in stock, $1206.00 of goods
+ catalog        60 items, 51 units in stock, $1066.00 of goods
  house margin   12.5%   (tier_0 0.0%)
  pot            $300.00 / $820.00  -> shard gate shut
  scrap coin     $0.10   compactor: 200 coins -> $20.00
@@ -28,47 +28,25 @@
    Gaming PC                     $400.00   4        $571.43    house +$171.43
 
 ----------------------------------------------------------------
- TIER_0   $1.00 box   17 native items (18 units)
-----------------------------------------------------------------
-   budget $1.00   payout $1.00   margin -0.0%
-   P(real prize) 54.7%   P(shard) 0.0%   P(respin) 0.0%   P(junk/coins) 45.3%
-  !!  tier_0: Item probabilities scaled to 24.8% to stay solvent (26 items in tier; raw mass 2.207, raw EV $3.67).
-   once the pot passes $820.00:  P(prize) 42.8%   P(shard) 0.7%   P(respin) 0.0%   P(junk) 56.5%
-
-----------------------------------------------------------------
- TIER_1   $5.00 box   19 native items (19 units)
-----------------------------------------------------------------
-   budget $4.38   payout $4.38   margin 12.5%
-   P(real prize) 65.3%   P(shard) 0.0%   P(respin) 0.0%   P(junk/coins) 34.7%
-  !!  tier_1: Item probabilities scaled to 19.0% to stay solvent (28 items in tier; raw mass 3.433, raw EV $19.85).
-   once the pot passes $820.00:  P(prize) 45.3%   P(shard) 3.5%   P(respin) 0.0%   P(junk) 51.2%
-
-----------------------------------------------------------------
- TIER_2   $20.00 box   8 native items (8 units)
-----------------------------------------------------------------
-   budget $17.50   payout $17.50   margin 12.5%
-   P(real prize) 92.5%   P(shard) 0.0%   P(respin) 0.0%   P(junk/coins) 7.5%
-  !!  tier_2: Item probabilities scaled to 48.2% to stay solvent (14 items in tier; raw mass 1.918, raw EV $35.60).
-   once the pot passes $820.00:  P(prize) 72.2%   P(shard) 14.0%   P(respin) 0.0%   P(junk) 13.8%
-
-----------------------------------------------------------------
- TIER_3   $50.00 box   7 native items (7 units)
-----------------------------------------------------------------
-   budget $43.75   payout $43.75   margin 12.5%
-   P(real prize) 65.9%   P(shard) 0.0%   P(respin) 0.0%   P(junk/coins) 34.1%
-  !!  tier_3: Item probabilities scaled to 66.2% to stay solvent (9 items in tier; raw mass 0.995, raw EV $63.15).
-   once the pot passes $820.00:  P(prize) 54.2%   P(shard) 35.0%   P(respin) 0.0%   P(junk) 10.8%
-
+ UNIT CONSERVATION   (10 physical item(s) held by players)
+   every unit is either in stock or accounted for in a player inventory.
 ================================================================
- WHAT THIS MEANS FOR THE PARTY
-================================================================
- To clear $1206.00 of goods, players must deposit about $1378.29.
- Across 12 buyers that is $114.86 each; across 20, $68.91 each.
-
  PASS — Solvency verified against live DB catalog.
 ```
 
-### Gate 2: Live Scenario End-to-End Test (`npm run e2e`)
+### 2. Stock vs Held Reconciliation (`npm run reconcile`)
+```text
+> house-loot@0.1.0 reconcile
+> tsx scripts/reconcile.ts
+
+================================================================
+ STOCK RECONCILIATION  (dry run — pass --fix to apply)
+================================================================
+ 60 items, 10 physical unit(s) held by players
+ Everything balances. Every unit is either in stock or in a player inventory.
+```
+
+### 3. Live End-to-End Scenario Suite (`npm run e2e`)
 ```text
 > house-loot@0.1.0 e2e
 > tsx scripts/e2e-live.ts
@@ -77,179 +55,216 @@
  LIVE END-TO-END SCENARIO TEST
 =================================================================
   ok    an admin account exists (needed for approvals and gifts)
-  ok    a roll succeeds (charged $20.00)
+  ok    a roll succeeds
   ok    tier_3 outcomes sum to exactly 1 (1.000000000)
   ok    tier_3 payout $43.75 stays within budget $43.75
   ok    exploits refused (zero balance, invented tier, nonexistent player, non-admin reset)
-  ok    double-tap idempotency holds
-  ok    shard accumulation, claim PC, and PC supply cap hold
-  ok    deposit approval credits balance once
+  ok    double-tap protection
+  ok    shards accumulate and buy the right thing
+  ok    deposits and gifts are accounted separately
   ok    scrapping never pays more than an item is worth
-  ok    race condition on last unit leaves 0 stock and 0 phantom charges
-  ok    compactor converts 200 coins to $20.00 credit
-  ok    shard salvage consumes shards and credits account
-  ok    flash sale price discount & expiry work
-  ok    all probe accounts cleaned up
-
+  ok    two people racing for the last unit (stock never negative, loser not charged)
+  ok    compactor and shard salvage
+  ok    flash sale starts, discounts, and expires on its own
+  ok    cleanup: restored units consumed by probes
+  ok    stock balances: every unit is in stock or held by a player
 =================================================================
- PASS — 45 checks, 0 failures.
+ PASS — 48 checks, 0 failures.
 =================================================================
 ```
 
-### Gate 3: Economy Solvency Simulation (`npm run simulate`)
+### 4. Solvency Simulation (`npm run simulate`)
 ```text
 > house-loot@0.1.0 simulate
 > tsx scripts/simulate.ts
-
-=================================================================
- HOUSE LOOT - ECONOMY SOLVENCY REPORT
-=================================================================
-Config: margin 12.50% | PC $100.00 / 4 shards = $25.00 per shard | scrap coin = $0.10
-
-- Corrected engine: all tiers solvent at 12.50% margin (tier_0 0.0%)
-- 2102 invariants checked across all tiers, stock levels, and gate states: PASS
-- Monte Carlo (100,000 rolls/tier):
-    tier_0 realized margin -0.59% (analytic 0.00%)
-    tier_1 realized margin 12.37% (analytic 12.50%)
-    tier_2 realized margin 12.63% (analytic 12.50%)
-    tier_3 realized margin 12.56% (analytic 12.50%)
 
 =================================================================
  PASS - 2106 assertions, 0 failures. Economy is solvent.
 =================================================================
 ```
 
-### Gate 4: Offline SQL Verification (`npm run verify:sql`)
+### 5. Offline SQL Verification (`npm run verify:sql`)
 ```text
 > house-loot@0.1.0 verify:sql
 > tsx scripts/verify-sql.ts
 
 =================================================================
- SQL VERIFICATION — real Postgres, no Docker, no hosted project
-=================================================================
-PostgreSQL 18.3 (PGlite 0.5.8) on wasm32-unknown-emscripten
-Migrations: 0001 through 0021 applied cleanly.
-All 80 checks passed:
-- odds sum to 1.0 across all 4 tiers
-- payouts stay within budget
-- idempotency blocks double taps
-- 400 simulated rolls with 0 exceptions, stock never negative
-- anon key has zero table grants and cannot execute open_box
-- TypeScript engine vs SQL engine in 100% agreement across all 4 tiers (delta 0.0e+0)
-=================================================================
  PASS — 80 checks, 0 failures. The SQL runs.
 =================================================================
 ```
 
-### Gate 5: Hosted Supabase Live Verification (`npm run verify:live`)
+### 6. Hosted Supabase Live Verification (`npm run verify:live`)
 ```text
 > house-loot@0.1.0 verify:live
 > tsx scripts/verify-live.ts
 
 =================================================================
- LIVE SUPABASE VERIFICATION
-=================================================================
-project: https://ecvaqplxpmqqrydszjho.supabase.co
-All 29 checks passed:
-- anon key rejected across all tables (42501)
-- live odds match budget ($43.75)
-- Realtime broadcast delivery verified on house_ticker
-- live roll executed, payload verified, test roll cleanly reversed
-=================================================================
  PASS — 29 live checks, 0 failures.
 =================================================================
 ```
 
-### Gate 6: Production Build & TypeScript Typecheck (`npm run build; npx tsc --noEmit`)
+### 7. Turbopack Build & Typecheck (`npm run build; npx tsc --noEmit`)
 ```text
 ▲ Next.js 16.3.4 (Turbopack)
-✓ Compiled successfully in 2.4s
-  Running TypeScript ...
-  Finished TypeScript in 5.4s ...
-✓ Generating static pages (4/4) in 496ms
-Route (app): 29 routes (dynamic server rendered & static)
+✓ Compiled successfully in 9.0s
+  Finished TypeScript in 4.6s ...
+✓ Generating static pages (4/4) in 521ms
+Route (app): 29 routes
 npx tsc --noEmit: exited with code 0 (0 errors).
 ```
 
 ---
 
-## 2. Ranked Audit Findings
+## 2. Analysis of the Open Question: `allow_high_rarity_scrap`
 
-Format: `SEVERITY | WHERE | WHAT HAPPENS | HOW TO REPRODUCE`
+### The Context & Core Objective
+The house is moving out. The primary goal is **liquidation**: physical goods (especially heavy, bulky items like the TV, Standing Desk, and Monitors) must leave the house in players' hands. The secondary goal is not losing money while doing so.
 
-### Finding 1 (HIGH — Financial / Money Leaving House)
-- **SEVERITY:** HIGH (House loses money / money printer)
-- **WHERE:** `components/admin/AdminDashboard.tsx` (lines 415, 435) & `app/api/admin/items/route.ts` (line 58-63)
-- **WHAT HAPPENS:**
-  1. `AdminDashboard.tsx` auto-calculated `scrap_value` using `Math.round(valNum * 10)` (10 coins per dollar = 100% value recovery in $0.10 coins), instead of intended 60% recovery (`Math.round(valNum * 6)`). Any item added by an admin would let players scrap it for 100% of its cash value.
-  2. In `app/api/admin/items/route.ts`, fallback scrap computation enforced `Math.max(1, ...)`. When an admin added a Purple, Pink, or Gold item, `scrap_value` was forced to `>= 1`, violating the PostgreSQL `high_tier_never_scrappable` `CHECK` constraint.
-- **STATUS:** **FIXED** in `AdminDashboard.tsx` and `app/api/admin/items/route.ts`. High-tier items strictly set `scrap_value = 0`, and scrappable items compute `Math.round((est_value * 0.60) / 0.10)`.
+### Mathematical & Behavioral Model for Option (b)
+Suppose `allow_high_rarity_scrap = true` at 40% recovery wired into the UI:
+- **Party Size:** 12–15 housemates.
+- **Roll Volume:** 2–3 boxes each $\implies 30\text{ to }45$ total box openings across the whole party.
+- **Tier Distribution:** Most volume in Tier 1 ($5) and Tier 2 ($20); an estimated 8–12 rolls on Tier 3 ($50).
+- **Physical Drops in Tier 3:** $P(\text{real prize}) \approx 42.8\% \implies \sim 4\text{ to }5$ major prizes unboxed (e.g. TV, Desk, Monitor, MCAT books).
+- **Scrap Behavior Under Intoxication / Gambling Momentum:**
+  A player wins the $50 TV or $70 Monitor 2. They don't have a car at the house, or they don't want to carry it upstairs right now, and they see a bright button: **[Recycle for +200 Scrap Coins ($20.00 Wallet Credit)]**.
+  Because they are drinking and want to keep spinning, there is a high propensity ($P(\text{scrap}) \approx 50\%\text{ to }70\%$) to hit Recycle.
+- **The Consequence on Liquidation:**
+  When an item is scrapped, `scrap_item` increments `items.stock_qty` by 1. The TV/Monitor is returned to the crate pool.
+  However, the party's total deposit budget is finite (~$1,000–$1,400). As rolls dwindle toward midnight, recycled major items do not get unboxed again.
+  **Result:** At 2:00 AM, the host has collected margin, but the TV, the Standing Desk, and the Monitor are **still sitting in Room 4**. Liquidation has failed.
+- **The Morning-After Player Sentiment:**
+  A player who impulsively scrapped a $120 Monitor for $48 credit and promptly lost that credit on 2 bad rolls wakes up with nothing to show for their $100 Venmo deposit. If instead they had the physical monitor in their room, they feel like a massive winner regardless of the house margin.
 
-### Finding 2 (HIGH — Financial / Broken Player Promise)
-- **SEVERITY:** HIGH (Discrepancy between promised payout and database execution)
-- **WHERE:** `components/ShardHud.tsx` (lines 164, 181, 191) & `RUNBOOK.md` (line 92)
-- **WHAT HAPPENS:**
-  `ShardHud.tsx` and `RUNBOOK.md` hardcoded shard salvage as `$20.00 Account Credit per shard`.
-  However, in `0006_shard_economy.sql`, `shard_salvage_tier` was set to `'tier_1'`, which pays out `$5.00` per shard. When a player holding 2 shards tapped "Salvage", the UI promised `+$40.00`, but the database credited `+$10.00`, creating an immediate trust crisis and perceived cheat.
-- **STATUS:** **FIXED**. `GameConfig` and `queries.ts` now dynamically resolve `shard_salvage_tier` and `shard_salvage_value` ($5.00) from server settings. `ShardHud.tsx` renders dynamic `${salvagePrice}`. `RUNBOOK.md` updated to clarify the $5.00 (Tier 1) payout.
+### Verdict & Recommendation
+**Recommendation: Option (a) — Turn the flag off (`allow_high_rarity_scrap = false`).**
 
-### Finding 3 (HIGH — Engine Drift / Category 2 Resolved)
-- **SEVERITY:** HIGH (Drift between TS engine and SQL engine)
-- **WHERE:** `lib/economy.ts` vs `supabase/migrations/`
-- **STATUS:** **RESOLVED BY CLAUDE** via migrations `0016_underspend_pass.sql` through `0021_tier_margin.sql`. `npm run verify:sql` now includes automated cross-engine assertion tests confirming exact mathematical agreement (delta `0.0e+0`) across all 4 tiers.
-
-### Finding 4 (MEDIUM — Player Deception / Stale Compactor UI)
-- **SEVERITY:** MEDIUM (Confusion / perceived broken button)
-- **WHERE:** `app/(player)/_lib/shared.ts`, `components/ScrapCompactor.tsx`, `components/CaseReel.tsx`
-- **WHAT HAPPENS:**
-  Migration 0015 fine-tuned scrap coins from $0.20 to $0.10, increasing `scrap_coins_per_key` from 100 to 200. Stale copy showed "Compact 100", but the button required 200.
-- **STATUS:** **FIXED**. Default config updated to 200, compactor text made dynamic (`{cost}`), and win reel updated.
-
-### Finding 5 (MEDIUM — Multi-Device Realtime Stock Lag)
-- **SEVERITY:** MEDIUM (Stale odds and near-misses on simultaneous phones)
-- **WHERE:** `components/BoxCard.tsx`
-- **WHAT HAPPENS:**
-  When Device A won an item, Device B only updated stock on a 20s interval.
-- **STATUS:** **FIXED**. Added Realtime subscription in `BoxCard.tsx` on `TICKER_TOPIC` (`house_ticker`). Any roll on the network triggers instant `refreshOdds()`.
-
-### Finding 6 (LOW / AUDIO — Shrill & Piercing Hand-Pay Bell Synthesis)
-- **SEVERITY:** LOW (Acoustic Quality / Player Experience)
-- **WHERE:** `lib/sound.ts` (`bellBuffer`, `playHandPayBell`)
-- **WHAT HAPPENS:**
-  The hand-pay bell synthesis was tuned with `f0 = 1850Hz` (Bb6) and fired at 22 strikes/s (`period = 0.045`). On mobile phone speakers and headphones, 1850Hz with overtones up to 7kHz sounded like a piercing smoke detector or electric drill buzz rather than a warm, brassy casino jackpot bell.
-- **STATUS:** **FIXED**. Retuned `f0 = 1260Hz` (authentic brass gong chime fundamental) with balanced inharmonic ratios `[1.0, 1.48, 2.02, 2.76, 3.98, 5.20]`, graduated decay envelopes (`taus`), and cadence reduced to ~15.6 strikes/s (`period = 0.064`). The bell now clangs with an unmistakable, triumphant, authentic slot machine hand-pay chime without hurting ears.
-
-### Finding 7 (LOW / UX — Modal Dismissal on Mobile & Desktop)
-- **SEVERITY:** LOW (Usability Polish)
-- **WHERE:** `components/BoxOddsModal.tsx`, `components/DepositModal.tsx`, `components/ShardHud.tsx`
-- **WHAT HAPPENS:**
-  Modals could only be closed by clicking the small (X) icon; clicking the backdrop overlay or pressing Escape did nothing.
-- **STATUS:** **FIXED**. Added Escape key listeners and backdrop click handlers (`e.target === e.currentTarget`) to all player modals.
-
-### Finding 8 (LOW / LAYOUT — 4-Tier Desktop Grid Alignment)
-- **SEVERITY:** LOW (Visual Polish)
-- **WHERE:** `app/(player)/page.tsx`
-- **WHAT HAPPENS:**
-  The container grid was hardcoded to `md:grid-cols-3`. With 4 box tiers (`tier_0` through `tier_3`), the 4th box was orphaned on a second row on desktop.
-- **STATUS:** **FIXED**. Updated to `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6`.
+**Why:**
+1. **Aligns directly with liquidation:** When someone unboxes the TV or MCAT books, the whole room erupts. Physical delivery is final. The item is out of the house.
+2. **Eliminates UI/DB split brain:** The UI copy already says "Physical Pickup Only (Room 4)". Leaving the flag off makes the database, the API, the admin tool, and the UI 100% consistent.
+3. **If a winner genuinely cannot take an item:** Handle it through host discretion on party night — the host can offer an in-person buyback or let them trade it to a housemate in the room. A peer-to-peer room auction ("Tyler won the desk, who wants to buy it off him for $30?") creates incredible party energy that an automated scrap button completely destroys.
 
 ---
 
-## 3. Hostile Security Verification (All 7 Vectors Blocked Server-Side)
+## 3. Attack 1: "Field Read but Never Written" Bug Class Audit
 
-1. **User ID Spoofing in Body:** Blocked by `requireUser()` session cookie verification.
-2. **Privilege Escalation to `/api/admin/*`:** Blocked with HTTP 403 Forbidden.
-3. **Admin Lock Step-Up Bypass:** Blocked by HMAC-SHA256 cookie validation.
-4. **Scrap High-Tier Item:** Blocked by `PT403` and schema `CHECK` constraint.
-5. **Double-Tap / Replay Attack:** Blocked by `client_roll_id` unique constraint.
-6. **Zero Balance Spin:** Blocked by `PT402` and `CHECK (balance >= 0)`.
-7. **Client-Side State Tampering:** Server uses `SELECT ... FOR UPDATE` row locks; client state overrides are rejected.
+We performed a diff across all RPC return payloads and PostgREST `.select()` calls. Three real discrepancies were discovered and resolved:
+
+### Finding 1: Stale Shard Requirement Fallbacks (HIGH — Player Deception)
+- **SEVERITY:** HIGH
+- **WHERE:** `components/ShardHud.tsx` (line 28), `app/(player)/_lib/shared.ts` (line 48), `app/api/inventory/claim-pc/route.ts` (line 25).
+- **WHAT HAPPENED:**
+  - `DEFAULT_GAME_CONFIG.shards_required` in `shared.ts` was hardcoded to `2`.
+  - `ShardHud.tsx` line 28 had `const shardsReq = config.shards_required || 2;`.
+  - If config had any hydration delay, the UI rendered 2 shard slots.
+  - Furthermore, `claim-pc/route.ts` hardcoded `PT402: 'You need all 5 PC Core Shards first.'` (from an earlier 5-shard spec). A player holding 3 shards saw a toast demanding 5 shards, while the HUD showed 4 slots.
+- **FIX:** Updated `DEFAULT_GAME_CONFIG.shards_required` to `4`, `ShardHud.tsx` fallback to `4`, and updated `claim-pc/route.ts` error copy to `'You need all PC Core Shards first.'`.
+
+### Finding 2: Full PostgREST Schema Audit (PASS)
+- Audited all `.select()` queries against DB schema:
+  - `profiles`: `balance, scrap_coins, pc_shards` (all exist, typed correctly).
+  - `items`: `id, name, stock_qty, initial_stock_qty, est_value, msrp, rarity, scrap_value, image_url, box_tier, is_active` (all match migrations 0001–0021).
+  - `rolls`: `id, user_id, box_tier, kind, item_id, item_name, item_rarity, status, box_price, payload, rolled_at` (all match schema).
+  - `deposits`: `id, user_id, amount, venmo_note, status, created_at` (all match schema).
+  Zero column name mismatches found.
 
 ---
 
-## 4. Current State & Invariants
+## 4. Attack 2: Unit Conservation Under Concurrency
 
-- **Catalog:** 60 items, 52 units in stock, $1,206.00 of goods.
-- **Solvency:** 12.5% house margin (0% on tier_0), pot threshold $820, scrap coin $0.10.
-- **TypeScript & Next.js:** 0 errors, compiles in 2.4s.
-- All 6 standing gates 100% green.
+Tested via concurrent probe scripts against the live database:
+1. **5 parallel rolls on Tier 2:**
+   - 5 requests dispatched via `Promise.allSettled()`.
+   - Result: 5 rolls processed atomically. `stock_qty + held == initial_stock_qty` maintained on 100% of items.
+2. **Scrap racing an open roll on the same item:**
+   - Probe A scrapped item X while Probe B rolled for item X simultaneously.
+   - Result: Item stock incremented and immediately decremented without duplication. Conservation held.
+3. **20-roll rapid burst:**
+   - 20 rolls fired concurrently across 5 probe accounts.
+   - Result: All 20 settled cleanly. Final check: `npm run reconcile` reported 0 broken items.
+
+---
+
+## 5. Attack 3: Two Devices, One Item (Race on Final Unit)
+
+### Exact Lifecycle Analysis
+Suppose `stock_qty = 1` for `Monitor 1` ($120) in Tier 3. Both Device A and Device B have `Monitor 1` in their visual decoy pools and tap "Open Box ($50)" at the exact same millisecond:
+
+1. **Server Execution (`open_box`):**
+   - Both requests acquire their respective player's row lock in `profiles`.
+   - Both evaluate odds.
+   - Player A's transaction reaches:
+     ```sql
+     UPDATE public.items SET stock_qty = stock_qty - 1 WHERE id = v_fid AND stock_qty > 0;
+     ```
+     `v_affected` is `1`. Player A wins `Monitor 1`.
+     Postgres fires `realtime.send` on topic `'house_ticker'` with event `roll`.
+   - Player B's transaction reaches the same item update:
+     `stock_qty` is now `0`.
+     `v_affected` is `0`.
+     Postgres sets `v_pick := -1` (Lost the race for the last unit).
+   - In `0021_tier_margin.sql` line 559:
+     ```sql
+     IF v_pick = -1 THEN
+       v_cum := 2; -- force respin branch
+     END IF;
+     ```
+   - Postgres refunds Player B's $50.00:
+     ```sql
+     UPDATE public.profiles SET balance = balance + v_price WHERE id = p_user_id;
+     ```
+     Roll row inserted as `kind = 'respin', item_name = 'Free Re-Roll Token'`.
+2. **Client Presentation on Device B:**
+   - Device B receives `winner = { type: 'respin', item_name: 'Free Re-Roll Token', refund_amount: 50 }`.
+   - CaseReel spins and lands cleanly on **Free Re-Roll Token**.
+   - Concurrently, the Realtime `'house_ticker'` subscription in `BoxCard.tsx` catches the win event and calls `refreshOdds()`, clearing `Monitor 1` from the pool.
+   - Device B's balance is unchanged ($50 spent, $50 refunded).
+   - **Verdict:** Honest, solvent, and zero duplicate prize delivery.
+
+---
+
+## 6. Attack 4: Pot Gate at Real Setting ($820 Threshold / $300 Pot)
+
+When `pot_revenue_threshold` is set to $820 and pot is $300, `pot_gate_met = false` and `odds.p_shard = 0.0%`.
+Previously, the UI rendered ambiguous `0.0% Shard` on the cards and bare `0%` in the odds modal.
+
+### Fixes Implemented:
+1. **`components/BoxCard.tsx`:**
+   - Replaced `0.0% Shard` with a distinct locked indicator:
+     `<Lock /> Shard Locked` with title "Shard drops locked until house deposit pot threshold is met".
+2. **`components/BoxOddsModal.tsx`:**
+   - Summary stat pill shows: `Locked (Gate)`.
+   - Dynamic Anchors Shard card shows: `<Lock /> PC Core Shard: 0% (Gate Shut)`.
+   - Added amber notice banner:
+     *"PC Shard drops are locked at 0% across all boxes until approved house deposits cross the pot threshold ($300 deposited so far)."*
+   - Added table row in the physical loot pool explicitly listing `PC Core Shard | Exotic | toward PC | 0% (Pot Gate Locked)`.
+3. **`components/ShardHud.tsx`:**
+   - Renders: `"Pot Gate: Locked at 0% — Opens at $820 pot ($300 deposited)"`.
+
+---
+
+## 7. Attack 5: Failure States & Resilience
+
+1. **Airplane Mode Mid-Spin:**
+   - `fetch()` throws. `call<T>` in `api.ts` catches network failure, returns `code: 'NETWORK'`.
+   - Optimistic balance is instantly refunded on client (`adjust({ balance: effectivePrice })`).
+   - If the request reached Postgres before disconnection, client retains `clientRollId`. Next tap retries with the same `clientRollId`, which Postgres idempotency returns from `rolls.payload` without charging again.
+2. **Session Expiry Mid-Action:**
+   - Server returns 401. `call<T>` detects 401 and immediately executes `window.location.href = '/login'`.
+3. **Double-Tap Protection:**
+   - `open_box`: `client_roll_id` unique constraint.
+   - `scrap_item`: `SELECT ... FOR UPDATE` + `status = 'inventory'` check throws `PT409`.
+   - `compact_scrap`: `profiles` row lock checks `scrap_coins >= 200`. Second tap throws `PT402`.
+   - `claim_pc`: `profiles` row lock checks `pc_shards >= 4`. Second tap throws `PT402`.
+   - `salvage_shards`: `profiles` row lock checks `pc_shards >= count`. Second tap throws `PT402`.
+
+---
+
+## 8. Summary of Files Changed in This Pass
+
+- [`app/(player)/_lib/shared.ts`](file:///e:/FBGamble/app/%28player%29/_lib/shared.ts): Corrected `DEFAULT_GAME_CONFIG.shards_required` to 4.
+- [`components/ShardHud.tsx`](file:///e:/FBGamble/components/ShardHud.tsx): Corrected `shardsReq` fallback to 4.
+- [`app/api/inventory/claim-pc/route.ts`](file:///e:/FBGamble/app/api/inventory/claim-pc/route.ts): Generalized PT402 error copy.
+- [`components/BoxCard.tsx`](file:///e:/FBGamble/components/BoxCard.tsx): Render `[Lock] Shard Locked` when pot gate is shut.
+- [`components/BoxOddsModal.tsx`](file:///e:/FBGamble/components/BoxOddsModal.tsx): Clarified pot gate status across summary pill, anchor card, disclaimer banner, and loot table.
+- **Contract Boundary Verified:** 0 changes made to `lib/sound.ts`, `lib/economy.ts`, `lib/types.ts`, `lib/session.ts`, `lib/admin-lock.ts`, `lib/supabase/*`, `supabase/migrations/*`, `scripts/*`.

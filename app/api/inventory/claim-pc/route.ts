@@ -22,7 +22,7 @@ export async function POST() {
     return ok(result, { stats: await playerStats(user.id) });
   } catch (err) {
     return toErrorResponse(err, {
-      PT402: 'You need all 5 PC Core Shards first.',
+      PT402: 'You need all PC Core Shards first.',
     });
   }
 }

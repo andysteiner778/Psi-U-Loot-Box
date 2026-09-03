@@ -25,7 +25,7 @@ export function ShardHud({
   const [showWinModal, setShowWinModal] = useState(false);
 
   const shardsHeld = stats.pc_shards;
-  const shardsReq = config.shards_required || 2;
+  const shardsReq = config.shards_required || 4;
   // MUST be pc_display_value, not pc_value. `pc_value` is what the ECONOMY
   // charges for the shard track ($50) so the odds stay solvent; it is not what
   // the machine is worth. Showing it advertised a "$50 Rig" for a $400 PC.

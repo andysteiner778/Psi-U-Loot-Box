@@ -185,9 +185,25 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false }: BoxCardProps
               {tier.replace('_', ' ')}
             </span>
 
-            <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-yellow-400 bg-yellow-950/40 border border-yellow-500/30 px-2.5 py-1 rounded-xl">
-              <Zap className="h-3.5 w-3.5 fill-yellow-400" />
-              <span>{(odds.p_shard * 100).toFixed(1)}% Shard</span>
+            <div
+              title={odds.pot_gate_met ? 'Current shard drop probability' : 'Shard drops locked until house deposit pot threshold is met'}
+              className={`flex items-center gap-1.5 font-mono text-xs font-bold px-2.5 py-1 rounded-xl border ${
+                odds.pot_gate_met
+                  ? 'text-yellow-400 bg-yellow-950/40 border-yellow-500/30'
+                  : 'text-gun-400 bg-gun-950/60 border-gun-800'
+              }`}
+            >
+              {odds.pot_gate_met ? (
+                <>
+                  <Zap className="h-3.5 w-3.5 fill-yellow-400" />
+                  <span>{(odds.p_shard * 100).toFixed(1)}% Shard</span>
+                </>
+              ) : (
+                <>
+                  <Lock className="h-3.5 w-3.5 text-gun-400" />
+                  <span>Shard Locked</span>
+                </>
+              )}
             </div>
           </div>
 
