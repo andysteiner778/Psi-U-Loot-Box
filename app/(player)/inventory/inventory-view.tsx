@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Package, Trash2, MapPin, Sparkles, History, Check, ShieldAlert } from 'lucide-react';
 import type { Roll, Rarity } from '@/lib/types';
-import { RARITY_COLOR, RARITY_LABEL, isScrappable } from '@/lib/types';
+import { RARITY_COLOR, RARITY_LABEL, canScrap, isScrappable } from '@/lib/types';
 import { usePlayer } from '@/app/(player)/_lib/player-store';
 import { apiScrap } from '@/app/(player)/_lib/api';
 import { sfx } from '@/lib/sound';
@@ -25,7 +25,9 @@ export function InventoryView({ initialItems, recentRolls }: InventoryViewProps)
 
   const handleScrap = async (roll: Roll) => {
     if (scrappingId) return;
-    if (!isScrappable(roll.item_rarity)) {
+    const coins =
+      roll.payload && roll.payload.type === 'physical' ? roll.payload.scrap_value : 0;
+    if (!canScrap(roll.item_rarity, coins)) {
       toast('Purple, Pink, and Gold items cannot be scrapped! Physical pickup in Room 4 only.', 'bad');
       return;
     }
@@ -106,9 +108,12 @@ export function InventoryView({ initialItems, recentRolls }: InventoryViewProps)
               const rarity = roll.item_rarity;
               const color = RARITY_COLOR[rarity] || '#4b5563';
               const label = RARITY_LABEL[rarity] || 'Item';
-              const scrappable = isScrappable(rarity);
               const payload = roll.payload && roll.payload.type === 'physical' ? roll.payload : null;
               const scrapCoins = payload?.scrap_value ?? 0;
+              // Rarity alone is not enough: something cheap enough that 60% of
+              // its value floors to zero coins has nothing to give, and a
+              // "Scrap for +0" button is worse than no button.
+              const scrappable = canScrap(rarity, scrapCoins);
               // Show retail when the admin set one; it is display-only and does
               // not affect what this item cost the pool or scraps for.
               const estVal = (payload?.msrp && payload.msrp > 0 ? payload.msrp : payload?.est_value) ?? 0;

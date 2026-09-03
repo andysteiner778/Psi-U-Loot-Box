@@ -71,7 +71,9 @@ export function resolveSeedItem(s: SeedItem): ResolvedSeedItem {
     rarity,
     box_tier: s.tier ?? tierForValue(s.est_value),
     // Coins are $1 each, so this is a straight dollar recovery figure.
-    scrap_value: Math.max(1, Math.round(s.est_value * (high ? SCRAP_RECOVERY_HIGH : SCRAP_RECOVERY))),
+    // FLOOR with no minimum: rounding up gave a $1 item a $1 coin, i.e. 100%
+    // recovery. 0 means "not worth scrapping", which the UI reads as no button.
+    scrap_value: Math.floor(s.est_value * (high ? SCRAP_RECOVERY_HIGH : SCRAP_RECOVERY)),
   };
 }
 

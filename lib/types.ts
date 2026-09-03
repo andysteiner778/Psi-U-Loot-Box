@@ -15,6 +15,16 @@ export type BoxTier = (typeof BOX_TIERS)[number];
 export const UNSCRAPPABLE: readonly Rarity[] = ['purple', 'pink', 'gold'];
 export const isScrappable = (r: Rarity): boolean => !UNSCRAPPABLE.includes(r);
 
+/**
+ * Can this specific win actually be recycled?
+ *
+ * Rarity alone is not enough: an item cheap enough that 60% of its value floors
+ * to zero coins has nothing to give, and offering a "Scrap for +0" button is
+ * worse than offering none.
+ */
+export const canScrap = (rarity: Rarity, scrapValue: number | null | undefined): boolean =>
+  isScrappable(rarity) && (scrapValue ?? 0) > 0;
+
 /** Neon border colors, spec section 4B. */
 export const RARITY_COLOR: Record<Rarity, string> = {
   grey: '#4b5563',
