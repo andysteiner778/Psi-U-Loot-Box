@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { X, ShieldAlert, Zap, RefreshCw, Skull, Sparkles, Package } from 'lucide-react';
-import { RARITY_COLOR, RARITY_LABEL } from '@/lib/types';
+import { RARITY_COLOR, RARITY_LABEL, type Rarity } from '@/lib/types';
 import type { PlayerBoxOdds } from '@/app/(player)/_lib/shared';
 
 export interface BoxOddsModalProps {
@@ -15,20 +15,29 @@ export interface BoxOddsModalProps {
 export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps) {
   if (!isOpen) return null;
 
-  /**
-   * Long shots are the entire appeal of a loot box, so "<0.1%" censors exactly
-   * the number a player most wants to see -- and it read as though the app did
-   * not know its own odds. Below 0.1% we widen the decimals instead, to two
-   * significant figures, so a 0.04% Mythic prints as 0.040%.
-   */
   const pct = (p: number) => {
     const v = (Number.isFinite(p) ? p : 0) * 100;
     if (!(v > 0)) return '0%';
-    if (v >= 10) return `${v.toFixed(1)}%`;
-    if (v >= 0.1) return `${v.toFixed(2)}%`;
-    const decimals = Math.min(6, Math.ceil(-Math.log10(v)) + 1);
-    return `${v.toFixed(decimals)}%`;
+    if (v < 0.1) return '<0.1%';
+    return `${v < 10 ? v.toFixed(2) : v.toFixed(1)}%`;
   };
+
+  /**
+   * Chance of each rarity BAND, which is the question people actually ask.
+   *
+   * The junk was never missing from the table -- it is filler, and in the $50
+   * box that is 32 grey rows at ~0.6% each, sorted below ten headline prizes.
+   * Reading "how often do I get junk here?" off that meant scrolling a
+   * 59-row table and adding up by eye, so it looked like the greys were simply
+   * not listed. One line at the top answers it instead.
+   */
+  const RARITY_ORDER: Rarity[] = ['grey', 'blue', 'purple', 'pink', 'gold'];
+  const allDrops = [...odds.items, ...odds.filler];
+  const rarityTotals = RARITY_ORDER.map((rarity) => ({
+    rarity,
+    p: allDrops.filter((i) => i.rarity === rarity).reduce((a, i) => a + i.probability, 0),
+    n: allDrops.filter((i) => i.rarity === rarity && i.probability > 0).length,
+  })).filter((x) => x.p > 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm animate-in fade-in">
@@ -127,12 +136,35 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-gun-300">
-                Physical Loot Pool ({odds.items.length} prizes)
+                Physical Loot Pool ({allDrops.filter((i) => i.probability > 0).length} prizes)
               </h3>
               <span className="text-[11px] font-mono text-emerald-400 font-semibold">
                 Total Physical Chance: {pct(odds.p_physical + (odds.floor_kind === 'item' ? odds.p_scrap : 0))}
               </span>
             </div>
+
+            {/* Chance by rarity band -- the headline the table cannot give. */}
+            {rarityTotals.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {rarityTotals.map(({ rarity, p, n }) => (
+                  <div
+                    key={rarity}
+                    title={n + (n === 1 ? ' item' : ' items') + ' at this rarity'}
+                    className="flex items-center gap-1.5 rounded-lg border bg-gun-950 px-2 py-1"
+                    style={{ borderColor: (RARITY_COLOR[rarity] || '#4b5563') + '66' }}
+                  >
+                    <span
+                      className="h-2 w-2 shrink-0 rounded-full"
+                      style={{ backgroundColor: RARITY_COLOR[rarity] }}
+                    />
+                    <span className="font-mono text-[10px] uppercase tracking-wide text-gun-300">
+                      {RARITY_LABEL[rarity]}
+                    </span>
+                    <span className="font-mono text-[11px] font-bold text-white">{pct(p)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="rounded-2xl border border-gun-800 overflow-hidden bg-gun-950/50">
               <table className="w-full text-left text-xs font-mono">

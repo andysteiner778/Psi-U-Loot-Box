@@ -97,6 +97,9 @@ export function normalizeOdds(raw: unknown): PlayerBoxOdds {
     return Number.isFinite(n) ? n : fallback;
   };
 
+  const boxPrice = num(o.box_price);
+  const totalEv = num(o.total_ev);
+
   const items = Array.isArray(o.items) ? (o.items as Record<string, unknown>[]) : [];
   const filler = Array.isArray(o.filler) ? (o.filler as Record<string, unknown>[]) : [];
 
@@ -117,7 +120,7 @@ export function normalizeOdds(raw: unknown): PlayerBoxOdds {
     floor_kind: o.floor_kind === 'coins' ? ('coins' as const) : ('item' as const),
     floor_value: num(o.floor_value),
     tier: (o.tier as BoxTier) ?? 'tier_1',
-    box_price: num(o.box_price),
+    box_price: boxPrice,
     target_ev: num(o.target_ev),
     items: items.map(mapOdds).sort((a, b) => b.est_value - a.est_value),
     p_physical: num(o.p_physical),
@@ -129,8 +132,15 @@ export function normalizeOdds(raw: unknown): PlayerBoxOdds {
     p_scrap: num(o.p_scrap),
     ev_scrap: num(o.ev_scrap),
     scrap_coins_awarded: num(o.scrap_coins_awarded),
-    total_ev: num(o.total_ev),
-    realized_margin: num(o.realized_margin),
+    total_ev: totalEv,
+    /*
+     * DERIVED, not read. `box_odds` computes a realized margin internally but
+     * never puts it in the JSONB it returns, so reading the key gave 0 on every
+     * tier -- and the odds modal turned that into "Expected Payout $43.75
+     * (100%)" on a $50 box. Deriving it from two numbers the payload does
+     * publish cannot drift from a key that is not there.
+     */
+    realized_margin: boxPrice > 0 ? 1 - totalEv / boxPrice : 0,
     scale_factor: num(o.scale_factor),
     warnings: Array.isArray(o.warnings) ? (o.warnings as string[]) : [],
     shard_value: num(o.shard_value),
