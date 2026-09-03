@@ -807,15 +807,26 @@ class SoundEngine {
     const buf = ctx.createBuffer(1, len, sr);
     const data = buf.getChannelData(0);
 
-    const f0 = 1260;
-    // Harmonic and inharmonic modes of a brass/steel casino gong dome:
-    // resonant fundamental, warm minor-third/fifth overtone, shimmering octave with beating,
-    // and bright metallic sparkle that decays quickly.
-    const ratios = [1.0, 1.48, 2.02, 2.76, 3.98, 5.20];
-    const amps = [1.0, 0.65, 0.45, 0.28, 0.15, 0.08];
-    const taus = [0.42, 0.28, 0.22, 0.14, 0.08, 0.05];
-    // Beat rate climbs with the partial for metallic shimmer without dissonance
-    const beats = [1.8, 2.4, 3.2, 4.1, 5.0, 6.2];
+    // THE THREE NUMBERS THAT MATTER are f0, the ratio spread, and `period` in
+    // playHandPayBell. This is the settled tuning after two rounds of listening:
+    //
+    //   638Hz / 10 per sec  — "pots and pans, too slow, too low"
+    //   1850Hz / 22 per sec — right character, but shrill on a phone speaker
+    //   1550Hz / 20 per sec — chosen. Keeps the fast school-bell cadence and
+    //                         loses the edge that made the bright version hurt
+    //                         on the small speakers most of the house will use.
+    //
+    // Do not "improve" the pitch without listening on a phone first; both
+    // previous attempts were defensible on paper and wrong in the room.
+    const f0 = 1550;
+    // Six partials, closely spaced: a small dome rings mostly at its
+    // fundamental with a couple of bright overtones. A long tail of strong low
+    // inharmonics is how you synthesize cookware.
+    const ratios = [1, 1.34, 1.78, 2.31, 2.94, 3.76];
+    const amps = [1, 0.43, 0.28, 0.2, 0.16, 0.13];
+    const taus = [0.32, 0.21, 0.16, 0.13, 0.11, 0.09];
+    // Beat rate climbs with the partial, as it does on a real casting.
+    const beats = [1.5, 2.5, 3.5, 4.5, 5.5, 6.5];
 
     let peak = 0;
     for (let i = 0; i < len; i++) {
@@ -826,10 +837,10 @@ class SoundEngine {
         const env = Math.exp(-t / taus[k]);
         if (env < 1e-4) continue;
         const w = 2 * Math.PI * t;
-        v += amps[k] * env * (Math.sin(w * f) + 0.65 * Math.sin(w * (f + beats[k])));
+        v += amps[k] * env * (Math.sin(w * f) + 0.72 * Math.sin(w * (f + beats[k])));
       }
       // Clapper contact: crisp metallic transient, gone in ~10ms
-      if (t < 0.015) v += (Math.random() * 2 - 1) * Math.exp(-t / 0.002) * 0.55;
+      if (t < 0.02) v += (Math.random() * 2 - 1) * Math.exp(-t / 0.0025) * 0.6;
       data[i] = v;
       const a = v < 0 ? -v : v;
       if (a > peak) peak = a;
@@ -843,9 +854,11 @@ class SoundEngine {
   /**
    * The hand-pay bell: a continuous clanging ring, not a ding.
    *
-   * The clapper fires about fifteen times a second (the authentic mechanical
-   * cadence of classic Bally/IGT casino bells) while each strike rings
-   * for ~0.4s, creating a triumphant cascading shimmer without buzzing.
+   * The clapper fires twenty times a second while each strike rings for ~0.32s,
+   * so around six tails are always overlapping. That overlap IS the sound: at
+   * ten strikes a second the ear still resolves each hit and it reads as
+   * banging a pan, and only somewhere north of about eighteen does it fuse into
+   * the continuous brrrring of a bell over a classroom door.
    */
   playHandPayBell(at?: number, seconds = 2, intensity = 1): void {
     const g = this.graph();
@@ -853,7 +866,7 @@ class SoundEngine {
     try {
       const t0 = at ?? g.ctx.currentTime + LOOKAHEAD;
       const buffer = this.bellBuffer(g.ctx);
-      const period = 0.064;
+      const period = 0.05;
       const strikes = Math.max(2, Math.round(seconds / period));
       // Wind down smoothly over ~0.4s
       const fadeStrikes = Math.min(Math.round(0.4 / period), Math.floor(strikes * 0.35));

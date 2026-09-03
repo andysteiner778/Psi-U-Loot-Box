@@ -17,9 +17,11 @@ import { DepositModal } from '@/components/DepositModal';
 export interface BoxCardProps {
   odds: PlayerBoxOdds;
   isFlashSale?: boolean;
+  /** Live config: may purple/pink/gold be turned into coins? */
+  allowHighRarityScrap?: boolean;
 }
 
-export function BoxCard({ odds: initialOdds, isFlashSale = false }: BoxCardProps) {
+export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarityScrap = false }: BoxCardProps) {
   /**
    * Odds are server-rendered once at page load. Stock changes on every roll --
    * yours and everyone else's -- so without refreshing them the card kept
@@ -312,6 +314,7 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false }: BoxCardProps
       {/* Reel Spinner Modal */}
       {spinning && activeWinner && (
         <CaseReel
+          allowHighRarityScrap={allowHighRarityScrap}
           decoys={decoys}
           winner={activeWinner}
           tierName={meta.name}

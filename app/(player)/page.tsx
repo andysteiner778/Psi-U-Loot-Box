@@ -87,6 +87,7 @@ export default async function PlayerBoxesPage() {
               key={odds.tier}
               odds={odds}
               isFlashSale={isFlashSale}
+              allowHighRarityScrap={config.allow_high_rarity_scrap}
             />
           ))}
         </div>
@@ -96,7 +97,11 @@ export default async function PlayerBoxesPage() {
       <div className="rounded-2xl border border-gun-800 bg-gun-900/60 p-4 text-xs text-gun-400 font-mono flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" />
-          <span>Legendary (purple), Mythic (pink) and Exotic (gold) items are physical pickup only — they cannot be scrapped.</span>
+          <span>
+            {config.allow_high_rarity_scrap
+              ? 'Legendary, Mythic and Exotic items are picked up in Room 4 — or scrapped for 40% of their value if you would rather have the credit.'
+              : 'Legendary (purple), Mythic (pink) and Exotic (gold) items are physical pickup only — they cannot be scrapped.'}
+          </span>
         </div>
         <div className="flex items-center gap-4 text-gun-300">
           <span className="flex items-center gap-1">

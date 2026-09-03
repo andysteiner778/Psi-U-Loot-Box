@@ -409,11 +409,26 @@ export function AdminDashboard({
     }
   };
 
+  /**
+   * What this item should scrap for, in 10-cent coins.
+   *
+   *   grey / blue          60% of value, always
+   *   purple / pink / gold 40% when allow_high_rarity_scrap is on, else 0
+   *
+   * The server recomputes this in /api/admin/items and is the authority; this
+   * only keeps the form from showing a number the save will contradict.
+   */
+  const scrapCoinsFor = (value: number, rarity: Rarity): number => {
+    if (isScrappable(rarity)) return Math.max(1, Math.round((value * 0.6) / 0.1));
+    if (config.allow_high_rarity_scrap === true) return Math.max(1, Math.round((value * 0.4) / 0.1));
+    return 0;
+  };
+
   const handleEstValueChange = (valStr: string) => {
     const num = Math.max(0, parseFloat(valStr) || 0);
     const derivedRarity = rarityForValue(num);
     const derivedTier = tierForValue(num);
-    const derivedScrap = isScrappable(derivedRarity) ? String(Math.max(1, Math.round((num * 0.60) / 0.10))) : '0';
+    const derivedScrap = String(scrapCoinsFor(num, derivedRarity));
 
     setItemForm((prev) => ({
       ...prev,
@@ -433,7 +448,7 @@ export function AdminDashboard({
       const valNum = Math.max(0.01, parseFloat(itemForm.est_value) || 0.01);
       const autoRarity = rarityForValue(valNum);
       const autoTier = tierForValue(valNum);
-      const autoScrap = isScrappable(autoRarity) ? Math.max(1, Math.round((valNum * 0.60) / 0.10)) : 0;
+      const autoScrap = scrapCoinsFor(valNum, autoRarity);
 
       const res = await fetch('/api/admin/items', {
         method: 'POST',

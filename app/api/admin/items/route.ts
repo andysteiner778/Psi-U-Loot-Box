@@ -3,6 +3,7 @@ import { db } from '@/lib/supabase/server';
 import { jsonErr, jsonOk, readJson } from '@/app/admin/_lib/http';
 import { isScrappable, RARITIES, BOX_TIERS, type Rarity, type BoxTier } from '@/lib/types';
 import { rarityForValue, tierForValue } from '@/lib/economy';
+import { readConfig } from '@/app/admin/_lib/config';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -51,13 +52,31 @@ export async function POST(req: Request) {
     ? body.box_tier
     : tierForValue(est_value);
 
-  // Enforce Anti-Exploit Rule 2
-  // High tier items (purple, pink, gold) cannot be scrapped and must have scrap_value = 0
-  // to satisfy the high_tier_never_scrappable CHECK constraint.
-  // For scrappable items (grey, blue), recovery is 60% of est_value in 10-cent coins (migration 0015).
-  const scrap_value = isScrappable(rarity)
-    ? Math.max(1, parseInt(String(body.scrap_value ?? Math.round((est_value * 0.60) / 0.10)), 10))
-    : 0;
+  // Scrap recovery, in 10-cent coins (migration 0015).
+  //
+  //   grey / blue          60% of est_value, always
+  //   purple / pink / gold 40% when `allow_high_rarity_scrap` is on, else 0
+  //
+  // The lower rate on the good stuff is deliberate: scrapping a $70 monitor
+  // returns it to the pool, so the house should not be paying near its value
+  // to get it back. `scrap_item` is the authority on whether the action is
+  // permitted at all; this only decides what the item is WORTH if it is.
+  //
+  // The previous version forced 0 for high tiers unconditionally, which
+  // silently disabled the feature for any item an admin edited -- and cited a
+  // `high_tier_never_scrappable` CHECK constraint that does not exist.
+  const cfg = await readConfig();
+  const coin = cfg.box_prices[cfg.scrap_key_tier] / cfg.scrap_coins_per_key;
+  const highTierScrappable = cfg.allow_high_rarity_scrap === true;
+
+  let scrap_value: number;
+  if (isScrappable(rarity)) {
+    scrap_value = Math.max(1, parseInt(String(body.scrap_value ?? Math.round((est_value * 0.6) / coin)), 10));
+  } else if (highTierScrappable) {
+    scrap_value = Math.max(1, Math.round((est_value * 0.4) / coin));
+  } else {
+    scrap_value = 0;
+  }
 
   // Adding the same name twice splits one pile into two entries with separate
   // stock, which then compete for probability as if they were different items.

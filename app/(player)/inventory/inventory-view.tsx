@@ -15,9 +15,11 @@ import { DepositModal } from '@/components/DepositModal';
 export interface InventoryViewProps {
   initialItems: Roll[];
   recentRolls: Roll[];
+  /** Live config: may purple/pink/gold be turned into coins? */
+  allowHighRarityScrap: boolean;
 }
 
-export function InventoryView({ initialItems, recentRolls }: InventoryViewProps) {
+export function InventoryView({ initialItems, recentRolls, allowHighRarityScrap }: InventoryViewProps) {
   const { stats, commit, adjust, toast } = usePlayer();
   const [items, setItems] = useState<Roll[]>(initialItems);
   const [scrappingId, setScrappingId] = useState<string | null>(null);
@@ -27,8 +29,13 @@ export function InventoryView({ initialItems, recentRolls }: InventoryViewProps)
     if (scrappingId) return;
     const coins =
       roll.payload && roll.payload.type === 'physical' ? roll.payload.scrap_value : 0;
-    if (!canScrap(roll.item_rarity, coins)) {
-      toast('Purple, Pink, and Gold items cannot be scrapped! Physical pickup in Room 4 only.', 'bad');
+    if (!canScrap(roll.item_rarity, coins, allowHighRarityScrap)) {
+      toast(
+        allowHighRarityScrap
+          ? 'This one is not worth enough to scrap — take it home instead.'
+          : 'Legendary, Mythic and Exotic items cannot be scrapped. Physical pickup in Room 4 only.',
+        'bad'
+      );
       return;
     }
 
@@ -73,7 +80,9 @@ export function InventoryView({ initialItems, recentRolls }: InventoryViewProps)
               <span>Unboxed Physical Loot ({items.length})</span>
             </h2>
             <p className="text-xs font-mono text-gun-400">
-              Grey & Blue items can be recycled for Scrap Coins. High-tier items are pickup only.
+              {allowHighRarityScrap
+                ? 'Anything can be recycled for Scrap Coins if you would rather have the credit — Common and Rare return 60% of value, Legendary and above 40%.'
+                : 'Common & Rare items can be recycled for Scrap Coins. Legendary and above are pickup only.'}
             </p>
           </div>
         </div>
@@ -113,7 +122,7 @@ export function InventoryView({ initialItems, recentRolls }: InventoryViewProps)
               // Rarity alone is not enough: something cheap enough that 60% of
               // its value floors to zero coins has nothing to give, and a
               // "Scrap for +0" button is worse than no button.
-              const scrappable = canScrap(rarity, scrapCoins);
+              const scrappable = canScrap(rarity, scrapCoins, allowHighRarityScrap);
               // Show retail when the admin set one; it is display-only and does
               // not affect what this item cost the pool or scraps for.
               const estVal = (payload?.msrp && payload.msrp > 0 ? payload.msrp : payload?.est_value) ?? 0;

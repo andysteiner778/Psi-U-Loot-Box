@@ -51,6 +51,11 @@ export async function fetchGameConfig(): Promise<GameConfig> {
     base_prices: Object.fromEntries(
       BOX_TIERS.map((t) => [t, num(prices[t], DEFAULT_GAME_CONFIG.base_prices[t])])
     ) as Record<BoxTier, number>,
+    // Strict === true: a missing key, a string "false", or anything else the
+    // admin form might have written means OFF. The server makes the real
+    // decision in scrap_item; getting this wrong only offers a button that
+    // then fails, which is worse than not offering it.
+    allow_high_rarity_scrap: cfg.allow_high_rarity_scrap === true,
     shard_salvage_tier: (cfg.shard_salvage_tier as BoxTier) ?? DEFAULT_GAME_CONFIG.shard_salvage_tier,
     shard_salvage_value: num(
       prices[(cfg.shard_salvage_tier as BoxTier) ?? 'tier_1'],

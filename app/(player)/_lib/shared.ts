@@ -42,6 +42,11 @@ export interface GameConfig {
   /** Box tier / value awarded when salvaging a soulbound shard */
   shard_salvage_tier?: BoxTier;
   shard_salvage_value?: number;
+  /**
+   * Whether purple/pink/gold may be turned into coins. The server decides;
+   * the UI only uses this to know whether to offer the button.
+   */
+  allow_high_rarity_scrap: boolean;
 }
 
 export const DEFAULT_GAME_CONFIG: GameConfig = {
@@ -53,6 +58,7 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
   base_prices: { tier_0: 1, tier_1: 5, tier_2: 20, tier_3: 50 },
   shard_salvage_tier: 'tier_1',
   shard_salvage_value: 5,
+  allow_high_rarity_scrap: false,
 };
 
 export const BOX_META: Record<BoxTier, { name: string; blurb: string; accent: Rarity }> = {

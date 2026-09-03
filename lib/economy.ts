@@ -44,6 +44,7 @@ import type { BoxOdds, BoxTier, EconomyConfig, Item, ItemOdds, Rarity } from './
 
 export const DEFAULT_CONFIG: EconomyConfig = {
   house_margin: 0.125,
+  allow_high_rarity_scrap: false,
   // The $1 box pays back everything it takes. See EconomyConfig.tier_margins.
   tier_margins: { tier_0: 0 },
   pot_revenue_threshold: 150.0,

@@ -109,6 +109,10 @@ export function coerceConfig(raw: unknown): EconomyConfig {
 
   return {
     house_margin: n(r.house_margin, DEFAULT_CONFIG.house_margin),
+    // Strict === true: anything the admin form might have written that is not
+    // a real boolean means off, because the fallback should be the state the
+    // player-facing copy already promises.
+    allow_high_rarity_scrap: r.allow_high_rarity_scrap === true,
     tier_margins: partialTiers(r.tier_margins) ?? DEFAULT_CONFIG.tier_margins,
     pot_revenue_threshold: n(r.pot_revenue_threshold, DEFAULT_CONFIG.pot_revenue_threshold),
     box_prices: tiers(r.box_prices, DEFAULT_CONFIG.box_prices),

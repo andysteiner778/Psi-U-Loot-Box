@@ -22,8 +22,25 @@ export const isScrappable = (r: Rarity): boolean => !UNSCRAPPABLE.includes(r);
  * to zero coins has nothing to give, and offering a "Scrap for +0" button is
  * worse than offering none.
  */
-export const canScrap = (rarity: Rarity, scrapValue: number | null | undefined): boolean =>
-  isScrappable(rarity) && (scrapValue ?? 0) > 0;
+/**
+ * Can the player turn this into coins?
+ *
+ * Rarity alone is not enough twice over. Something cheap enough that its
+ * recovery floors to zero coins has nothing to give, and a "Scrap for +0"
+ * button is worse than no button. And high-rarity items are scrappable or not
+ * depending on `allow_high_rarity_scrap` in the live config, which the SERVER
+ * is the authority on -- `scrap_item` refuses with PT403 when it is off. This
+ * only decides whether to offer the button; it never decides the outcome.
+ *
+ * Defaults to false so a caller that has not plumbed the flag through shows
+ * the conservative thing rather than a button the server will reject.
+ */
+export const canScrap = (
+  rarity: Rarity,
+  scrapValue: number | null | undefined,
+  allowHighRarity = false
+): boolean =>
+  (isScrappable(rarity) || allowHighRarity) && (scrapValue ?? 0) > 0;
 
 /** Neon border colors, spec section 4B. */
 export const RARITY_COLOR: Record<Rarity, string> = {
@@ -185,6 +202,12 @@ export function isJackpot(r: OpenBoxResult): boolean {
 
 export interface EconomyConfig {
   house_margin: number;
+  /**
+   * May purple/pink/gold be turned into coins? Read by `scrap_item`, which is
+   * the authority; the UI mirrors it only to decide whether to offer a button.
+   * Absent means off.
+   */
+  allow_high_rarity_scrap?: boolean;
   /**
    * Per-tier margin overrides. A tier listed here uses its own margin instead
    * of `house_margin`; anything absent falls back to the global number.

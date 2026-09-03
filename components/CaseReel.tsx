@@ -5,7 +5,7 @@ import { motion, useAnimation, useReducedMotion } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { Sparkles, ArrowDown, ArrowUp, RefreshCw, X, Gift, ShieldAlert } from 'lucide-react';
 import type { OpenBoxResult, Rarity } from '@/lib/types';
-import { RARITY_COLOR, RARITY_LABEL, isJackpot, isScrappable } from '@/lib/types';
+import { RARITY_COLOR, RARITY_LABEL, canScrap, isJackpot } from '@/lib/types';
 import {
   buildReel,
   cardFromResult,
@@ -29,6 +29,12 @@ export interface CaseReelProps {
   onFinished?: (result: OpenBoxResult) => void;
   onSpinAgain?: () => void;
   onClose?: () => void;
+  /**
+   * Live config: may purple/pink/gold be turned into coins? Defaults to false
+   * so a caller that has not plumbed it through promises pickup rather than a
+   * scrap the server would refuse.
+   */
+  allowHighRarityScrap?: boolean;
 }
 
 const CARD_WIDTH = 180; // px
@@ -78,6 +84,7 @@ export function CaseReel({
   onFinished,
   onSpinAgain,
   onClose,
+  allowHighRarityScrap = false,
 }: CaseReelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const controls = useAnimation();
@@ -422,7 +429,7 @@ export function CaseReel({
                   ? `Retail: $${Number(winner.msrp).toFixed(2)}`
                   : `Est. Value: $${winner.est_value.toFixed(2)}`}
               </span>
-              {isScrappable(winner.rarity) ? (
+              {canScrap(winner.rarity, winner.scrap_value, allowHighRarityScrap) ? (
                 <span className="text-cyan-400">Can be scrapped for +{winner.scrap_value} coins</span>
               ) : (
                 <span className="text-amber-400 flex items-center gap-1 font-semibold">
