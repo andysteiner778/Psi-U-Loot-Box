@@ -90,7 +90,7 @@ export function BulkUpload({
   };
 
   /** Optional: ask the vision model to name and price one photo. */
-  const scanOne = async (d: Draft) => {
+  const scanOne = async (d: Draft, quiet = false) => {
     if (!d.url) return;
     patch(d.key, { scanning: true });
     try {
@@ -116,11 +116,11 @@ export function BulkUpload({
           name: json.data.name ?? d.name,
           value: String(json.data.est_value ?? ''),
         });
-      } else {
+      } else if (!quiet) {
         showMsg(json.error || 'Scan failed', 'bad');
       }
     } catch {
-      showMsg('Scan request failed', 'bad');
+      if (!quiet) showMsg('Scan request failed', 'bad');
     } finally {
       patch(d.key, { scanning: false });
     }
@@ -129,11 +129,25 @@ export function BulkUpload({
   /** Scan every photo, spaced out so a free-tier key does not hit its rate limit. */
   const scanAll = async () => {
     const ready = drafts.filter((d) => d.status === 'done' && !d.value);
+    let failed = 0;
     for (let i = 0; i < ready.length; i++) {
-      await scanOne(ready[i]);
+      const before = ready[i];
+      await scanOne(before, true);
       if (i < ready.length - 1) await new Promise((r) => setTimeout(r, 4500));
     }
-    showMsg('Scanned ' + ready.length + ' photos');
+    // Count what still has no price: the adapter retries and falls back across
+    // providers, so anything blank here genuinely could not be read.
+    setDrafts((cur) => {
+      failed = cur.filter((c) => ready.some((r) => r.key === c.key) && !c.value).length;
+      showMsg(
+        failed === 0
+          ? 'Scanned all ' + ready.length + ' photos'
+          : 'Scanned ' + (ready.length - failed) + ' of ' + ready.length +
+              ' — type the rest in by hand',
+        failed === 0 ? 'ok' : 'bad'
+      );
+      return cur;
+    });
   };
 
   const createAll = async () => {

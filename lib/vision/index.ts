@@ -4,6 +4,7 @@ import { rarityForValue, tierForValue } from '@/lib/economy';
 import { isScrappable } from '@/lib/types';
 import {
   NoVisionProviderError,
+  VisionError,
   VisionInputError,
   isSupportedMediaType,
   type ImageMediaType,
@@ -148,15 +149,73 @@ export async function scanItem(imageBase64: string, mediaType: string): Promise<
     throw new VisionInputError('Image too large — downscale before uploading');
   }
 
-  const backend = resolveVisionProvider();
-  if (!backend) throw new NoVisionProviderError();
+  const status = visionStatus();
+  if (!status.available || status.candidates.length === 0) throw new NoVisionProviderError();
 
-  const raw: ScanResult =
-    backend.provider === 'claude'
-      ? await (await import('./claude')).scanWithClaude(data, mediaType, backend.model)
-      : await (await import('./gemini')).scanWithGemini(data, mediaType, backend.model);
+  // Try the preferred backend, retrying transient failures, then fall back to
+  // any other provider that has a key. Scanning 50 photos in a row will hit an
+  // overloaded model or a truncated JSON reply sooner or later, and losing the
+  // whole batch to one bad minute is not acceptable when the alternative is
+  // waiting two seconds.
+  const errors: string[] = [];
 
-  return normalizeScan(raw);
+  for (const backend of status.candidates) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const raw: ScanResult =
+          backend.provider === 'claude'
+            ? await (await import('./claude')).scanWithClaude(data, mediaType, backend.model)
+            : await (await import('./gemini')).scanWithGemini(data, mediaType, backend.model);
+        return normalizeScan(raw);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+
+        // A malformed image or an unsupported type will fail identically on
+        // every provider and every retry, so fail fast rather than burning
+        // six calls to learn nothing.
+        if (err instanceof VisionInputError) throw err;
+
+        errors.push(backend.provider + ': ' + msg);
+        if (!isTransient(msg) || attempt === 2) break;
+
+        // 1s, then 3s. Enough for a model that is briefly busy; short enough
+        // that a 50-photo batch does not stall.
+        await new Promise((r) => setTimeout(r, attempt === 0 ? 1000 : 3000));
+      }
+    }
+  }
+
+  throw new VisionError(
+    'Every vision provider failed. ' + errors.join(' | ') +
+      '. You can still type the name and price in by hand.'
+  );
+}
+
+/**
+ * Is this worth retrying?
+ *
+ * Overload, rate limiting, gateway hiccups and truncated JSON are all
+ * momentary. A bad API key or a rejected image is not, and retrying those just
+ * wastes the quota that the next photo needs.
+ */
+function isTransient(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes('overload') ||
+    m.includes('high usage') ||
+    m.includes('unavailable') ||
+    m.includes('rate limit') ||
+    m.includes('too many requests') ||
+    m.includes('timeout') ||
+    m.includes('timed out') ||
+    m.includes('econnreset') ||
+    m.includes('fetch failed') ||
+    m.includes('json') ||        // truncated or malformed structured output
+    m.includes('parse') ||
+    / 5\d\d/.test(m) ||       // 500, 502, 503, 504
+    m.includes('429') ||
+    m.includes('503')
+  );
 }
 
 /** Accepts either a bare base64 string or a full `data:image/jpeg;base64,...` URL. */

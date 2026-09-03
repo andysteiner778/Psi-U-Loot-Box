@@ -20,8 +20,17 @@ export default async function PlayerBoxesPage() {
     .maybeSingle();
 
   const cfg = configRow?.value as Record<string, unknown> | undefined;
-  const isFlashSale = Boolean(cfg?.flash_sale);
-  const potThreshold = Number(cfg?.pot_revenue_threshold ?? 400);
+
+  // A sale is only live if the flag is set AND the window has not closed.
+  // Reading the raw `flash_sale` boolean left the banner and the "20% OFF"
+  // badges up for an hour after the countdown ended, while box_odds had
+  // correctly reverted prices -- so the app was advertising a discount it was
+  // no longer giving.
+  const saleEndsAt = typeof cfg?.flash_sale_ends_at === 'string' ? cfg.flash_sale_ends_at : null;
+  const isFlashSale =
+    Boolean(cfg?.flash_sale) && (!saleEndsAt || new Date(saleEndsAt).getTime() > Date.now());
+
+  const potThreshold = Number(cfg?.pot_revenue_threshold ?? 150);
 
   // Read pot total
   const { data: potData } = await db
