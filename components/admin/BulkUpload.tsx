@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Images, Trash2, Loader2, CheckCircle2, Sparkles } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Images, Trash2, Loader2, CheckCircle2, Sparkles, Square } from 'lucide-react';
 import { uploadItemPhoto } from '@/lib/image';
 import { rarityForValue, tierForValue } from '@/lib/economy';
 import { RARITY_LABEL, type BoxTier, type Rarity } from '@/lib/types';
@@ -51,6 +51,10 @@ export function BulkUpload({
 }) {
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [creating, setCreating] = useState(false);
+  const [batchScanning, setBatchScanning] = useState(false);
+  // A ref, not state: the scan loop reads this between every photo and a state
+  // value captured in the closure would never see the update.
+  const cancelScan = useRef(false);
 
   const patch = (key: string, p: Partial<Draft>) =>
     setDrafts((d) => d.map((x) => (x.key === key ? { ...x, ...p } : x)));
@@ -90,8 +94,8 @@ export function BulkUpload({
   };
 
   /** Optional: ask the vision model to name and price one photo. */
-  const scanOne = async (d: Draft, quiet = false) => {
-    if (!d.url) return;
+  const scanOne = async (d: Draft, quiet = false): Promise<boolean> => {
+    if (!d.url) return false;
     patch(d.key, { scanning: true });
     try {
       const b64 = await fetch(d.url)
@@ -116,38 +120,75 @@ export function BulkUpload({
           name: json.data.name ?? d.name,
           value: String(json.data.est_value ?? ''),
         });
-      } else if (!quiet) {
-        showMsg(json.error || 'Scan failed', 'bad');
+        return true;
       }
+      if (!quiet) showMsg(json.error || 'Scan failed', 'bad');
+      return false;
     } catch {
       if (!quiet) showMsg('Scan request failed', 'bad');
+      return false;
     } finally {
       patch(d.key, { scanning: false });
     }
   };
 
   /** Scan every photo, spaced out so a free-tier key does not hit its rate limit. */
+  /**
+   * Scan the whole batch, but stoppable and self-limiting.
+   *
+   * Two ways out. The operator can hit Stop, and the loop checks between every
+   * photo. And if the first few all fail -- a missing key, an exhausted free
+   * quota, a provider outage -- it gives up on its own rather than grinding
+   * through sixty doomed calls while someone watches.
+   */
   const scanAll = async () => {
     const ready = drafts.filter((d) => d.status === 'done' && !d.value);
-    let failed = 0;
+    if (ready.length === 0) return;
+
+    cancelScan.current = false;
+    setBatchScanning(true);
+
+    let done = 0;
+    let consecutiveFailures = 0;
+    let stoppedEarly = false;
+
     for (let i = 0; i < ready.length; i++) {
-      const before = ready[i];
-      await scanOne(before, true);
-      if (i < ready.length - 1) await new Promise((r) => setTimeout(r, 4500));
+      if (cancelScan.current) break;
+
+      const ok = await scanOne(ready[i], true);
+      if (ok) {
+        done++;
+        consecutiveFailures = 0;
+      } else {
+        consecutiveFailures++;
+      }
+
+      // Three in a row means the provider is down or out of quota, not that
+      // these particular photos are hard.
+      if (consecutiveFailures >= 3) {
+        stoppedEarly = true;
+        break;
+      }
+
+      if (i < ready.length - 1 && !cancelScan.current) {
+        await new Promise((r) => setTimeout(r, 4500));
+      }
     }
-    // Count what still has no price: the adapter retries and falls back across
-    // providers, so anything blank here genuinely could not be read.
-    setDrafts((cur) => {
-      failed = cur.filter((c) => ready.some((r) => r.key === c.key) && !c.value).length;
+
+    setBatchScanning(false);
+
+    if (cancelScan.current) {
+      showMsg('Stopped. ' + done + ' of ' + ready.length + ' scanned — fill in the rest by hand.');
+    } else if (stoppedEarly) {
       showMsg(
-        failed === 0
-          ? 'Scanned all ' + ready.length + ' photos'
-          : 'Scanned ' + (ready.length - failed) + ' of ' + ready.length +
-              ' — type the rest in by hand',
-        failed === 0 ? 'ok' : 'bad'
+        'AI scanning gave up after 3 failures in a row (likely out of free quota). ' +
+          done + ' scanned — type the rest in by hand.',
+        'bad'
       );
-      return cur;
-    });
+    } else {
+      showMsg('Scanned ' + done + ' of ' + ready.length + ' photos');
+    }
+    cancelScan.current = false;
   };
 
   const createAll = async () => {
@@ -216,15 +257,26 @@ export function BulkUpload({
             <span>
               {doneCount}/{drafts.length} uploaded
             </span>
-            {visionReady && (
-              <button
-                onClick={scanAll}
-                className="flex items-center gap-1 rounded-lg border border-purple-500/40 bg-purple-500/10 px-2 py-1 text-purple-300 hover:bg-purple-500/20"
-              >
-                <Sparkles className="h-3 w-3" />
-                Auto-name &amp; price all
-              </button>
-            )}
+            {visionReady &&
+              (batchScanning ? (
+                <button
+                  onClick={() => {
+                    cancelScan.current = true;
+                  }}
+                  className="flex items-center gap-1 rounded-lg border border-red-500/50 bg-red-600 px-2 py-1 font-bold text-white hover:bg-red-500"
+                >
+                  <Square className="h-3 w-3" />
+                  Stop AI scanning
+                </button>
+              ) : (
+                <button
+                  onClick={scanAll}
+                  className="flex items-center gap-1 rounded-lg border border-purple-500/40 bg-purple-500/10 px-2 py-1 text-purple-300 hover:bg-purple-500/20"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  Auto-name &amp; price all
+                </button>
+              ))}
           </div>
 
           <div className="mt-2 max-h-[420px] space-y-2 overflow-y-auto pr-1">
