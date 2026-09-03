@@ -245,6 +245,7 @@ export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: Od
   const itemOdds: ItemOdds[] = pool.map((i, k) => ({
     item_id: i.id,
     name: i.name,
+    image_url: i.image_url ?? null,
     est_value: i.est_value,
     // Carried for display only. Note it is absent from `weights` above and from
     // every EV term below -- that is deliberate and must stay true.
@@ -259,6 +260,7 @@ export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: Od
   const fillerOdds: ItemOdds[] = fillerPool.map((i) => ({
     item_id: i.id,
     name: i.name,
+    image_url: i.image_url ?? null,
     est_value: i.est_value,
     rarity: i.rarity,
     stock_qty: i.stock_qty,

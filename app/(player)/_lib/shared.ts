@@ -98,6 +98,7 @@ export function normalizeOdds(raw: unknown): PlayerBoxOdds {
   const mapOdds = (i: Record<string, unknown>) => ({
     item_id: String(i.item_id ?? ''),
     name: String(i.name ?? 'Unknown'),
+    image_url: typeof i.image_url === 'string' && i.image_url ? i.image_url : null,
     est_value: num(i.est_value),
     rarity: (i.rarity as Rarity) ?? 'grey',
     stock_qty: num(i.stock_qty),
@@ -113,16 +114,7 @@ export function normalizeOdds(raw: unknown): PlayerBoxOdds {
     tier: (o.tier as BoxTier) ?? 'tier_1',
     box_price: num(o.box_price),
     target_ev: num(o.target_ev),
-    items: items
-      .map((i) => ({
-        item_id: String(i.item_id ?? ''),
-        name: String(i.name ?? 'Unknown'),
-        est_value: num(i.est_value),
-        rarity: (i.rarity as Rarity) ?? 'grey',
-        stock_qty: num(i.stock_qty),
-        probability: num(i.probability),
-      }))
-      .sort((a, b) => b.est_value - a.est_value),
+    items: items.map(mapOdds).sort((a, b) => b.est_value - a.est_value),
     p_physical: num(o.p_physical),
     ev_physical: num(o.ev_physical),
     p_shard: num(o.p_shard),

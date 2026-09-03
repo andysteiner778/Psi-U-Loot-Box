@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Package, Sparkles, Eye, Zap, Flame, Lock, PackageOpen } from 'lucide-react';
 import type { BoxTier, OpenBoxResult } from '@/lib/types';
 import { RARITY_COLOR } from '@/lib/types';
@@ -31,6 +31,26 @@ export function BoxCard({ odds, isFlashSale = false }: BoxCardProps) {
   const effectivePrice = odds.box_price;
   const basePrice = isFlashSale ? effectivePrice / 0.8 : effectivePrice;
   const hasFunds = stats.balance >= effectivePrice;
+
+  /**
+   * The cards that scroll past on the reel.
+   *
+   * BoxCard never passed these, so CaseReel fell back to FALLBACK_DECOYS --
+   * hardcoded placeholders. The wheel was showing invented items the house does
+   * not own, next to a winner that was real. Built here from this tier's actual
+   * pool (prizes plus the borrowed junk filler) so what scrolls past is what
+   * you could genuinely have won.
+   */
+  const decoys = useMemo(
+    () =>
+      [...odds.items, ...odds.filler].map((i) => ({
+        id: i.item_id,
+        name: i.name,
+        rarity: i.rarity,
+        image_url: i.image_url ?? null,
+      })),
+    [odds.items, odds.filler]
+  );
 
   // Once a tier's physical stock is gone the engine has nothing left to hand
   // over, so the whole payout budget flows to the ceiling anchor and the player
@@ -219,6 +239,7 @@ export function BoxCard({ odds, isFlashSale = false }: BoxCardProps) {
       {/* Reel Spinner Modal */}
       {spinning && activeWinner && (
         <CaseReel
+          decoys={decoys}
           winner={activeWinner}
           tierName={meta.name}
           onFinished={() => {}}

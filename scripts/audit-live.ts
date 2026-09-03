@@ -61,19 +61,42 @@ async function main() {
     cfg.scrap_coins_per_key + ' coins -> ' + usd(cfg.box_prices[cfg.scrap_key_tier]));
 
   if (locked.length) {
-    console.log('\n shard-locked prizes (not in any box, claimed with shards):');
-    for (const l of locked) {
-      const perShard = Number(l.est_value) / (l.shard_cost ?? 1);
-      console.log('   ' + pad(l.name.slice(0, 28), 30) + pad(usd(Number(l.est_value)), 10) +
-        pad(l.shard_cost + ' shards', 11) + usd(perShard) + '/shard');
+    // The number that matters is EXPECTED REAL SPEND to farm the shards, not
+    // the EV the engine charges per shard. Those are different questions, and
+    // measuring the wrong one made a perfectly healthy PC price look like a
+    // $300 subsidy. Cost per shard = box_price / P(shard), taking whichever
+    // tier is cheapest, because that is the route a determined player will use.
+    let cheapest = Infinity;
+    let cheapestTier = '';
+    for (const t of BOX_TIERS) {
+      const p = cfg.shard_probs[t];
+      if (!p) continue;
+      const per = cfg.box_prices[t] / p;
+      if (per < cheapest) {
+        cheapest = per;
+        cheapestTier = t;
+      }
     }
-    const charged = cfg.pc_value / cfg.shards_required;
-    console.log('   the economy charges ' + usd(charged) + ' per shard');
+
+    console.log('\n shard-locked prizes (claimed with shards, never dropped):');
+    console.log('   cheapest shard farming: ' + cheapestTier + ' at ' + usd(cheapest) + ' per shard');
+    console.log('   ' + pad('prize', 30) + pad('value', 10) + pad('shards', 9) +
+      pad('to farm', 11) + 'verdict');
+
     for (const l of locked) {
-      const perShard = Number(l.est_value) / (l.shard_cost ?? 1);
-      if (perShard > charged * 2) {
-        warn(l.name + ' pays ' + usd(perShard) + ' per shard but shards are priced at ' +
-          usd(charged) + ' — the house eats the difference on every claim.');
+      const cost = (l.shard_cost ?? 1) * cheapest;
+      const v = Number(l.est_value);
+      const ahead = cost - v;
+      console.log('   ' + pad(l.name.slice(0, 28), 30) + pad(usd(v), 10) +
+        pad(String(l.shard_cost), 9) + pad(usd(cost), 11) +
+        (ahead >= 0 ? 'house +' + usd(ahead) : 'PLAYER +' + usd(-ahead)));
+
+      if (ahead < 0) {
+        warn(l.name + ' is farmable for ' + usd(cost) + ' but worth ' + usd(v) +
+          ' — players profit by grinding shards for it.');
+      } else if (ahead > v * 1.5) {
+        warn(l.name + ' costs ' + usd(cost) + ' to farm for a ' + usd(v) +
+          ' item — nobody will bother. Lower its shard_cost.');
       }
     }
   }

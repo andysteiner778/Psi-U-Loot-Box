@@ -216,6 +216,8 @@ export interface EconomyConfig {
 export interface ItemOdds {
   item_id: string;
   name: string;
+  /** Needed by the reel: without it the strip falls back to placeholder cards. */
+  image_url?: string | null;
   est_value: number;
   /** Display only — see Item.msrp. */
   msrp?: number | null;

@@ -22,6 +22,32 @@ const INITIAL_EVENTS: TickerEvent[] = [];
 export function Ticker() {
   const [events, setEvents] = useState<TickerEvent[]>(INITIAL_EVENTS);
 
+  // Seed from recent history. Realtime only carries what happens while you are
+  // watching, so navigating away and back used to leave the banner blank.
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/ticker')
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancelled || !j?.ok || !Array.isArray(j.data) || j.data.length === 0) return;
+        setEvents((live) => {
+          // Live events that arrived while this was in flight win; history fills
+          // in behind them, de-duplicated on player+item+timestamp.
+          const seen = new Set(live.map((e) => e.player + '|' + e.item + '|' + e.at));
+          const history = (j.data as TickerEvent[]).filter(
+            (e) => !seen.has(e.player + '|' + e.item + '|' + e.at)
+          );
+          return [...live, ...history].slice(0, 30);
+        });
+      })
+      .catch(() => {
+        /* a blank ticker is not worth an error message */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     try {
       const channel = supabase
