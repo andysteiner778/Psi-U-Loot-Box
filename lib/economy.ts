@@ -39,16 +39,17 @@
  * ---------------------------------------------------------------------------
  */
 
+import { BOX_TIERS } from './types';
 import type { BoxOdds, BoxTier, EconomyConfig, Item, ItemOdds, Rarity } from './types';
 
 export const DEFAULT_CONFIG: EconomyConfig = {
   house_margin: 0.125,
   pot_revenue_threshold: 150.0,
-  box_prices: { tier_1: 5, tier_2: 20, tier_3: 50 },
-  shard_probs: { tier_1: 0.01, tier_2: 0.04, tier_3: 0.15 },
-  pc_value: 50,
+  box_prices: { tier_0: 1, tier_1: 5, tier_2: 20, tier_3: 50 },
+  shard_probs: { tier_0: 0.007, tier_1: 0.035, tier_2: 0.14, tier_3: 0.35 },
+  pc_value: 100,
   pc_display_value: 400,
-  shards_required: 2,
+  shards_required: 4,
   pc_total_supply: 1,
   pc_shards_minted: 0,
   max_item_prob: 0.3,
@@ -163,10 +164,15 @@ export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: Od
   // different odds. The solvency proof runs on THIS engine, so it was proving
   // properties of a game nobody was playing. Caught by an external audit, not
   // by any gate, which is why the drift test in scripts/verify-sql.ts exists.
-  const fillerPool =
-    tier === 'tier_1'
-      ? []
-      : live.filter((i) => i.box_tier === 'tier_1' && i.est_value <= fillerMax);
+  // Filler must come from a strictly CHEAPER tier, not merely from under a flat
+  // cap. With a fixed $15 cap a $5 box borrowed $15 tier-2 items as its
+  // "consolation", making the floor anchor worth $5.41 against a $4.38 budget --
+  // the house lost 18.5% on every tier-1 roll. Cheap junk is borrowed UP the
+  // ladder, never down it.
+  const tierRank = BOX_TIERS.indexOf(tier);
+  const fillerPool = live.filter(
+    (i) => BOX_TIERS.indexOf(i.box_tier) < tierRank && i.est_value <= fillerMax
+  );
 
   // --- Floor anchor: priced honestly, never $0 ------------------------------
   const coinUsd = scrapCoinUsd(cfg);
@@ -409,5 +415,6 @@ export function rarityForValue(v: number): Rarity {
 export function tierForValue(v: number): BoxTier {
   if (v >= 50) return 'tier_3';
   if (v >= 15) return 'tier_2';
-  return 'tier_1';
+  if (v >= 3) return 'tier_1';
+  return 'tier_0';
 }

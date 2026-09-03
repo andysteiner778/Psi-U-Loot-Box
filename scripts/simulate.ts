@@ -90,7 +90,7 @@ console.log(' tier    price   budget   payout   margin   P(item) P(shard) P(spin
 for (const tier of BOX_TIERS) {
   const o = computeBoxOdds({
     tier,
-    items: allItems.filter((i) => i.box_tier === tier || (tier !== 'tier_1' && i.box_tier === 'tier_1' && i.est_value <= 15)),
+    items: allItems.filter((i) => i.box_tier === tier || i.est_value > 15 || tier !== 'tier_0'),
     config: cfg,
     potGateMet: true,
   });
@@ -111,7 +111,7 @@ console.log('-----------------------------------------------------------------')
 for (const tier of BOX_TIERS) {
   for (const potGateMet of [false, true]) {
     let pool = allItems
-      .filter((i) => i.box_tier === tier || (tier !== 'tier_1' && i.box_tier === 'tier_1' && i.est_value <= 15))
+      .filter((i) => i.box_tier === tier || i.est_value > 15 || tier !== 'tier_0')
       .map((i) => ({ ...i }));
     // Deplete one unit at a time until the tier is empty.
     for (let step = 0; ; step++) {
@@ -203,11 +203,7 @@ console.log(' of each tier\'s payout budget, leaving that much less for real ite
 console.log('');
 console.log(' shard odds        t1        t2        t3     | P(item) t1/t2/t3   P(scrap) t1/t2/t3');
 for (const mult of [1, 0.75, 0.5, 0.25, 0.1]) {
-  const c = { ...cfg, shard_probs: {
-    tier_1: cfg.shard_probs.tier_1 * mult,
-    tier_2: cfg.shard_probs.tier_2 * mult,
-    tier_3: cfg.shard_probs.tier_3 * mult,
-  } };
+  const c = { ...cfg, shard_probs: Object.fromEntries(BOX_TIERS.map((t) => [t, DEFAULT_CONFIG.shard_probs[t]])) as Record<BoxTier, number> };
   const eaten = BOX_TIERS.map((t) => {
     const budget = c.box_prices[t] * (1 - c.house_margin);
     return ((c.shard_probs[t] * (c.pc_value / c.shards_required)) / budget * 100).toFixed(0) + '%';

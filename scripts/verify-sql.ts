@@ -22,6 +22,9 @@ import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { PGlite } from '@electric-sql/pglite';
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
+// Iterate the real tier list rather than a hardcoded three: adding tier_0 left
+// it silently untested by both the odds checks and the engine-drift comparison.
+import { BOX_TIERS } from '../lib/types';
 
 let failures = 0;
 let checks = 0;
@@ -119,7 +122,7 @@ async function main() {
 
   // ---- box_odds -----------------------------------------------------------
   console.log('\n--- box_odds() ---');
-  for (const tier of ['tier_1', 'tier_2', 'tier_3']) {
+  for (const tier of BOX_TIERS) {
     const o = (await db.query<{ box_odds: Record<string, unknown> }>(
       'SELECT box_odds($1) AS box_odds', [tier]
     )).rows[0].box_odds;
@@ -377,7 +380,7 @@ async function main() {
     const gate =
       Number(potRow.rows[0].pot) >= Number((cfg as Record<string, unknown>).pot_revenue_threshold);
 
-    for (const tier of ['tier_1', 'tier_2', 'tier_3'] as const) {
+    for (const tier of BOX_TIERS) {
       const sql = (
         await db.query<{ box_odds: Record<string, number | string> }>(
           'SELECT box_odds($1) AS box_odds', [tier]

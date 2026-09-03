@@ -103,9 +103,15 @@ async function main() {
 
   // ---- per tier -----------------------------------------------------------
   for (const tier of BOX_TIERS) {
+    // Mirrors box_odds: this tier's own items, plus anything dear enough to
+    // qualify as a cross-tier long shot, plus cheap items from other tiers that
+    // serve as the floor anchor.
+    const fillerMax = cfg.filler_max_value ?? 15;
     const pool = active.filter(
-      (i) => i.box_tier === tier || (tier !== 'tier_1' && i.box_tier === 'tier_1' &&
-        Number(i.est_value) <= (cfg.filler_max_value ?? 15))
+      (i) =>
+        i.box_tier === tier ||
+        Number(i.est_value) > fillerMax ||
+        (tier !== 'tier_0' && Number(i.est_value) <= fillerMax)
     );
     const native = pool.filter((i) => i.box_tier === tier);
     const o = computeBoxOdds({ tier, items: pool, config: cfg, potGateMet: gateMet });
@@ -159,9 +165,11 @@ async function main() {
   console.log(' To clear ' + usd(value) + ' of goods, players must deposit about ' + usd(needed) + '.');
   console.log(' Across 12 buyers that is ' + usd(needed / 12) + ' each; across 20, ' + usd(needed / 20) + ' each.');
 
-  const byTier: Record<BoxTier, { n: number; v: number }> = {
-    tier_1: { n: 0, v: 0 }, tier_2: { n: 0, v: 0 }, tier_3: { n: 0, v: 0 },
-  };
+  // Built from BOX_TIERS so a new tier cannot be silently omitted from the
+  // summary -- which is exactly what happened when tier_0 was added.
+  const byTier = Object.fromEntries(
+    BOX_TIERS.map((t) => [t, { n: 0, v: 0 }])
+  ) as Record<BoxTier, { n: number; v: number }>;
   for (const i of active) {
     byTier[i.box_tier].n += i.stock_qty;
     byTier[i.box_tier].v += Number(i.est_value) * i.stock_qty;

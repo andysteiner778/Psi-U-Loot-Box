@@ -47,23 +47,28 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
   scrap_key_tier: 'tier_2',
   pc_value: 50,
   pc_display_value: 400,
-  base_prices: { tier_1: 5, tier_2: 20, tier_3: 50 },
+  base_prices: { tier_0: 1, tier_1: 5, tier_2: 20, tier_3: 50 },
 };
 
 export const BOX_META: Record<BoxTier, { name: string; blurb: string; accent: Rarity }> = {
-  tier_1: {
-    name: 'Dorm Scraps',
-    blurb: 'The junk drawer. Cables, keys, odds and ends.',
+  tier_0: {
+    name: 'Pocket Lint',
+    blurb: 'A buck a go. Mostly oddments — but anything can show up.',
     accent: 'grey',
   },
-  tier_2: {
-    name: 'Living Room Gear',
-    blurb: 'The stuff worth carrying home. Best odds of a real win.',
+  tier_1: {
+    name: 'Loose Change',
+    blurb: 'Cables, keys and small stuff. Cheap enough to keep spinning.',
     accent: 'blue',
+  },
+  tier_2: {
+    name: 'The Good Stuff',
+    blurb: 'Things worth carrying home. Best odds of a real win.',
+    accent: 'purple',
   },
   tier_3: {
     name: 'High Roller',
-    blurb: 'The monitors, the books, the big pulls — and PC shards.',
+    blurb: 'The big pulls, and the best shot at PC shards.',
     accent: 'gold',
   },
 };

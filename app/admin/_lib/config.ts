@@ -23,7 +23,7 @@ import { BOX_TIERS, type BoxTier, type EconomyConfig } from '@/lib/types';
  */
 
 const tierNumbers = (schema: z.ZodNumber) =>
-  z.object({ tier_1: schema, tier_2: schema, tier_3: schema });
+  z.object({ tier_0: schema, tier_1: schema, tier_2: schema, tier_3: schema });
 
 /**
  * The knobs an admin may set directly.
@@ -86,7 +86,12 @@ export function coerceConfig(raw: unknown): EconomyConfig {
   };
   const tiers = (v: unknown, d: Record<BoxTier, number>): Record<BoxTier, number> => {
     const o = (v ?? {}) as Record<string, unknown>;
-    return { tier_1: n(o.tier_1, d.tier_1), tier_2: n(o.tier_2, d.tier_2), tier_3: n(o.tier_3, d.tier_3) };
+    // Built from BOX_TIERS rather than a hand-written list: adding tier_0 broke
+    // four of these at once, and a missed one silently drops a whole tier's
+    // price or shard rate to a default.
+    return Object.fromEntries(
+      BOX_TIERS.map((t) => [t, n(o[t], d[t])])
+    ) as Record<BoxTier, number>;
   };
   const ends = r.flash_sale_ends_at;
 

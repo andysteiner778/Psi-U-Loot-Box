@@ -48,11 +48,9 @@ export async function fetchGameConfig(): Promise<GameConfig> {
     pc_value: num(cfg.pc_value, DEFAULT_GAME_CONFIG.pc_value),
     // The UI must show this one, never pc_value -- see GameConfig.
     pc_display_value: num(cfg.pc_display_value, DEFAULT_GAME_CONFIG.pc_display_value ?? 400),
-    base_prices: {
-      tier_1: num(prices.tier_1, DEFAULT_GAME_CONFIG.base_prices.tier_1),
-      tier_2: num(prices.tier_2, DEFAULT_GAME_CONFIG.base_prices.tier_2),
-      tier_3: num(prices.tier_3, DEFAULT_GAME_CONFIG.base_prices.tier_3),
-    },
+    base_prices: Object.fromEntries(
+      BOX_TIERS.map((t) => [t, num(prices[t], DEFAULT_GAME_CONFIG.base_prices[t])])
+    ) as Record<BoxTier, number>,
   };
 }
 

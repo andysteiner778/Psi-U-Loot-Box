@@ -8,7 +8,7 @@
 export const RARITIES = ['grey', 'blue', 'purple', 'pink', 'gold'] as const;
 export type Rarity = (typeof RARITIES)[number];
 
-export const BOX_TIERS = ['tier_1', 'tier_2', 'tier_3'] as const;
+export const BOX_TIERS = ['tier_0', 'tier_1', 'tier_2', 'tier_3'] as const;
 export type BoxTier = (typeof BOX_TIERS)[number];
 
 /** Anti-exploit rule 2: these can never be scrapped, only physically claimed. */
