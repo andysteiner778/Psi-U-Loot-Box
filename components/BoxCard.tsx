@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Sparkles, Eye, Zap, Flame, Lock, PackageOpen } from 'lucide-react';
 import { CaseArt } from './CaseArt';
 import type { BoxTier, OpenBoxResult } from '@/lib/types';
@@ -31,10 +31,35 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarit
    */
   const [odds, setOdds] = useState<PlayerBoxOdds>(initialOdds);
 
+  /**
+   * Refreshing odds mid-spin re-renders this card, and a re-render of the card
+   * is a re-render of the open <CaseReel>. That used to abort the spin outright
+   * (see the comment on the spin effect in CaseReel). CaseReel is now immune to
+   * it, but there is still no reason to swap the reel's decoy strip out from
+   * under a spin that is already running, so hold refreshes until it closes and
+   * take one on the way out.
+   */
+  const spinningRef = useRef(false);
+  const refreshPendingRef = useRef(false);
+
   const refreshOdds = useCallback(async () => {
+    if (spinningRef.current) {
+      refreshPendingRef.current = true;
+      return;
+    }
     const res = await apiOdds(initialOdds.tier);
     if (res.ok) setOdds(res.value.data);
   }, [initialOdds.tier]);
+
+  const handleOpenRef = useRef<(() => Promise<void>) | null>(null);
+
+  const endSpin = useCallback(() => {
+    spinningRef.current = false;
+    setActiveWinner(null);
+    setSpinning(false);
+    refreshPendingRef.current = false;
+    void refreshOdds();
+  }, [refreshOdds]);
 
   useEffect(() => {
     setOdds(initialOdds);
@@ -118,6 +143,17 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarit
   const unitsLeft = odds.items.reduce((a, i) => a + i.stock_qty, 0);
   const isCleanedOut = unitsLeft === 0 && odds.filler.length === 0;
 
+  const handleSpinAgain = useCallback(() => {
+    endSpin();
+    setTimeout(() => void handleOpenRef.current?.(), 100);
+  }, [endSpin]);
+
+  const handleReelFinished = useCallback(() => {
+    // The item that just landed has had its stock decremented server side.
+    // Queue a refresh; it lands the moment the reel closes.
+    refreshPendingRef.current = true;
+  }, []);
+
   const handleOpen = async () => {
     if (opening || spinning) return;
     // Unlock iOS WebAudio synchronously during user gesture before async fetch
@@ -136,6 +172,7 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarit
       const res = await apiOpenBox(tier, clientRollId);
       if (res.ok) {
         commit(res.value.stats);
+        spinningRef.current = true;
         setActiveWinner(res.value.data);
         setSpinning(true);
       } else {
@@ -152,6 +189,8 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarit
       setOpening(false);
     }
   };
+
+  handleOpenRef.current = handleOpen;
 
   return (
     <>
@@ -321,20 +360,9 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarit
           // The item that just landed has had its stock decremented server
           // side. Pull fresh odds now so it stops appearing in this card and on
           // the next spin's reel.
-          onFinished={() => {
-            void refreshOdds();
-          }}
-          onSpinAgain={() => {
-            setActiveWinner(null);
-            setSpinning(false);
-            void refreshOdds();
-            setTimeout(() => handleOpen(), 100);
-          }}
-          onClose={() => {
-            setActiveWinner(null);
-            setSpinning(false);
-            void refreshOdds();
-          }}
+          onFinished={handleReelFinished}
+          onSpinAgain={handleSpinAgain}
+          onClose={endSpin}
         />
       )}
     </>

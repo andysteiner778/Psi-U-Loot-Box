@@ -128,50 +128,126 @@ export function CaseReel({
   }, []);
 
   /**
-   * One spin per result, ever.
+   * One spin per result, ever -- and once started, IT MUST FINISH.
    *
-   * This effect re-runs whenever geometry finishes measuring or the parent
-   * re-renders with a fresh `onFinished` identity -- and it re-ran on the final
-   * setState that reveals the winner. Each run called sfx.playReelStart() and
-   * re-scheduled the whole tick train, so the start sound fired a second time
-   * the moment the item landed. Latch on the roll id instead.
+   * The reveal used to be scheduled by an effect that listed `onFinished`,
+   * `geometry`, `hasNearMiss` and `prefersReducedMotion` as dependencies, with
+   * a cleanup that cancelled the tick train and the finish timer. `onFinished`
+   * was an inline arrow in BoxCard, so ANY parent re-render re-ran this effect:
+   * cleanup killed the audio and the pending reveal, then the `spunFor` latch
+   * made the new run return early without rescheduling. The spin coasted to a
+   * halt in silence, nothing was ever revealed, and `onFinished` never fired --
+   * so the card never refreshed and the item still looked available.
+   *
+   * BoxCard re-renders constantly: a 20s poll, a visibilitychange, and a
+   * Realtime subscription that fires on every roll by ANY player in the house.
+   * On a busy night that is several re-renders per spin, which is why this kept
+   * coming back and why it got worse as the app got more live.
+   *
+   * Two rules now keep it fixed:
+   *
+   *   1. The effect depends ONLY on what identifies the spin (`spinKey`,
+   *      `measured`). Everything else is read through refs, so a parent
+   *      re-render cannot re-run it.
+   *   2. The timers live in refs and are cancelled ONLY on unmount. Even if
+   *      something does re-run the effect, the pending reveal survives.
+   *
+   * If you add a dependency to this effect, you are re-introducing the bug.
    */
   const spunFor = useRef<string | null>(null);
+  const finishedFor = useRef<string | null>(null);
+  const cancelTicksRef = useRef<(() => void) | null>(null);
+  const finishRef = useRef<(() => void) | null>(null);
+  const deadlineRef = useRef<number>(0);
+  const nearMissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const finishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Live values the spin reads without depending on them.
+  const winnerRef = useRef(winner);
+  const geometryRef = useRef(geometry);
+  const onFinishedRef = useRef(onFinished);
+  const hasNearMissRef = useRef(hasNearMiss);
+  const reducedMotionRef = useRef(prefersReducedMotion);
+  useEffect(() => {
+    winnerRef.current = winner;
+    geometryRef.current = geometry;
+    onFinishedRef.current = onFinished;
+    hasNearMissRef.current = hasNearMiss;
+    reducedMotionRef.current = prefersReducedMotion;
+  });
+
+  // Cancel outstanding audio and timers on UNMOUNT ONLY. Never on a re-run:
+  // that is what silently ate the reveal.
+  useEffect(
+    () => () => {
+      cancelTicksRef.current?.();
+      if (nearMissTimerRef.current) clearTimeout(nearMissTimerRef.current);
+      if (finishTimerRef.current) clearTimeout(finishTimerRef.current);
+    },
+    []
+  );
+
+  const spinKey = winner?.roll_id ?? null;
+
+  /**
+   * Watchdog: if the deadline has passed and nothing has been revealed, reveal.
+   *
+   * This is the belt to the timer's braces. Every previous version of this bug
+   * had a different proximate cause -- an effect re-run cancelling the timer, a
+   * throttled background tab, a suspended AudioContext -- but all of them
+   * present identically to the player: the reel stops, the sound dies, and the
+   * item never opens. Rather than chase causes one at a time, guarantee the
+   * outcome: poll cheaply while a spin is pending, and check on every return to
+   * the foreground, which is exactly when a throttled timer is most overdue.
+   */
+  useEffect(() => {
+    if (!spinKey) return;
+    const tick = () => {
+      if (!deadlineRef.current || finishedFor.current === spinKey) return;
+      if (Date.now() >= deadlineRef.current) finishRef.current?.();
+    };
+    const id = setInterval(tick, 250);
+    document.addEventListener('visibilitychange', tick);
+    window.addEventListener('focus', tick);
+    window.addEventListener('pageshow', tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', tick);
+      window.removeEventListener('focus', tick);
+      window.removeEventListener('pageshow', tick);
+    };
+  }, [spinKey]);
 
   // Run the deceleration animation & audio
   useEffect(() => {
-    const spinKey = winner?.roll_id ?? null;
     if (!measured || !spinKey || spunFor.current === spinKey) return;
     spunFor.current = spinKey;
-
-    let cancelTicks: (() => void) | null = null;
-    let nearMissTimer: NodeJS.Timeout | null = null;
-    let finishTimer: NodeJS.Timeout | null = null;
 
     const startSpin = async () => {
       // Auto-unlock WebAudio on spin start
       await sfx.unlock();
       sfx.playReelStart();
 
-      // Compute geometry & travel target
-      const g = geometry;
+      // Read through refs: these must not be effect dependencies.
+      const g = geometryRef.current;
+      const reduced = reducedMotionRef.current;
       const targetOffset = offsetForIndex(WINNER_INDEX, g);
 
-      const durationMs = prefersReducedMotion ? 300 : REEL_DURATION_MS;
+      const durationMs = reduced ? 300 : REEL_DURATION_MS;
 
-      if (!prefersReducedMotion) {
+      if (!reduced) {
         // Schedule tick train based on distance fractions inverted through bezier
         const fractions = tickFractions(g, WINNER_INDEX);
         const times = tickTimes(REEL_DURATION_MS, fractions, REEL_EASE);
-        cancelTicks = sfx.scheduleTicks(times);
+        cancelTicksRef.current = sfx.scheduleTicks(times);
 
         // Only cue the whoosh when there is actually a near-miss card to
         // narrate. Playing it on a spin with no bait is a false tell: the
         // player hears the tension sting, sees an ordinary card, and learns
         // the sound means nothing.
-        if (hasNearMiss) {
+        if (hasNearMissRef.current) {
           const cueTime = nearMissCueMs(REEL_DURATION_MS, g, REEL_EASE);
-          nearMissTimer = setTimeout(() => {
+          nearMissTimerRef.current = setTimeout(() => {
             sfx.playNearMissWhoosh();
           }, Math.max(0, cueTime));
         }
@@ -180,13 +256,26 @@ export function CaseReel({
       // Animate track translation using Framer Motion
       controls.start({
         x: targetOffset,
-        transition: prefersReducedMotion
+        transition: reduced
           ? { duration: durationMs / 1000, ease: 'easeOut' }
           : { duration: durationMs / 1000, ease: REEL_EASE },
       });
 
-      // Handle finish
-      finishTimer = setTimeout(() => {
+      // Handle finish.
+      //
+      // The reveal is deliberately NOT tied to this timer alone. setTimeout is
+      // throttled to >=1s in a backgrounded tab and suspended outright on a
+      // locked phone, so a player who glances at a notification mid-spin can
+      // come back to a reel that stopped in silence and never opened. The same
+      // function is therefore also reachable from a watchdog below, and is
+      // idempotent so whichever gets there first wins.
+      const finishNow = () => {
+        // Idempotent: a duplicate schedule must never double-fire onFinished,
+        // which would double-refresh and could double-toast.
+        if (finishedFor.current === spinKey) return;
+        finishedFor.current = spinKey;
+
+        const won = winnerRef.current;
         setSpinning(false);
         setRevealed(true);
 
@@ -194,7 +283,7 @@ export function CaseReel({
         // Every result at Rare or above gets an escalating payoff sound, so the
         // large majority of rolls now land with SOMETHING. Common stays silent
         // on purpose: if everything chimes, nothing feels rare.
-        sfx.playWinFor(winner.rarity);
+        sfx.playWinFor(won.rarity);
 
         // Celebration scales with rarity, matching the sound ladder.
         //
@@ -202,13 +291,13 @@ export function CaseReel({
         // Legendary purple items landed in total silence visually, despite
         // being the second-best thing in the game and worth $50-100. A tier that
         // gets its own sound but no confetti reads as broken, not as restrained.
-        const burst = celebrationFor(winner);
+        const burst = celebrationFor(won);
         if (burst) {
           try {
             confetti(burst);
             // The top tiers get a second volley from the sides a beat later, so
             // the moment lasts as long as the fanfare does.
-            if (isJackpot(winner)) {
+            if (isJackpot(won)) {
               setTimeout(() => {
                 try {
                   confetti({ ...burst, particleCount: Math.round(burst.particleCount * 0.6), angle: 60, origin: { x: 0, y: 0.7 } });
@@ -223,24 +312,25 @@ export function CaseReel({
           }
         }
 
-        if (winner.type === 'scrap') {
+        if (won.type === 'scrap') {
           sfx.playScrapCrunch();
         }
 
-        if (onFinished) {
-          onFinished(winner);
-        }
-      }, durationMs + 200);
+        onFinishedRef.current?.(won);
+      };
+
+      finishRef.current = finishNow;
+      deadlineRef.current = Date.now() + durationMs + 200;
+      finishTimerRef.current = setTimeout(finishNow, durationMs + 200);
     };
 
     startSpin();
 
-    return () => {
-      if (cancelTicks) cancelTicks();
-      if (nearMissTimer) clearTimeout(nearMissTimer);
-      if (finishTimer) clearTimeout(finishTimer);
-    };
-  }, [winner, geometry, controls, onFinished, prefersReducedMotion, hasNearMiss, measured]);
+    // NO cleanup here on purpose. Cancelling the tick train and the finish
+    // timer on every re-run is exactly the bug this rewrite removes; unmount
+    // cleanup is handled by the mount-only effect above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spinKey, measured, controls]);
 
   const winnerCard = cardFromResult(winner);
   const winColor = RARITY_COLOR[winner.rarity] || '#3b82f6';
