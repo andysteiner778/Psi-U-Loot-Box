@@ -13,6 +13,21 @@ export interface BoxOddsModalProps {
 }
 
 export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps) {
+  /*
+   * ABOVE the early return, and it must stay there. A hook placed after
+   * `if (!isOpen) return null` runs on some renders and not others, so React
+   * sees the hook count change the moment the modal opens and throws
+   * "change in the order of Hooks". Guard the BODY on isOpen, never the hook.
+   */
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const pct = (p: number) => {
@@ -38,14 +53,6 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
     p: allDrops.filter((i) => i.rarity === rarity).reduce((a, i) => a + i.probability, 0),
     n: allDrops.filter((i) => i.rarity === rarity && i.probability > 0).length,
   })).filter((x) => x.p > 0);
-
-  React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
 
   return (
     <div

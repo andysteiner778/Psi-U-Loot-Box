@@ -18,6 +18,27 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
+  /*
+   * ABOVE the early return, and it must stay there. A hook placed after
+   * `if (!isOpen) return null` runs on some renders and not others. This modal
+   * is always mounted with isOpen toggling, so React saw the hook count go
+   * 0 -> 1 the instant it opened and threw "change in the order of Hooks" --
+   * the deposit dialog crashed the page outright, on the money path, and no
+   * API test could see it because they call /api/deposits directly.
+   */
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setCustomAmount('');
+        setAmount(20);
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const activeAmount = customAmount ? parseFloat(customAmount) : amount;
@@ -61,14 +82,6 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
     setAmount(20);
     onClose();
   };
-
-  React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') handleReset();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
 
   return (
     <div

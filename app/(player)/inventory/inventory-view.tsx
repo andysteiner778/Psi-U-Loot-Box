@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Package, Trash2, MapPin, Sparkles, History, Check, ShieldAlert } from 'lucide-react';
 import type { Roll, Rarity } from '@/lib/types';
 import { RARITY_COLOR, RARITY_LABEL, canScrap, isScrappable } from '@/lib/types';
@@ -19,9 +19,17 @@ export interface InventoryViewProps {
   allowHighRarityScrap: boolean;
 }
 
-export function InventoryView({ initialItems, recentRolls, allowHighRarityScrap }: InventoryViewProps) {
+export function InventoryView({ initialItems, recentRolls: initialRecent, allowHighRarityScrap }: InventoryViewProps) {
   const { stats, commit, adjust, toast } = usePlayer();
   const [items, setItems] = useState<Roll[]>(initialItems);
+  /*
+   * The activity table is server-rendered, so scrapping an item removed it from
+   * the shelf above while the row below still read INVENTORY -- the same "the
+   * server moved on and the UI did not" shape as the stalled spin, just
+   * cosmetic. Hold it in state and move the row with it.
+   */
+  const [recentRolls, setRecentRolls] = useState<Roll[]>(initialRecent);
+  useEffect(() => setRecentRolls(initialRecent), [initialRecent]);
   const [scrappingId, setScrappingId] = useState<string | null>(null);
   const [depositOpen, setDepositOpen] = useState(false);
 
@@ -51,6 +59,9 @@ export function InventoryView({ initialItems, recentRolls, allowHighRarityScrap 
         commit(res.value.stats);
         sfx.playScrapCrunch();
         setItems((prev) => prev.filter((i) => i.id !== roll.id));
+        setRecentRolls((prev) =>
+          prev.map((r) => (r.id === roll.id ? { ...r, status: 'scrapped' } : r))
+        );
         toast(`Recycled ${roll.item_name} for +${res.value.data.scrap_gained} Scrap Coins!`, 'good');
       } else {
         adjust({ scrap_coins: -scrapVal });
