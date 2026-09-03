@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { uploadItemPhoto } from '@/lib/image';
 import { BulkUpload } from './BulkUpload';
+import { SoundTester } from './SoundTester';
 import type { BoxTier, EconomyConfig, Item, Rarity, SessionUser } from '@/lib/types';
 import { RARITIES, BOX_TIERS, RARITY_COLOR, RARITY_LABEL, isScrappable } from '@/lib/types';
 import { rarityForValue, tierForValue } from '@/lib/economy';
@@ -1191,6 +1192,8 @@ export function AdminDashboard({
       {/* ========================================================================= */}
       {tab === 'controls' && (
         <div className="space-y-6">
+          <SoundTester />
+
           {/* Reset — clears the test run before the party starts for real */}
           <div className="rounded-2xl border border-amber-500/40 bg-gun-900/90 p-5 shadow-xl">
             <div className="mb-2 flex items-center gap-2">

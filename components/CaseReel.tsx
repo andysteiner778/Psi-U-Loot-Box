@@ -35,6 +35,34 @@ const CARD_WIDTH = 180; // px
 const CARD_GAP = 12; // px
 const PITCH = CARD_WIDTH + CARD_GAP; // 192px
 
+/**
+ * How big a celebration does this result deserve?
+ *
+ * Returns null for anything that should pass without ceremony. Kept beside the
+ * sound ladder in lib/sound.ts deliberately: the two must escalate together, or
+ * a tier ends up with a fanfare and no confetti (or the reverse), which reads
+ * as a bug rather than as restraint.
+ */
+function celebrationFor(
+  winner: OpenBoxResult
+): { particleCount: number; spread: number; origin: { y: number }; colors: string[]; scalar?: number } | null {
+  if (winner.type === 'shard') {
+    return { particleCount: 140, spread: 100, origin: { y: 0.6 }, colors: ['#eab308', '#fde047', '#ffffff'] };
+  }
+  switch (winner.rarity) {
+    case 'gold':
+      return { particleCount: 200, spread: 120, origin: { y: 0.6 }, colors: ['#eab308', '#fde047', '#ffffff', '#f59e0b'], scalar: 1.2 };
+    case 'pink':
+      return { particleCount: 140, spread: 100, origin: { y: 0.6 }, colors: ['#ec4899', '#f9a8d4', '#eab308'] };
+    case 'purple':
+      return { particleCount: 80, spread: 75, origin: { y: 0.65 }, colors: ['#9333ea', '#c084fc', '#e9d5ff'] };
+    case 'blue':
+      return { particleCount: 36, spread: 55, origin: { y: 0.68 }, colors: ['#2563eb', '#93c5fd'] };
+    default:
+      return null; // Common passes without ceremony.
+  }
+}
+
 export function CaseReel({
   winner,
   decoys = [],
@@ -153,18 +181,34 @@ export function CaseReel({
         // on purpose: if everything chimes, nothing feels rare.
         sfx.playWinFor(winner.rarity);
 
-        if (isJackpot(winner)) {
+        // Celebration scales with rarity, matching the sound ladder.
+        //
+        // This used to fire only for isJackpot() -- shard, gold and pink -- so
+        // Legendary purple items landed in total silence visually, despite
+        // being the second-best thing in the game and worth $50-100. A tier that
+        // gets its own sound but no confetti reads as broken, not as restrained.
+        const burst = celebrationFor(winner);
+        if (burst) {
           try {
-            confetti({
-              particleCount: 80,
-              spread: 70,
-              origin: { y: 0.6 },
-              colors: ['#eab308', '#ec4899', '#3b82f6', '#10b981'],
-            });
+            confetti(burst);
+            // The top tiers get a second volley from the sides a beat later, so
+            // the moment lasts as long as the fanfare does.
+            if (isJackpot(winner)) {
+              setTimeout(() => {
+                try {
+                  confetti({ ...burst, particleCount: Math.round(burst.particleCount * 0.6), angle: 60, origin: { x: 0, y: 0.7 } });
+                  confetti({ ...burst, particleCount: Math.round(burst.particleCount * 0.6), angle: 120, origin: { x: 1, y: 0.7 } });
+                } catch {
+                  /* ignore */
+                }
+              }, 320);
+            }
           } catch {
             /* ignore canvas-confetti issues */
           }
-        } else if (winner.type === 'scrap') {
+        }
+
+        if (winner.type === 'scrap') {
           sfx.playScrapCrunch();
         }
 
