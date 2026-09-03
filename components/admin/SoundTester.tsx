@@ -21,7 +21,8 @@ const CUES: { label: string; run: () => void; note: string }[] = [
   { label: 'Near-miss whoosh', run: () => sfx.playNearMissWhoosh(), note: '~1s before the stop' },
   { label: 'Scrap crunch', run: () => sfx.playScrapCrunch(), note: 'consolation result' },
   { label: 'Riser', run: () => sfx.playRiser(), note: 'under a big win' },
-  { label: 'Jackpot bell', run: () => sfx.playJackpotBell(), note: 'the slot-machine bell' },
+  { label: 'Hand-pay bell', run: () => sfx.playHandPayBell(undefined, 2.1, 1), note: 'the clanging jackpot bell' },
+  { label: 'Bell (long)', run: () => sfx.playHandPayBell(undefined, 3.4, 1.15), note: 'what an Exotic pull gets' },
   { label: 'Gold fanfare', run: () => sfx.playGoldFanfare(), note: 'top-tier arpeggio' },
   { label: 'Error', run: () => sfx.playError(), note: 'rejected action' },
 ];

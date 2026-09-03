@@ -71,6 +71,8 @@ class SoundEngine {
   /** Set once construction has failed, so we stop retrying every tick. */
   private unavailable = false;
   private noiseBuffer: AudioBuffer | null = null;
+  /** One rendered bell strike, reused by every clang. See bellBuffer(). */
+  private bellBufferRef: AudioBuffer | null = null;
 
   private prefsLoaded = false;
   private mutedValue = false;
@@ -759,40 +761,108 @@ class SoundEngine {
     }
   }
 
+
   /**
-   * The slot-machine bell.
+   * ONE strike of a clapper on a metal dome, rendered once and cached.
    *
-   * A struck bell is inharmonic -- its overtones are NOT integer multiples of
-   * the fundamental, which is exactly why a bell sounds like metal and a stack
-   * of harmonics sounds like an organ. These ratios are the cheap approximation
-   * that casino machines use.
+   * Built rather than sampled because the sound wanted here -- the hand-pay
+   * bell that will not shut up until an attendant walks over -- is
+   * electromechanical, and recordings of it are all sirens, doorbells or
+   * copyrighted casino audio. Three things make it read as struck metal:
+   *
+   *  1. INHARMONIC partials. A bell's modes are not a harmonic series; a dome
+   *     rings at ratios like 1 : 1.51 : 2.13 : 2.72. Feed it 1 : 2 : 3 and the
+   *     ear hears a pipe organ, which is what the old five-sine version did.
+   *  2. BEATING. Real castings are never perfectly symmetric, so each mode is
+   *     really two modes a couple of Hz apart. Detuning each partial against a
+   *     twin is what produces the shimmer, and it is the single biggest
+   *     difference between "bell" and "synth tone".
+   *  3. A STRIKE TRANSIENT. A few milliseconds of noise at the very front is
+   *     the clapper contacting the dome. Without it every strike sounds like it
+   *     faded in, and the machine-gun repeat below turns to mush.
+   *
+   * Higher partials are given shorter decays, which is why the timbre darkens
+   * as the note rings out instead of just getting quieter.
    */
-  playJackpotBell(at?: number, strikes = 5): void {
+  private bellBuffer(ctx: AudioContext): AudioBuffer {
+    if (this.bellBufferRef && this.bellBufferRef.sampleRate === ctx.sampleRate) {
+      return this.bellBufferRef;
+    }
+    const sr = ctx.sampleRate;
+    const dur = 0.85;
+    const len = Math.floor(sr * dur);
+    const buf = ctx.createBuffer(1, len, sr);
+    const data = buf.getChannelData(0);
+
+    const f0 = 638;
+    const ratios = [1, 1.51, 2.13, 2.72, 3.47, 4.35, 5.58, 6.91];
+    const amps = ratios.map((_, k) => 1 / (1 + k * 0.85));
+    const taus = ratios.map((_, k) => 0.72 / (1 + k * 0.5));
+    // Beat rate climbs with the partial, as it does on a real casting.
+    const beats = ratios.map((_, k) => 1.1 + k * 0.75);
+
+    let peak = 0;
+    for (let i = 0; i < len; i++) {
+      const t = i / sr;
+      let v = 0;
+      for (let k = 0; k < ratios.length; k++) {
+        const f = f0 * ratios[k];
+        const env = Math.exp(-t / taus[k]);
+        if (env < 1e-4) continue;
+        const w = 2 * Math.PI * t;
+        v += amps[k] * env * (Math.sin(w * f) + 0.72 * Math.sin(w * (f + beats[k])));
+      }
+      // Clapper contact: broadband, gone in ~15ms.
+      if (t < 0.02) v += (Math.random() * 2 - 1) * Math.exp(-t / 0.0035) * 1.6;
+      data[i] = v;
+      const a = v < 0 ? -v : v;
+      if (a > peak) peak = a;
+    }
+    if (peak > 0) for (let i = 0; i < len; i++) data[i] /= peak;
+
+    this.bellBufferRef = buf;
+    return buf;
+  }
+
+  /**
+   * The hand-pay bell: a continuous clanging ring, not a ding.
+   *
+   * The clapper fires about ten times a second while each strike rings for the
+   * best part of a second, so roughly eight tails are always overlapping. That
+   * overlap IS the sound -- strike it slower and you get a school corridor at
+   * home time, strike it faster and it turns into a buzzer.
+   *
+   * Every strike gets a little random detune and level, because thirty
+   * identical copies of one buffer read as a looped sample; a real clapper
+   * never hits the same spot twice. The last few strikes are wound down in
+   * software rather than with a gain ramp, which keeps this to one node per
+   * strike and nothing else.
+   */
+  playHandPayBell(at?: number, seconds = 2, intensity = 1): void {
     const g = this.graph();
     if (!g || this.mutedValue) return;
     try {
       const t0 = at ?? g.ctx.currentTime + LOOKAHEAD;
-      const partials = [1, 2.76, 5.4, 8.93];
+      const buffer = this.bellBuffer(g.ctx);
+      const period = 0.096;
+      const strikes = Math.max(2, Math.round(seconds / period));
+      const fadeFrom = Math.max(1, strikes - 4);
+
       for (let s = 0; s < strikes; s++) {
-        const start = t0 + s * 0.17;
-        const fundamental = 880 * (s % 2 === 0 ? 1 : 1.5);
-        partials.forEach((ratio, k) => {
-          const osc = g.ctx.createOscillator();
-          const env = g.ctx.createGain();
-          osc.type = 'sine';
-          osc.frequency.value = fundamental * ratio;
-          const peak = 0.13 / (k + 1);
-          env.gain.setValueAtTime(0.0008, start);
-          env.gain.linearRampToValueAtTime(peak, start + 0.004);
-          // Higher partials die away faster, which is what makes it read as a
-          // strike rather than a sustained tone.
-          env.gain.exponentialRampToValueAtTime(0.0008, start + 0.9 / (k * 0.6 + 1));
-          osc.connect(env);
-          env.connect(g.master);
-          osc.start(start);
-          osc.stop(start + 1.1);
-          this.track(osc);
-        });
+        const start = t0 + s * period * (0.94 + Math.random() * 0.12);
+        const src = g.ctx.createBufferSource();
+        const env = g.ctx.createGain();
+        src.buffer = buffer;
+        src.playbackRate.value = 1 + (Math.random() - 0.5) * 0.045;
+
+        // Ring out rather than stop dead.
+        const fade = s < fadeFrom ? 1 : 1 - (s - fadeFrom + 1) / (strikes - fadeFrom + 1);
+        env.gain.value = 0.17 * intensity * (0.85 + Math.random() * 0.3) * fade;
+
+        src.connect(env);
+        env.connect(g.master);
+        src.start(start);
+        this.track(src);
       }
     } catch {
       /* ignore */
@@ -838,18 +908,24 @@ class SoundEngine {
       case 'blue':
         this.playWinRare();
         break;
+      // Purple and up all get the hand-pay bell; only its length and level
+      // change. Giving the top two a bell and Legendary a bare chord made a
+      // $70 monitor land quieter than it deserved -- and Legendary is the most
+      // common of the three by a wide margin, so it is the one most people
+      // will actually hear. The bell is what makes a win feel PAID.
       case 'purple':
         this.playWinLegendary();
+        this.playHandPayBell(undefined, 1.2, 0.8);
         break;
       case 'pink':
         this.playRiser();
         this.playWinLegendary();
-        this.playJackpotBell(undefined, 4);
+        this.playHandPayBell(undefined, 2.1, 1);
         break;
       case 'gold':
         this.playRiser(undefined, 0.7);
         this.playGoldFanfare();
-        this.playJackpotBell(undefined, 7);
+        this.playHandPayBell(undefined, 3.4, 1.15);
         break;
       default:
         break; // Common is silent on purpose.
