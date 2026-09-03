@@ -6,9 +6,11 @@ const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'House Loot',
+  title: 'Psi U Loot Box',
   description: 'Moving-out mystery boxes',
+  // Private link, not a public site. Keep it out of search results.
   robots: { index: false, follow: false },
+  appleWebApp: { capable: true, title: 'Psi U Loot Box', statusBarStyle: 'black-translucent' },
 };
 
 export const viewport: Viewport = {

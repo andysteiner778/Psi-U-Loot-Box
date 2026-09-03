@@ -284,7 +284,7 @@ export function LoginForm({ roster, initialMustChange = false, userName = '' }: 
               onChange={(e) => handleQueryChange(e.target.value)}
               onFocus={() => setIsComboboxOpen(true)}
               onKeyDown={handleKeyDown}
-              placeholder="Type your name (e.g. Andy, Tyler)..."
+              placeholder="Type your name"
               className={`w-full min-h-[44px] rounded-xl border bg-gun-950 py-2.5 pl-3 pr-16 text-sm font-medium text-white transition focus:outline-none ${
                 selectedPlayer
                   ? 'border-emerald-500/60 focus:border-emerald-400'
@@ -375,6 +375,10 @@ export function LoginForm({ roster, initialMustChange = false, userName = '' }: 
             }}
             className="w-full rounded-xl border border-gun-700 bg-gun-950 py-3 text-center font-mono text-2xl tracking-[0.5em] text-white focus:border-purple-500 focus:outline-none"
           />
+          <p className="mt-1.5 text-center font-mono text-[10px] leading-relaxed text-gun-400">
+            New here? Just pick a name and a PIN &mdash; your account is created
+            instantly. Coming back? Use the same two.
+          </p>
         </div>
 
         {/* Submit Button */}
@@ -383,7 +387,7 @@ export function LoginForm({ roster, initialMustChange = false, userName = '' }: 
           disabled={loading || !name || pin.length !== 4}
           className="w-full flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 py-3 font-bold text-white shadow-lg shadow-purple-600/30 transition hover:brightness-110 active:scale-95 disabled:opacity-50"
         >
-          <span>{loading ? 'Authenticating...' : 'Sign In'}</span>
+          <span>{loading ? 'Checking…' : 'Enter the House'}</span>
           <ArrowRight className="h-4 w-4" />
         </button>
       </form>

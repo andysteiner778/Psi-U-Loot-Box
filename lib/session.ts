@@ -73,14 +73,42 @@ export async function destroySession(): Promise<void> {
  * Returns null on bad credentials; throws with code 'PT429' when locked out
  * after five failed attempts (15 minutes).
  */
-export async function login(name: string, pin: string): Promise<SessionUserFull | null> {
-  const { data, error } = await db.rpc('auth_verify_pin', { p_name: name, p_pin: pin });
+export interface LoginResult extends SessionUserFull {
+  /** True when this call created the account rather than signing into one. */
+  created: boolean;
+}
+
+/**
+ * Sign in, or create the account if the name is new.
+ *
+ * There is no pre-seeded roster: people type their name, choose a PIN, and the
+ * account exists. Login and registration are ONE database call on purpose --
+ * checking "is this name free?" and then inserting is a race two people typing
+ * the same name can lose.
+ *
+ * Returns null on a wrong PIN for an existing account; throws with code 'PT429'
+ * when locked out, and 'PT400' for a malformed name or PIN.
+ */
+export async function login(name: string, pin: string): Promise<LoginResult | null> {
+  const { data, error } = await db.rpc('auth_login_or_register', { p_name: name, p_pin: pin });
   if (error) throw error;
   if (!data || data.length === 0) return null;
 
-  const row = data[0] as { profile_id: string; name: string; role: 'player' | 'admin'; must_change: boolean };
+  const row = data[0] as {
+    profile_id: string;
+    name: string;
+    role: 'player' | 'admin';
+    must_change: boolean;
+    created: boolean;
+  };
   await createSession(row.profile_id);
-  return { id: row.profile_id, name: row.name, role: row.role, mustChangePin: !!row.must_change };
+  return {
+    id: row.profile_id,
+    name: row.name,
+    role: row.role,
+    mustChangePin: !!row.must_change,
+    created: !!row.created,
+  };
 }
 
 export async function setPin(profileId: string, pin: string): Promise<void> {

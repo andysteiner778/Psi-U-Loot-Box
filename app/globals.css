@@ -32,20 +32,40 @@ body {
   overscroll-behavior-y: none;
 }
 
-/* Layered, but all of it cheap: two radial washes for depth, a faint grid for
-   texture, and a vignette to keep the eye centred on the reel. No images, no
-   extra requests -- 30 phones are sharing one wifi connection. */
+/* Background.
+   Layered but deliberately cheap: coloured washes for depth, a faint grid for
+   texture, a slow aurora drift for life, and a vignette to pull the eye to the
+   reel. All CSS -- no images, no extra requests, because 30 phones will be
+   sharing one wifi connection. */
 body {
-  background-color: var(--color-gun-900);
+  background-color: var(--color-gun-950);
   background-image:
-    radial-gradient(ellipse 70% 45% at 50% -8%, rgba(147, 51, 234, 0.16), transparent 70%),
-    radial-gradient(ellipse 55% 40% at 92% 4%, rgba(37, 99, 235, 0.13), transparent 70%),
-    radial-gradient(ellipse 60% 45% at 4% 92%, rgba(236, 72, 153, 0.08), transparent 70%),
-    linear-gradient(rgba(255, 255, 255, 0.016) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.016) 1px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 100% 100%, 44px 44px, 44px 44px;
+    radial-gradient(ellipse 65% 40% at 50% -6%, rgba(147, 51, 234, 0.22), transparent 72%),
+    radial-gradient(ellipse 50% 38% at 96% 6%, rgba(37, 99, 235, 0.18), transparent 72%),
+    radial-gradient(ellipse 55% 42% at 2% 88%, rgba(236, 72, 153, 0.12), transparent 72%),
+    radial-gradient(ellipse 40% 30% at 80% 96%, rgba(234, 179, 8, 0.07), transparent 72%),
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size:
+    100% 100%, 100% 100%, 100% 100%, 100% 100%, 46px 46px, 46px 46px;
   background-attachment: fixed;
   position: relative;
+}
+
+/* Slow drifting aurora. Transform-only so it stays on the compositor and costs
+   a mid-range phone essentially nothing. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: -30%;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 30% 22% at 30% 30%, rgba(168, 85, 247, 0.16), transparent 70%),
+    radial-gradient(ellipse 26% 20% at 70% 60%, rgba(59, 130, 246, 0.14), transparent 70%);
+  filter: blur(48px);
+  animation: aurora-drift 26s ease-in-out infinite alternate;
+  will-change: transform;
 }
 
 /* Vignette. pointer-events:none so it never eats a tap. */
@@ -55,12 +75,21 @@ body::after {
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  background: radial-gradient(ellipse 90% 70% at 50% 45%, transparent 45%, rgba(0, 0, 0, 0.55) 100%);
+  background: radial-gradient(ellipse 88% 68% at 50% 42%, transparent 42%, rgba(0, 0, 0, 0.62) 100%);
 }
 
 body > * {
   position: relative;
   z-index: 1;
+}
+
+@keyframes aurora-drift {
+  from {
+    transform: translate3d(-4%, -2%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(5%, 3%, 0) scale(1.12);
+  }
 }
 
 @keyframes loot-slide {
@@ -69,6 +98,15 @@ body > * {
   }
   to {
     transform: translateX(-34px);
+  }
+}
+
+@keyframes loot-shimmer {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
   }
 }
 

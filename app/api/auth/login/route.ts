@@ -26,7 +26,11 @@ export async function POST(req: Request) {
     if (!isPin(pin)) return fail('Your PIN is 4 digits.', 400);
 
     const user = await login(name, pin);
-    if (!user) return fail("That name and PIN don't match.", 401);
+    if (!user) {
+      // Only reachable when the name EXISTS and the PIN was wrong -- a new name
+      // would have been created instead. So we can say so plainly.
+      return fail('Wrong PIN for that name. If this is your first time, pick a name nobody has used yet.', 401);
+    }
 
     return ok(user, { mustChangePin: user.mustChangePin });
   } catch (err) {
