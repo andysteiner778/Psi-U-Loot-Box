@@ -56,7 +56,7 @@ export const DEFAULT_CONFIG: EconomyConfig = {
   scrap_ev_frac: 0.2,
   filler_max_value: 15,
   cross_tier_factor: 0.15,
-  scrap_coins_per_key: 20,
+  scrap_coins_per_key: 200,
   scrap_key_tier: 'tier_2',
   flash_sale: false,
   flash_sale_pct: 0.2,

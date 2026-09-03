@@ -333,7 +333,34 @@ export function CaseReel({
             </span>
           </div>
 
-          <h3 className="text-2xl font-black text-white mt-1">{winner.item_name}</h3>
+          {/* The prize itself, large. The reveal previously showed only a name
+              and a price -- the photo the admin took never appeared at the
+              moment it mattered most. */}
+          <div
+            className="relative mt-3 flex h-40 w-40 items-center justify-center overflow-hidden rounded-2xl border-2 bg-gun-950/80 sm:h-48 sm:w-48"
+            style={{ borderColor: winColor, boxShadow: `inset 0 0 40px -10px ${winColor}` }}
+          >
+            <div
+              className="pointer-events-none absolute inset-0 opacity-40"
+              style={{ background: `radial-gradient(circle at center, ${winColor}55, transparent 70%)` }}
+            />
+            {winner.type === 'physical' && winner.image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={winner.image_url}
+                alt={winner.item_name}
+                className="relative h-full w-full object-contain p-2"
+              />
+            ) : winner.type === 'shard' ? (
+              <Sparkles className="relative h-20 w-20" style={{ color: winColor }} />
+            ) : winner.type === 'respin' ? (
+              <RefreshCw className="relative h-20 w-20" style={{ color: winColor }} />
+            ) : (
+              <Gift className="relative h-20 w-20" style={{ color: winColor }} />
+            )}
+          </div>
+
+          <h3 className="mt-3 text-2xl font-black text-white sm:text-3xl">{winner.item_name}</h3>
 
           {/* Outcome specific details */}
           {winner.type === 'physical' && (

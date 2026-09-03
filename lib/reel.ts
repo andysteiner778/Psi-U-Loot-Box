@@ -69,7 +69,15 @@ export const BAIT_RARITIES: readonly Rarity[] = ['gold', 'pink', 'purple'];
 // Deceleration curve (spec section 4B)
 // ---------------------------------------------------------------------------
 
-export const REEL_DURATION_MS = 5500;
+/**
+ * Deceleration time.
+ *
+ * The spec called for 5.5s. Nudged to 6.8s: the extra 1.3 seconds all lands in
+ * the slow tail where the cards are crawling, which is the part that actually
+ * builds tension. Going much beyond this starts to feel like waiting rather
+ * than watching, especially by someone's tenth box of the night.
+ */
+export const REEL_DURATION_MS = 6800;
 
 /**
  * cubic-bezier(0.10, 0.90, 0.15, 1.0) as [x1, y1, x2, y2].
