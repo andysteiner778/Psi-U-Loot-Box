@@ -109,18 +109,43 @@ async function main() {
   }
 
   const { data: roster } = await svc.rpc('player_roster');
-  ok(Array.isArray(roster) && roster.length === 30, 'player_roster returns 30 names');
+  // Not a fixed count: players self-register now and the seeded placeholders are
+  // gone. What matters is that the call works.
+  ok(
+    Array.isArray(roster) && roster.length >= 1,
+    'player_roster returns ' + (Array.isArray(roster) ? roster.length : 0) + ' name(s)'
+  );
 
   // -------------------------------------------------------------------------
   console.log('\n--- 3. auth round trip ---');
 
-  const { data: authOk } = await svc.rpc('auth_verify_pin', { p_name: 'Ben', p_pin: '1234' });
-  ok(Array.isArray(authOk) && authOk.length === 1, 'seeded PIN 1234 authenticates');
-  const mustChange = Array.isArray(authOk) && authOk[0]?.must_change === true;
-  ok(mustChange, 'must_change is true, so first login forces a PIN change');
+  // Self-registration means there is no seeded account to test against, so make
+  // one, exercise the whole path, then remove it. Using a real player would risk
+  // locking them out via the deliberate wrong-PIN attempt below.
+  const probeName = 'zz-verify-' + Date.now().toString(36);
 
-  const { data: authBad } = await svc.rpc('auth_verify_pin', { p_name: 'Ben', p_pin: '9999' });
-  ok(Array.isArray(authBad) && authBad.length === 0, 'wrong PIN returns no rows');
+  const { data: created, error: cErr } = await svc.rpc('auth_login_or_register', {
+    p_name: probeName, p_pin: '4021',
+  });
+  ok(!cErr && Array.isArray(created) && created.length === 1, 'a new name self-registers');
+  ok(Array.isArray(created) && created[0]?.created === true, 'it reports as newly created');
+
+  const { data: again } = await svc.rpc('auth_login_or_register', {
+    p_name: probeName, p_pin: '4021',
+  });
+  ok(Array.isArray(again) && again.length === 1 && again[0]?.created === false,
+    'same name + PIN signs in rather than making a second account');
+
+  const { data: wrong } = await svc.rpc('auth_login_or_register', {
+    p_name: probeName, p_pin: '9999',
+  });
+  ok(Array.isArray(wrong) && wrong.length === 0, 'wrong PIN returns no rows');
+
+  const { data: cased } = await svc.rpc('auth_login_or_register', {
+    p_name: probeName.toUpperCase(), p_pin: '4021',
+  });
+  ok(Array.isArray(cased) && cased.length === 1 && cased[0]?.created === false,
+    'names match case-insensitively, so no duplicate account');
 
   // -------------------------------------------------------------------------
   console.log('\n--- 4. storage bucket (migration 0005) ---');
@@ -160,8 +185,11 @@ async function main() {
   // -------------------------------------------------------------------------
   console.log('\n--- 6. one real box opening ---');
 
-  const { data: ben } = await svc.from('profiles').select('id,balance').eq('name', 'Ben').single();
-  ok(!!ben, 'found the test player');
+  // Roll as the probe account created above, so no real player's balance,
+  // inventory or shard count is disturbed by the verification run.
+  const { data: ben } = await svc
+    .from('profiles').select('id,balance').eq('name', probeName).maybeSingle();
+  ok(!!ben, 'probe account available for a live roll');
 
   if (ben && subscribed) {
     await svc.from('profiles').update({ balance: 50 }).eq('id', ben.id);
@@ -190,10 +218,12 @@ async function main() {
     }
 
     // Reverse the test roll's side effects.
-    await svc.from('profiles').update({ balance: 0, scrap_coins: 0, pc_shards: 0 }).eq('id', ben.id);
     await svc.from('rolls').delete().eq('user_id', ben.id);
     console.log('        (test roll reversed)');
   }
+
+  // Remove the probe account entirely; rolls cascade with it.
+  await svc.from('profiles').delete().eq('name', probeName);
 
   await anon.removeChannel(channel);
 
