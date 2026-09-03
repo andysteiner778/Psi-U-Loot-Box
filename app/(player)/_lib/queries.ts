@@ -51,6 +51,11 @@ export async function fetchGameConfig(): Promise<GameConfig> {
     base_prices: Object.fromEntries(
       BOX_TIERS.map((t) => [t, num(prices[t], DEFAULT_GAME_CONFIG.base_prices[t])])
     ) as Record<BoxTier, number>,
+    shard_salvage_tier: (cfg.shard_salvage_tier as BoxTier) ?? DEFAULT_GAME_CONFIG.shard_salvage_tier,
+    shard_salvage_value: num(
+      prices[(cfg.shard_salvage_tier as BoxTier) ?? 'tier_1'],
+      DEFAULT_GAME_CONFIG.shard_salvage_value ?? 5
+    ),
   };
 }
 

@@ -39,6 +39,9 @@ export interface GameConfig {
   pc_display_value?: number;
   /** Undiscounted prices, so a flash sale can be shown as a strike-through. */
   base_prices: Record<BoxTier, number>;
+  /** Box tier / value awarded when salvaging a soulbound shard */
+  shard_salvage_tier?: BoxTier;
+  shard_salvage_value?: number;
 }
 
 export const DEFAULT_GAME_CONFIG: GameConfig = {
@@ -48,6 +51,8 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
   pc_value: 50,
   pc_display_value: 400,
   base_prices: { tier_0: 1, tier_1: 5, tier_2: 20, tier_3: 50 },
+  shard_salvage_tier: 'tier_1',
+  shard_salvage_value: 5,
 };
 
 export const BOX_META: Record<BoxTier, { name: string; blurb: string; accent: Rarity }> = {

@@ -218,6 +218,28 @@ async function main() {
     }
 
     // Reverse the test roll's side effects.
+    //
+    // Deleting the roll is not the whole reversal: a physical win also
+    // decremented items.stock_qty, and with the roll gone there is no
+    // inventory row to account for the missing unit. Left alone, every run of
+    // this script permanently shrinks the real catalog by whatever it won.
+    if (result) {
+      const r = result as Record<string, unknown>;
+      if (r.type === 'physical' && typeof r.item_id === 'string') {
+        const { data: it } = await svc
+          .from('items')
+          .select('stock_qty')
+          .eq('id', r.item_id)
+          .maybeSingle();
+        if (it) {
+          await svc
+            .from('items')
+            .update({ stock_qty: (it as { stock_qty: number }).stock_qty + 1 })
+            .eq('id', r.item_id);
+          console.log('        (returned 1x ' + r.item_name + ' to stock)');
+        }
+      }
+    }
     await svc.from('rolls').delete().eq('user_id', ben.id);
     console.log('        (test roll reversed)');
   }

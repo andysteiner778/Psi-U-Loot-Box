@@ -32,6 +32,20 @@ export function ShardHud({
   const pcValue = config.pc_display_value || config.pc_value || 400;
   const hasCompletedPc = shardsHeld >= shardsReq;
 
+  const salvageTier = config.shard_salvage_tier || 'tier_1';
+  const salvagePrice = config.shard_salvage_value ?? (config.base_prices?.[salvageTier] ?? 5);
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowSalvageModal(false);
+        setShowWinModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const handleClaimPc = async () => {
     setClaiming(true);
     try {
@@ -161,7 +175,7 @@ export function ShardHud({
                 onClick={() => setShowSalvageModal(true)}
                 className="flex min-h-[44px] items-center rounded-xl border border-gun-700 bg-gun-850 px-3.5 py-2 text-xs font-mono text-gun-300 transition hover:border-gun-600 hover:text-white"
               >
-                Salvage Shards ($20 ea)
+                Salvage Shards (${salvagePrice.toFixed(0)} ea)
               </button>
             )}
           </div>
@@ -170,7 +184,12 @@ export function ShardHud({
 
       {/* Salvage Modal Dialog */}
       {showSalvageModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowSalvageModal(false);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+        >
           <div className="w-full max-w-md rounded-2xl border border-gun-700 bg-gun-900 p-6 shadow-2xl">
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
               <RefreshCw className="h-5 w-5 text-yellow-400" />
@@ -178,7 +197,7 @@ export function ShardHud({
             </h3>
             <p className="mt-2 text-xs text-gun-300 leading-relaxed">
               According to Anti-Exploit Rule 3, PC Shards cannot be traded to other players. You can
-              salvage them back to the house for <strong className="text-white">$20.00 Account Credit</strong> per shard.
+              salvage them back to the house for <strong className="text-white">${salvagePrice.toFixed(2)} Account Credit</strong> per shard.
             </p>
 
             <div className="my-4 rounded-xl bg-gun-950 p-4 border border-gun-800 font-mono text-sm space-y-1">
@@ -188,7 +207,7 @@ export function ShardHud({
               </div>
               <div className="flex justify-between text-gun-400">
                 <span>Salvage Payout:</span>
-                <span className="text-emerald-400 font-bold">+${(shardsHeld * 20).toFixed(2)}</span>
+                <span className="text-emerald-400 font-bold">+${(shardsHeld * salvagePrice).toFixed(2)}</span>
               </div>
             </div>
 
@@ -213,7 +232,12 @@ export function ShardHud({
 
       {/* PC Claimed Victory Modal */}
       {showWinModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-md">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowWinModal(false);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-md"
+        >
           <div className="w-full max-w-lg rounded-3xl border-2 border-yellow-400 bg-gun-900 p-8 shadow-2xl text-center">
             <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-yellow-500/20 border-2 border-yellow-400 text-yellow-400 animate-bounce">
               <Trophy className="h-10 w-10" />

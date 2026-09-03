@@ -62,8 +62,21 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
     onClose();
   };
 
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleReset();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm animate-in fade-in">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) handleReset();
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm animate-in fade-in"
+    >
       <div className="relative w-full max-w-md rounded-2xl border border-gun-700 bg-gun-900 p-6 shadow-2xl">
         {/* Close Button */}
         <button

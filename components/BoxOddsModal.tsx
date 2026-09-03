@@ -39,8 +39,21 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
     n: allDrops.filter((i) => i.rarity === rarity && i.probability > 0).length,
   })).filter((x) => x.p > 0);
 
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm animate-in fade-in">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm animate-in fade-in"
+    >
       <div className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-3xl border border-gun-700 bg-gun-900 shadow-2xl flex flex-col">
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-gun-800 p-5 bg-gun-950/60">

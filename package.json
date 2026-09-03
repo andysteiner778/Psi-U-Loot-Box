@@ -18,7 +18,8 @@
     "reset": "tsx scripts/reset-party.ts",
     "storage:orphans": "tsx scripts/storage-orphans.ts",
     "audit": "tsx scripts/audit-live.ts",
-    "e2e": "tsx scripts/e2e-live.ts"
+    "e2e": "tsx scripts/e2e-live.ts",
+    "reconcile": "tsx scripts/reconcile.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

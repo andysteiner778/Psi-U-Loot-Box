@@ -89,7 +89,7 @@ When high-end prizes (like the $200 Speakers, GPU, or 144Hz Monitor) are unboxed
 ## 6. Summary of Host Guardrails
 
 - **Pot Revenue Threshold ($400)**: PC Shard drops stay at 0% until $400 of gross Venmo deposits are approved. You can adjust this slider in `/admin` -> Emergency Controls.
-- **Soulbound Shards**: If a player has 2 or 3 shards but wants out, tell them to tap **[Salvage Shards]** in their Shard HUD — they get $20 of wallet credit per shard.
+- **Soulbound Shards**: If a player has 2 or 3 shards but wants out, tell them to tap **[Salvage Shards]** in their Shard HUD — they get $5.00 of wallet credit per shard (the Tier 1 roll cost, per migration 0006).
 - **Scrap Compactor ($20 Wallet Credit)**: 200 scrap coins crush into $20.00 of standard wallet credit, spendable on any tier (not locked to Tier 2). This matches the exact economic coin price ($0.10/coin) while allowing players to spend it on any box tier.
 - **Physical Pickup Only**: Remind winners that Purple (Restricted), Pink (Covert), and Gold (PC Shard/Gaming PC) items cannot be scrapped — they must be picked up physically in Room 4.
 
@@ -112,13 +112,14 @@ Add the following under **Project Settings -> Environment Variables**:
 > Ensure `SUPABASE_SERVICE_ROLE_KEY` does NOT have `NEXT_PUBLIC_` attached to it. The service-role key bypasses all Postgres RLS and must only exist in server-side Node.js runtimes.
 
 ### B. Pre-Deployment Verification
-Before pushing to production, verify all gates locally:
+Before pushing to production or opening to housemates, verify all 6 standing gates:
 ```bash
-npm run verify:sql    # Verify offline Postgres migration & RPC correctness
-npm run simulate      # Verify 1,353 economy solvency invariants
-npm run tune          # Verify drop rates and playability
-npm run build         # Verify Next.js Turbopack build
-npx tsc --noEmit      # Verify 0 TypeScript errors
+npm run audit         # Verify live DB inventory solvency ($1,206 catalog, budget <= cost)
+npm run e2e           # Run live scenario integration test (45 assertions: rolls, races, compactor)
+npm run simulate      # Verify 2,106 economy solvency invariants & 100,000-roll Monte Carlo
+npm run verify:sql    # Verify offline Postgres migrations (0001-0021) & TS vs SQL parity (80 checks)
+npm run verify:live   # Run live Supabase production checks (29 checks)
+npm run build         # Verify Next.js Turbopack build & 0 TypeScript errors
 ```
 
 ### C. Post-Deployment Smoke Test
@@ -127,7 +128,7 @@ Once deployed on Vercel:
    ```bash
    npm run verify:live
    ```
-   This performs 27 live checks on the production instance:
+   This performs 29 live checks on the production instance:
    - Anon key permission lockdown (`42501` refused on table reads)
    - Realtime WebSocket broadcast delivery to client
    - Storage bucket `item-images` write and read access

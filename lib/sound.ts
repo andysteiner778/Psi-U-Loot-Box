@@ -807,15 +807,15 @@ class SoundEngine {
     const buf = ctx.createBuffer(1, len, sr);
     const data = buf.getChannelData(0);
 
-    const f0 = 1850;
-    // Six partials, not eight, and closer together: a small dome rings mostly
-    // at its fundamental with a couple of bright overtones on top. A long tail
-    // of strong low inharmonics is precisely what cookware sounds like.
-    const ratios = [1, 1.34, 1.78, 2.31, 2.94, 3.76];
-    const amps = ratios.map((_, k) => 1 / (1 + k * 1.3));
-    const taus = ratios.map((_, k) => 0.3 / (1 + k * 0.5));
-    // Beat rate climbs with the partial, as it does on a real casting.
-    const beats = ratios.map((_, k) => 1.5 + k * 1.0);
+    const f0 = 1260;
+    // Harmonic and inharmonic modes of a brass/steel casino gong dome:
+    // resonant fundamental, warm minor-third/fifth overtone, shimmering octave with beating,
+    // and bright metallic sparkle that decays quickly.
+    const ratios = [1.0, 1.48, 2.02, 2.76, 3.98, 5.20];
+    const amps = [1.0, 0.65, 0.45, 0.28, 0.15, 0.08];
+    const taus = [0.42, 0.28, 0.22, 0.14, 0.08, 0.05];
+    // Beat rate climbs with the partial for metallic shimmer without dissonance
+    const beats = [1.8, 2.4, 3.2, 4.1, 5.0, 6.2];
 
     let peak = 0;
     for (let i = 0; i < len; i++) {
@@ -826,10 +826,10 @@ class SoundEngine {
         const env = Math.exp(-t / taus[k]);
         if (env < 1e-4) continue;
         const w = 2 * Math.PI * t;
-        v += amps[k] * env * (Math.sin(w * f) + 0.72 * Math.sin(w * (f + beats[k])));
+        v += amps[k] * env * (Math.sin(w * f) + 0.65 * Math.sin(w * (f + beats[k])));
       }
-      // Clapper contact: broadband, gone in ~15ms.
-      if (t < 0.02) v += (Math.random() * 2 - 1) * Math.exp(-t / 0.0025) * 0.7;
+      // Clapper contact: crisp metallic transient, gone in ~10ms
+      if (t < 0.015) v += (Math.random() * 2 - 1) * Math.exp(-t / 0.002) * 0.55;
       data[i] = v;
       const a = v < 0 ? -v : v;
       if (a > peak) peak = a;
@@ -843,17 +843,9 @@ class SoundEngine {
   /**
    * The hand-pay bell: a continuous clanging ring, not a ding.
    *
-   * The clapper fires about twenty-two times a second while each strike rings
-   * for ~0.3s, so roughly seven tails are always overlapping. That overlap IS
-   * the sound: at ten strikes a second the ear still resolves each hit and it
-   * reads as banging a pan, and only somewhere north of about eighteen does it
-   * fuse into the continuous brrrring of a bell over a classroom door.
-   *
-   * Every strike gets a little random detune and level, because thirty
-   * identical copies of one buffer read as a looped sample; a real clapper
-   * never hits the same spot twice. The last few strikes are wound down in
-   * software rather than with a gain ramp, which keeps this to one node per
-   * strike and nothing else.
+   * The clapper fires about fifteen times a second (the authentic mechanical
+   * cadence of classic Bally/IGT casino bells) while each strike rings
+   * for ~0.4s, creating a triumphant cascading shimmer without buzzing.
    */
   playHandPayBell(at?: number, seconds = 2, intensity = 1): void {
     const g = this.graph();
@@ -861,12 +853,9 @@ class SoundEngine {
     try {
       const t0 = at ?? g.ctx.currentTime + LOOKAHEAD;
       const buffer = this.bellBuffer(g.ctx);
-      const period = 0.045;
+      const period = 0.064;
       const strikes = Math.max(2, Math.round(seconds / period));
-      // Wind down over ~0.4s rather than a fixed number of strikes -- at this
-      // rate "the last four" is under a fifth of a second and cuts off. Capped
-      // at a third of the ring so the short Rare burst, which is only eight
-      // strikes long, does not start fading on its first one.
+      // Wind down smoothly over ~0.4s
       const fadeStrikes = Math.min(Math.round(0.4 / period), Math.floor(strikes * 0.35));
       const fadeFrom = Math.max(1, strikes - fadeStrikes);
 
@@ -875,11 +864,11 @@ class SoundEngine {
         const src = g.ctx.createBufferSource();
         const env = g.ctx.createGain();
         src.buffer = buffer;
-        src.playbackRate.value = 1 + (Math.random() - 0.5) * 0.03;
+        src.playbackRate.value = 1 + (Math.random() - 0.5) * 0.025;
 
         // Ring out rather than stop dead.
         const fade = s < fadeFrom ? 1 : 1 - (s - fadeFrom + 1) / (strikes - fadeFrom + 1);
-        env.gain.value = 0.17 * intensity * (0.85 + Math.random() * 0.3) * fade;
+        env.gain.value = 0.15 * intensity * (0.88 + Math.random() * 0.24) * fade;
 
         src.connect(env);
         env.connect(g.master);

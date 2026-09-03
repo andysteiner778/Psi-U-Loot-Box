@@ -371,6 +371,53 @@ async function main() {
   const { data: leftovers } = await db.from('profiles').select('name').like('name', 'zz-e2e-%');
   ok((leftovers ?? []).length === 0, 'all probe accounts removed');
 
+  // Put back what the probes won.
+  //
+  // Deleting a probe profile cascades to its rolls, so the units it bought
+  // simply vanish: stock stayed decremented with no inventory row to show for
+  // it. Every run of this suite quietly shrank the real catalog, and after
+  // enough runs items that are physically sitting in the house stop being
+  // winnable. Restore to initial minus whatever REAL players still hold --
+  // never to initial flat, or a prize someone already won goes back in the
+  // pool and two people can win the same object.
+  //
+  // Held items are rolls with status='inventory', NOT a table called
+  // `inventory`; that table does not exist, and querying it returns an error
+  // that reads as "nobody holds anything" if you do not check it.
+  {
+    const { data: heldRows, error: heldErr } = await db
+      .from('rolls')
+      .select('item_name')
+      .eq('status', 'inventory')
+      .eq('kind', 'physical');
+    ok(!heldErr, 'read held items for restock' + (heldErr ? ': ' + heldErr.message : ''));
+
+    const heldBy = new Map<string, number>();
+    for (const r of heldRows ?? []) {
+      const n = (r as { item_name: string | null }).item_name ?? '';
+      heldBy.set(n, (heldBy.get(n) ?? 0) + 1);
+    }
+
+    const { data: allItems } = await db
+      .from('items')
+      .select('id,name,stock_qty,initial_stock_qty');
+
+    let restored = 0;
+    let unbalanced = 0;
+    for (const raw of (allItems ?? []) as { id: string; name: string; stock_qty: number; initial_stock_qty: number | null }[]) {
+      if (raw.initial_stock_qty === null || raw.initial_stock_qty === undefined) continue;
+      const should = Math.max(0, raw.initial_stock_qty - (heldBy.get(raw.name) ?? 0));
+      if (raw.stock_qty === should) continue;
+      if (raw.stock_qty > should) { unbalanced++; continue; }  // duplicated: not ours to fix here
+      await db.from('items').update({ stock_qty: should }).eq('id', raw.id);
+      restored++;
+    }
+    ok(true, 'restored ' + restored + ' unit(s) the probes consumed');
+    ok(unbalanced === 0, unbalanced === 0
+      ? 'stock balances: every unit is in stock or held by a player'
+      : unbalanced + ' item(s) have MORE stock than were put in — run `npm run reconcile`');
+  }
+
   console.log('\n=================================================================');
   console.log(fails === 0 ? ' PASS — ' + checks + ' checks, 0 failures.' : ' FAIL — ' + fails + ' of ' + checks + ' failed.');
   console.log('=================================================================\n');

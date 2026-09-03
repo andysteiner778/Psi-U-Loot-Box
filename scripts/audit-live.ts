@@ -162,6 +162,52 @@ async function main() {
     }
   }
 
+  // ---- conservation ------------------------------------------------------
+  // Every physical unit is either on the shelf or in somebody's hands. If
+  // stock + held != initial, a unit has been conjured or lost -- which happens
+  // when stock is edited by hand, or restored from initial_stock_qty without
+  // subtracting what players already won. Two people being promised the same
+  // monitor is a problem you discover in person, so it is checked rather than
+  // assumed.
+  //
+  // NOTE there is no `inventory` TABLE: held items are rolls with
+  // status='inventory' AND kind='physical'. Querying a table by that name
+  // returns an ERROR, and code that reads that error as "nothing is held" will
+  // cheerfully duplicate every prize in the house. That is not hypothetical.
+  const { data: heldRows } = await db
+    .from('rolls')
+    .select('item_name')
+    .eq('status', 'inventory')
+    .eq('kind', 'physical');
+
+  const heldBy = new Map<string, number>();
+  for (const r of heldRows ?? []) {
+    const n = (r as { item_name: string | null }).item_name ?? '';
+    heldBy.set(n, (heldBy.get(n) ?? 0) + 1);
+  }
+
+  console.log('\n----------------------------------------------------------------');
+  console.log(' UNIT CONSERVATION   (' + (heldRows ?? []).length + ' physical item(s) held by players)');
+  let conservationOk = true;
+  for (const it of items) {
+    const initial = (it as unknown as { initial_stock_qty: number | null }).initial_stock_qty;
+    if (initial === null || initial === undefined) continue;
+    const held = heldBy.get(it.name) ?? 0;
+    if (it.stock_qty + held !== initial) {
+      conservationOk = false;
+      warn(
+        it.name + ': ' + it.stock_qty + ' in stock + ' + held + ' held = ' +
+        (it.stock_qty + held) + ', but ' + initial + ' were put in. ' +
+        (it.stock_qty + held > initial
+          ? 'DUPLICATED — two people can win the same object.'
+          : 'A unit has gone missing.')
+      );
+    }
+  }
+  if (conservationOk) {
+    console.log('   every unit is either in stock or accounted for in a player inventory.');
+  }
+
   // ---- whole-party view ---------------------------------------------------
   console.log('\n================================================================');
   console.log(' WHAT THIS MEANS FOR THE PARTY');
