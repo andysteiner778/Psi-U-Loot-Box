@@ -39,7 +39,13 @@ const usd = (n: number) => '$' + Number(n).toFixed(2);
 const probes: string[] = [];
 
 async function makePlayer(tag: string) {
-  const name = 'zz-e2e-' + tag + '-' + Date.now().toString(36);
+  // Random suffix, not just a timestamp: three probes created inside one
+  // Promise.all land in the same millisecond, so a Date.now()-only name made
+  // them collide -- and because login-or-register is idempotent, calls 2 and 3
+  // signed INTO the first account instead of creating new ones. The race test
+  // would then have been one player rolling three times, which proves nothing.
+  const name =
+    'zz-e2e-' + tag + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   const { data, error } = await db.rpc('auth_login_or_register', { p_name: name, p_pin: '1357' });
   if (error || !data?.[0]) throw new Error('could not create probe: ' + (error?.message ?? 'no row'));
   probes.push(name);
@@ -244,6 +250,120 @@ async function main() {
     }
   }
   ok(worst < 1, 'worst scrap ratio is ' + (worst * 100).toFixed(0) + '% (' + worstName + ')');
+
+  // =========================================================================
+  section('two people racing for the last unit');
+  // The highest-consequence race in the app: open_box uses a conditional
+  // decrement rather than a row lock, so if it is wrong two players both walk
+  // off with the same physical object and one of them is told they own it.
+  {
+    const { data: solo } = await db
+      .from('items')
+      .insert({
+        name: 'zz-e2e-race-' + Date.now().toString(36),
+        est_value: 12,
+        rarity: 'blue',
+        scrap_value: 7,
+        stock_qty: 1,
+        box_tier: 'tier_1',
+      })
+      .select('id')
+      .single();
+
+    const racers = await Promise.all([makePlayer('r1'), makePlayer('r2'), makePlayer('r3')]);
+    for (const r of racers) await setBalance(r.id, 500);
+
+    // Force every roller onto the same item via the admin drop override.
+    for (const r of racers) {
+      await db.from('drop_overrides').upsert({ user_id: r.id, item_id: solo!.id });
+    }
+
+    const results = await Promise.all(
+      racers.map((r) => db.rpc('open_box', { p_user_id: r.id, p_box_tier: 'tier_1' }))
+    );
+    const winners = results.filter((x) => x.data?.type === 'physical' && x.data?.item_id === solo!.id);
+
+    const { data: leftover } = await db.from('items').select('stock_qty').eq('id', solo!.id).single();
+    ok(winners.length === 1, 'exactly one player wins the last unit (' + winners.length + ' did)');
+    ok(Number(leftover?.stock_qty) === 0, 'stock landed on 0, never negative (' + leftover?.stock_qty + ')');
+
+    // Everyone who lost the race must have been made whole, not silently charged.
+    for (const r of racers) {
+      const bal = (await balanceOf(r.id)).balance;
+      ok(bal >= 494.99, 'racer ' + r.name.slice(-5) + ' was not charged for a loss');
+    }
+
+    await db.from('items').delete().eq('id', solo!.id);
+  }
+
+  // =========================================================================
+  section('the compactor and shard salvage');
+  {
+    const cfgQ = await db.from('config').select('value').eq('key', 'settings').single();
+    const c = cfgQ.data!.value as Record<string, unknown>;
+    const perKey = Number(c.scrap_coins_per_key);
+    const keyTier = String(c.scrap_key_tier);
+    const credit = Number((c.box_prices as Record<string, number>)[keyTier]);
+
+    await db.from('profiles').update({ scrap_coins: perKey - 1, balance: 0 }).eq('id', p1.id);
+    const short = await db.rpc('compact_scrap', { p_user_id: p1.id });
+    ok(!!short.error, 'cannot compact one coin short of ' + perKey);
+
+    await db.from('profiles').update({ scrap_coins: perKey }).eq('id', p1.id);
+    const comp = await db.rpc('compact_scrap', { p_user_id: p1.id });
+    ok(!comp.error, 'compacts ' + perKey + ' coins' + (comp.error ? ': ' + comp.error.message : ''));
+    const afterComp = await balanceOf(p1.id);
+    ok(
+      Math.abs(afterComp.balance - credit) < 0.001 && afterComp.coins === 0,
+      'coins became exactly ' + usd(credit) + ' of credit (' + usd(afterComp.balance) + ', ' + afterComp.coins + ' coins left)'
+    );
+
+    await db.from('profiles').update({ pc_shards: 3, balance: 0 }).eq('id', p1.id);
+    const salv = await db.rpc('salvage_shards', { p_user_id: p1.id, p_count: 2 });
+    ok(!salv.error, 'salvages 2 shards' + (salv.error ? ': ' + salv.error.message : ''));
+    const afterSalv = await balanceOf(p1.id);
+    ok(afterSalv.shards === 1, 'exactly 2 shards were consumed (' + afterSalv.shards + ' left)');
+    ok(afterSalv.balance > 0, 'salvage paid out ' + usd(afterSalv.balance));
+
+    const tooMany = await db.rpc('salvage_shards', { p_user_id: p1.id, p_count: 99 });
+    ok(!!tooMany.error, 'cannot salvage more shards than are held');
+  }
+
+  // =========================================================================
+  section('flash sale starts, discounts, and expires on its own');
+  {
+    const base = await db.rpc('box_odds', { p_box_tier: 'tier_2' });
+    const fullPrice = Number(base.data.box_price);
+
+    await db.rpc('expire_flash_sale');
+    const { data: cfgRow2 } = await db.from('config').select('value').eq('key', 'settings').single();
+    const saved = cfgRow2!.value as Record<string, unknown>;
+
+    // Live sale.
+    await db.from('config').update({
+      value: { ...saved, flash_sale: true, flash_sale_pct: 0.2,
+               flash_sale_ends_at: new Date(Date.now() + 60000).toISOString() },
+    }).eq('key', 'settings');
+    const onSale = await db.rpc('box_odds', { p_box_tier: 'tier_2' });
+    ok(Number(onSale.data.box_price) < fullPrice,
+      'price drops during a sale (' + usd(fullPrice) + ' -> ' + usd(onSale.data.box_price) + ')');
+
+    // Window already closed: the server clock, not the client, decides.
+    await db.from('config').update({
+      value: { ...saved, flash_sale: true, flash_sale_pct: 0.2,
+               flash_sale_ends_at: new Date(Date.now() - 60000).toISOString() },
+    }).eq('key', 'settings');
+    const expired = await db.rpc('box_odds', { p_box_tier: 'tier_2' });
+    ok(Number(expired.data.box_price) === fullPrice,
+      'an expired sale charges full price again (' + usd(expired.data.box_price) + ')');
+
+    const cleared = await db.rpc('expire_flash_sale');
+    ok(cleared.data === true, 'expire_flash_sale clears the stale flag');
+    const { data: final } = await db.from('config').select('value').eq('key', 'settings').single();
+    ok((final!.value as Record<string, unknown>).flash_sale === false, 'flag is false afterwards');
+
+    await db.from('config').update({ value: saved }).eq('key', 'settings');
+  }
 
   // =========================================================================
   section('cleanup');
