@@ -55,6 +55,7 @@ export const DEFAULT_CONFIG: EconomyConfig = {
   ev_weight_factor: 0.2,
   scrap_ev_frac: 0.2,
   filler_max_value: 15,
+  cross_tier_factor: 0.15,
   scrap_coins_per_key: 20,
   scrap_key_tier: 'tier_2',
   flash_sale: false,
@@ -133,12 +134,26 @@ export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: Od
       // Mirrors the same predicate in box_odds SQL.
       !(i.shard_cost && i.shard_cost > 0)
   );
-  const pool = live.filter((i) => i.box_tier === tier);
+  // Every box can drop anything, but off-tier prizes are heavily suppressed.
+  // Strict partitioning meant a $5 crate could never produce anything exciting,
+  // which is the opposite of why people open cases. The weight formula already
+  // makes expensive items rare in a cheap box (min(cap, C*f/V) is 0.7% for a
+  // $150 item in a $5 box); the affinity factor pushes them rarer still without
+  // making them impossible.
+  //
+  // Cheap off-tier items are excluded here because they are the FLOOR ANCHOR
+  // below -- counting them in both places would double their real frequency.
+  const fillerMax = cfg.filler_max_value;
+  const crossFactor = cfg.cross_tier_factor ?? 0.15;
+  const pool = live.filter(
+    (i) => i.box_tier === tier || i.est_value > fillerMax
+  );
+  const affinity = (i: Item) => (i.box_tier === tier ? 1 : crossFactor);
   // Predicate mirrors box_odds SQL exactly. Without the value cap, passing a
   // full catalog would let an expensive tier-3 prize act as tier-2 "filler",
   // and the floor anchor would be mispriced in a way the gate cannot see.
   const fillerPool = live.filter(
-    (i) => i.box_tier !== tier && i.box_tier === 'tier_1' && i.est_value <= cfg.filler_max_value
+    (i) => i.box_tier !== tier && i.est_value <= fillerMax
   );
 
   // --- Floor anchor: priced honestly, never $0 ------------------------------
@@ -157,7 +172,9 @@ export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: Od
   const vScrap = floorKind === 'item' ? fillerMean : coins * coinUsd;
 
   // --- Raw weights: the spec's expression, used as a SHAPE ------------------
-  const weights = pool.map((i) => Math.min(cfg.max_item_prob, (C * cfg.ev_weight_factor) / i.est_value));
+  const weights = pool.map(
+    (i) => Math.min(cfg.max_item_prob, (C * cfg.ev_weight_factor) / i.est_value) * affinity(i)
+  );
   const Wp = weights.reduce((a, w) => a + w, 0);
   const Wv = weights.reduce((a, w, k) => a + w * pool[k].est_value, 0);
 

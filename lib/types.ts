@@ -202,6 +202,13 @@ export interface EconomyConfig {
    * proof describes a different game than the one players actually play.
    */
   filler_max_value: number;
+  /**
+   * Weight multiplier for items that belong to a DIFFERENT tier than the box
+   * being opened. 1.0 would make tiers meaningless; 0 restores strict
+   * partitioning. Around 0.15 means a $5 crate can still cough up the good
+   * monitor, just rarely.
+   */
+  cross_tier_factor?: number;
   scrap_coins_per_key: number;
   scrap_key_tier: BoxTier;
   flash_sale: boolean;

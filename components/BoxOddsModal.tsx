@@ -138,7 +138,18 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gun-850">
-                  {odds.items.map((item) => {
+                  {/*
+                    Every outcome, not just the tier's own prizes.
+                    The junk items that back the consolation slot were invisible
+                    here, so the published odds did not add up to 100% and a
+                    player could not see what the common result actually was.
+                    Filler probabilities are already conditional on the floor
+                    branch being drawn, so they are directly comparable.
+                  */}
+                  {[...odds.items, ...odds.filler]
+                    .filter((i) => i.probability > 0)
+                    .sort((a, b) => b.probability - a.probability)
+                    .map((item) => {
                     const rColor = RARITY_COLOR[item.rarity] || '#fff';
                     const rLabel = RARITY_LABEL[item.rarity] || item.rarity;
 
@@ -168,11 +179,77 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
                           )}
                         </td>
                         <td className="py-2.5 px-3 text-right font-bold text-white">
-                          {pct(item.probability)}
+                          {item.probability < 0.001 ? '<0.1%' : pct(item.probability)}
                         </td>
                       </tr>
                     );
                   })}
+
+                  {/* The non-item outcomes, so the column genuinely sums to 100%. */}
+                  {odds.p_shard > 0 && (
+                    <tr className="bg-yellow-950/20">
+                      <td className="py-2.5 px-3 font-sans font-semibold text-yellow-200">
+                        PC Core Shard
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span
+                          className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase text-white shadow-sm"
+                          style={{ backgroundColor: RARITY_COLOR.gold }}
+                        >
+                          Exotic
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-yellow-300">toward the PC</td>
+                      <td className="py-2.5 px-3 text-right text-gun-300">&mdash;</td>
+                      <td className="py-2.5 px-3 text-right font-bold text-yellow-300">
+                        {pct(odds.p_shard)}
+                      </td>
+                    </tr>
+                  )}
+                  {odds.p_respin > 0 && (
+                    <tr className="bg-blue-950/20">
+                      <td className="py-2.5 px-3 font-sans font-semibold text-blue-200">
+                        Free Re-Roll
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span
+                          className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase text-white shadow-sm"
+                          style={{ backgroundColor: RARITY_COLOR.blue }}
+                        >
+                          Rare
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-blue-300">
+                        ${odds.box_price.toFixed(2)} back
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-gun-300">&mdash;</td>
+                      <td className="py-2.5 px-3 text-right font-bold text-blue-300">
+                        {pct(odds.p_respin)}
+                      </td>
+                    </tr>
+                  )}
+                  {odds.floor_kind === 'coins' && odds.p_scrap > 0 && (
+                    <tr>
+                      <td className="py-2.5 px-3 font-sans font-semibold text-gun-300">
+                        {odds.scrap_coins_awarded} Scrap Coins
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span
+                          className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase text-white shadow-sm"
+                          style={{ backgroundColor: RARITY_COLOR.grey }}
+                        >
+                          Common
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-gun-400">
+                        ${odds.scrap_coins_awarded.toFixed(2)}
+                      </td>
+                      <td className="py-2.5 px-3 text-right text-gun-300">&mdash;</td>
+                      <td className="py-2.5 px-3 text-right font-bold text-gun-300">
+                        {pct(odds.p_scrap)}
+                      </td>
+                    </tr>
+                  )}
                   {odds.items.length === 0 && (
                     <tr>
                       <td colSpan={5} className="py-6 text-center text-gun-500">
