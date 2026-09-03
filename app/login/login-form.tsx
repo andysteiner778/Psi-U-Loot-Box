@@ -113,13 +113,15 @@ export function LoginForm({ roster, initialMustChange = false, userName = '' }: 
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const resolvedPlayer = roster.find(
-      (p) => p.name.toLowerCase() === (name || query).trim().toLowerCase()
-    );
 
-    if (!resolvedPlayer) {
-      setError('No such player. Please pick your name from the roster.');
-      setIsComboboxOpen(true);
+    // There is NO roster to match against. Accounts are created on first login,
+    // so the typed name IS the identity: the server either signs you into it or
+    // creates it. Requiring a client-side roster hit here blocked every single
+    // login once the roster stopped being fetched.
+    const typedName = (name || query).trim().replace(/\s+/g, ' ');
+
+    if (typedName.length < 2 || typedName.length > 24) {
+      setError('Your name needs to be between 2 and 24 characters.');
       return;
     }
 
@@ -133,7 +135,7 @@ export function LoginForm({ roster, initialMustChange = false, userName = '' }: 
     await sfx.unlock();
 
     try {
-      const res = await apiLogin(resolvedPlayer.name, pin);
+      const res = await apiLogin(typedName, pin);
       if (res.ok) {
         if (res.value.mustChangePin) {
           setStep('changePin');
@@ -265,7 +267,7 @@ export function LoginForm({ roster, initialMustChange = false, userName = '' }: 
           <label className="text-xs font-mono text-gun-300 block flex items-center justify-between">
             <span className="flex items-center gap-1.5">
               <User className="h-3.5 w-3.5 text-blue-400" />
-              <span>Select or Type Player Name</span>
+              <span>Your Name</span>
             </span>
             {selectedPlayer && (
               <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-400">
@@ -311,12 +313,14 @@ export function LoginForm({ roster, initialMustChange = false, userName = '' }: 
               <button
                 type="button"
                 onClick={() => setIsComboboxOpen((prev) => !prev)}
-                className="p-1 hover:text-white transition"
+                className="hidden"
+                aria-hidden
                 tabIndex={-1}
               >
-                <ChevronDown
-                  className={`h-4 w-4 transition-transform ${isComboboxOpen ? 'rotate-180' : ''}`}
-                />
+                {/* No roster is fetched, so there is nothing to drop down. Kept
+                    hidden rather than deleted so the combobox markup around it
+                    stays intact. */}
+                <ChevronDown className="h-4 w-4" />
               </button>
             </div>
           </div>

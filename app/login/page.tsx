@@ -53,9 +53,7 @@ export default async function LoginPage() {
 
         {/* Footer Note */}
         <div className="mt-6 text-center text-[11px] font-mono text-gun-400">
-          <span>Default seeded PIN: </span>
-          <span className="text-yellow-400 font-bold">1234</span>
-          <span> (you will be prompted to change it)</span>
+          <span>First time? Any name and a 4-digit PIN creates your account.</span>
         </div>
       </div>
     </main>
