@@ -173,7 +173,7 @@ export function ItemCard({
             <span className="text-cyan-400 font-semibold">+{scrapValue} Scrap Coins</span>
           ) : (
             <span className="text-amber-400 font-semibold flex items-center gap-1">
-              🔒 Room 4 Pickup Only
+              🔒 Pickup from Andy — Japan
             </span>
           )}
         </div>

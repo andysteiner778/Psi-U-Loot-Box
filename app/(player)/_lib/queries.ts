@@ -44,6 +44,12 @@ export async function fetchGameConfig(): Promise<GameConfig> {
   return {
     shards_required: num(cfg.shards_required, DEFAULT_GAME_CONFIG.shards_required),
     scrap_coins_per_key: num(cfg.scrap_coins_per_key, DEFAULT_GAME_CONFIG.scrap_coins_per_key),
+    // Falls back to the old tier-derived value so an un-migrated config row
+    // still quotes a real number rather than NaN.
+    scrap_key_usd: num(
+      cfg.scrap_key_usd,
+      num((prices as Record<string, unknown>)[String(cfg.scrap_key_tier)], DEFAULT_GAME_CONFIG.scrap_key_usd)
+    ),
     scrap_key_tier: (cfg.scrap_key_tier as BoxTier) ?? DEFAULT_GAME_CONFIG.scrap_key_tier,
     pc_value: num(cfg.pc_value, DEFAULT_GAME_CONFIG.pc_value),
     // The UI must show this one, never pc_value -- see GameConfig.

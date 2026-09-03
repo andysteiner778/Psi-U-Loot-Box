@@ -62,7 +62,7 @@ export function ShardHud({
           });
         } catch {}
         setShowWinModal(true);
-        toast('🎉 Gaming PC Claimed! Head to Room 4 for pickup.', 'good');
+        toast('🎉 Gaming PC Claimed! Head to Japan for pickup.', 'good');
       } else {
         toast(res.error, 'bad');
       }
@@ -252,7 +252,7 @@ export function ShardHud({
                 Pickup Instructions
               </p>
               <p className="mt-1 text-sm font-semibold text-white">
-                Find Tyler in Room 4 with your phone to claim your rig.
+                Find Andy in Japan with your phone to claim your rig.
               </p>
             </div>
             <button

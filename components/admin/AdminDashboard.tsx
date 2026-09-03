@@ -790,8 +790,12 @@ export function AdminDashboard({
           {/* Historical Deposits */}
           <div>
             <h3 className="text-sm font-bold text-gun-300 mb-3 font-mono">Recent Processed Deposits</h3>
-            <div className="rounded-2xl border border-gun-800 bg-gun-950/60 overflow-hidden">
-              <table className="w-full text-left text-xs font-mono">
+            <div className="rounded-2xl border border-gun-800 bg-gun-950/60 overflow-x-auto">
+              {/* overflow-x-auto, not overflow-hidden: on a phone these columns are
+                  wider than the screen, and `hidden` CLIPS them with no way to
+                  reach the right-hand side. That is why the admin page looked
+                  broken on mobile and fine on desktop. */}
+              <table className="w-full min-w-[520px] text-left text-xs font-mono">
                 <thead className="bg-gun-950 text-gun-400 border-b border-gun-800">
                   <tr>
                     <th className="py-2.5 px-4">Player</th>
@@ -961,7 +965,7 @@ export function AdminDashboard({
                 <label className="text-xs font-mono text-gun-300 block mb-1">Description / Location (Optional)</label>
                 <input
                   type="text"
-                  placeholder="e.g., Room 4 closet, mint condition"
+                  placeholder="e.g., Japan closet, mint condition"
                   value={itemForm.description}
                   onChange={(e) => setItemForm({ ...itemForm, description: e.target.value })}
                   className="w-full rounded-xl border border-gun-700 bg-gun-950 px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
@@ -1091,8 +1095,8 @@ export function AdminDashboard({
               </div>
             </div>
 
-            <div className="rounded-2xl border border-gun-800 bg-gun-950/60 overflow-hidden shadow-xl">
-              <table className="w-full text-left text-xs font-mono">
+            <div className="rounded-2xl border border-gun-800 bg-gun-950/60 overflow-x-auto shadow-xl">
+              <table className="w-full min-w-[560px] text-left text-xs font-mono">
                 <thead className="bg-gun-950 text-gun-400 border-b border-gun-800">
                   <tr>
                     <th className="py-3 pl-4 pr-1 w-8">

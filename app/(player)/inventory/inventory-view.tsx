@@ -41,7 +41,7 @@ export function InventoryView({ initialItems, recentRolls: initialRecent, allowH
       toast(
         allowHighRarityScrap
           ? 'This one is not worth enough to scrap — take it home instead.'
-          : 'Legendary, Mythic and Exotic items cannot be scrapped. Physical pickup in Room 4 only.',
+          : 'Legendary, Mythic and Exotic items cannot be scrapped. Picked up from Andy in Japan.',
         'bad'
       );
       return;
@@ -197,7 +197,7 @@ export function InventoryView({ initialItems, recentRolls: initialRecent, allowH
                     ) : (
                       <div className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-amber-950/40 border border-amber-500/40 py-2 px-2 text-center text-[11px] font-mono font-semibold text-amber-300">
                         <MapPin className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-                        <span>Physical Pickup (Room 4)</span>
+                        <span>Physical Pickup (Japan)</span>
                       </div>
                     )}
                   </div>

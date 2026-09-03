@@ -32,6 +32,8 @@ export interface PlayerBoxOdds extends BoxOdds {
 export interface GameConfig {
   shards_required: number;
   scrap_coins_per_key: number;
+  /** Dollars the compactor pays for scrap_coins_per_key coins. */
+  scrap_key_usd: number;
   scrap_key_tier: BoxTier;
   /** What the ECONOMY charges for the shard track. Never show this to players. */
   pc_value: number;
@@ -51,7 +53,8 @@ export interface GameConfig {
 
 export const DEFAULT_GAME_CONFIG: GameConfig = {
   shards_required: 4,
-  scrap_coins_per_key: 200,
+  scrap_coins_per_key: 500,
+  scrap_key_usd: 10,
   scrap_key_tier: 'tier_2',
   pc_value: 50,
   pc_display_value: 400,

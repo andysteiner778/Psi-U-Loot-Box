@@ -58,9 +58,11 @@ export const DEFAULT_CONFIG: EconomyConfig = {
   max_item_prob: 0.3,
   ev_weight_factor: 0.2,
   scrap_ev_frac: 0.2,
+  scrap_key_usd: 10,
+  shard_salvage_value: 10,
   filler_max_value: 15,
   cross_tier_factor: 0.15,
-  scrap_coins_per_key: 200,
+  scrap_coins_per_key: 500,
   scrap_key_tier: 'tier_2',
   flash_sale: false,
   flash_sale_pct: 0.2,
@@ -69,7 +71,10 @@ export const DEFAULT_CONFIG: EconomyConfig = {
 
 /** Dollar value of one scrap coin, derived from what the compactor buys. */
 export function scrapCoinUsd(cfg: EconomyConfig): number {
-  return cfg.box_prices[cfg.scrap_key_tier] / cfg.scrap_coins_per_key;
+  // Mirrors box_odds in migration 0023. The two must agree or the coins a
+  // player is awarded stop matching the coins the solvency proof budgeted for.
+  const payout = cfg.scrap_key_usd ?? cfg.box_prices[cfg.scrap_key_tier];
+  return payout / cfg.scrap_coins_per_key;
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;

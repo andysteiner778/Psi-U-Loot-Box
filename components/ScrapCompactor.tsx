@@ -12,9 +12,10 @@ export function ScrapCompactor() {
   const [crunching, setCrunching] = useState(false);
 
   const coinsHeld = stats.scrap_coins;
-  const cost = config.scrap_coins_per_key || 200;
+  const cost = config.scrap_coins_per_key || 500;
   const keyTier = config.scrap_key_tier || 'tier_2';
-  const keyPrice = config.base_prices?.[keyTier] ?? 20;
+  // What the compactor actually pays, not a box tier's price.
+  const keyPrice = config.scrap_key_usd ?? config.base_prices?.[keyTier] ?? 10;
   const canCompact = coinsHeld >= cost;
   const progressPct = Math.min(100, (coinsHeld / cost) * 100);
 

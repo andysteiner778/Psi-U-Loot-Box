@@ -253,6 +253,15 @@ export interface EconomyConfig {
    */
   cross_tier_factor?: number;
   scrap_coins_per_key: number;
+  /**
+   * Dollars the compactor pays for `scrap_coins_per_key` coins, and the
+   * numerator of a coin's value. Previously derived from a box tier's price,
+   * which limited the cash-out to $1/$5/$20/$50 -- there is no $10 box.
+   * Absent falls back to that old derivation.
+   */
+  scrap_key_usd?: number;
+  /** Dollars credited per shard salvaged. Absent falls back to a tier price. */
+  shard_salvage_value?: number;
   scrap_key_tier: BoxTier;
   flash_sale: boolean;
   flash_sale_pct: number;

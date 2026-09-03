@@ -206,8 +206,10 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
               </div>
             )}
 
-            <div className="rounded-2xl border border-gun-800 overflow-hidden bg-gun-950/50">
-              <table className="w-full text-left text-xs font-mono">
+            <div className="rounded-2xl border border-gun-800 overflow-x-auto bg-gun-950/50">
+              {/* Five columns do not fit a phone. overflow-hidden CLIPPED the
+                  Chance column -- the single number this table exists for. */}
+              <table className="w-full min-w-[440px] text-left text-xs font-mono">
                 <thead className="bg-gun-950 text-gun-400 border-b border-gun-800">
                   <tr>
                     <th className="py-2.5 px-3">Item Name</th>

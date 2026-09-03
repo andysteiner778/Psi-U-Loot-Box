@@ -929,14 +929,12 @@ class SoundEngine {
    */
   playWinFor(rarity: 'grey' | 'blue' | 'purple' | 'pink' | 'gold'): void {
     switch (rarity) {
-      // Rare gets a SHORT clang -- about four strikes -- not the sustained
-      // ring. It lands as "you got something" rather than "the house owes you
-      // money", while still being unmistakably the same bell. Before this,
-      // Rare was a two-note blip next to Legendary's arpeggio and 1.2s ring,
-      // and the gap was wide enough that it read as broken.
+      // Rare gets the triad and NO bell. The bell is the "the house owes you
+      // money" cue and it should mean something; ringing it on the most common
+      // paid outcome in the game spends it. Its cue is still a full ascending
+      // triad rather than the old open fifth, so it is clearly a win.
       case 'blue':
         this.playWinRare();
-        this.playHandPayBell(undefined, 0.36, 0.5);
         break;
       // Purple and up all get the hand-pay bell; only its length and level
       // change. Giving the top two a bell and Legendary a bare chord made a

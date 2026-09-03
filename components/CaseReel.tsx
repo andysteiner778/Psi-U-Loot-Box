@@ -35,6 +35,9 @@ export interface CaseReelProps {
    * scrap the server would refuse.
    */
   allowHighRarityScrap?: boolean;
+  /** Coins the compactor needs, and what it pays. Quoted on a scrap result. */
+  compactCoins?: number;
+  compactUsd?: number;
 }
 
 const CARD_WIDTH = 180; // px
@@ -85,6 +88,8 @@ export function CaseReel({
   onSpinAgain,
   onClose,
   allowHighRarityScrap = false,
+  compactCoins = 500,
+  compactUsd = 10,
 }: CaseReelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const controls = useAnimation();
@@ -523,7 +528,7 @@ export function CaseReel({
                 <span className="text-cyan-400">Can be scrapped for +{winner.scrap_value} coins</span>
               ) : (
                 <span className="text-amber-400 flex items-center gap-1 font-semibold">
-                  <ShieldAlert className="h-4 w-4" /> Physical Pickup Only (Room 4)
+                  <ShieldAlert className="h-4 w-4" /> Pickup from Andy in Japan
                 </span>
               )}
             </div>
@@ -557,7 +562,8 @@ export function CaseReel({
 
           {winner.type === 'scrap' && (
             <p className="my-4 text-sm font-mono text-gun-300">
-              +{winner.scrap_gained} scrap coins added to your bag. Compact 200 into $20 credit!
+              +{winner.scrap_gained} scrap coins added to your bag. Compact {compactCoins} into $
+              {compactUsd} credit!
             </p>
           )}
 

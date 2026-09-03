@@ -236,9 +236,13 @@ async function main() {
 
   const { data: cfgRow } = await db.from('config').select('value').eq('key', 'settings').single();
   const cfg = cfgRow!.value as Record<string, never> & Record<string, unknown>;
+  // `scrap_key_usd` is what the compactor pays; it replaced a derivation from
+  // a box tier's price, which could only ever express $1/$5/$20/$50.
   const coinUsd =
-    Number((cfg.box_prices as Record<string, number>)[String(cfg.scrap_key_tier)]) /
-    Number(cfg.scrap_coins_per_key);
+    Number(
+      cfg.scrap_key_usd ??
+        (cfg.box_prices as Record<string, number>)[String(cfg.scrap_key_tier)]
+    ) / Number(cfg.scrap_coins_per_key);
   const { data: allItems } = await db.from('items').select('name, est_value, scrap_value');
   let worst = 0;
   let worstName = '';
@@ -303,7 +307,9 @@ async function main() {
     const c = cfgQ.data!.value as Record<string, unknown>;
     const perKey = Number(c.scrap_coins_per_key);
     const keyTier = String(c.scrap_key_tier);
-    const credit = Number((c.box_prices as Record<string, number>)[keyTier]);
+    const credit = Number(
+      c.scrap_key_usd ?? (c.box_prices as Record<string, number>)[keyTier]
+    );
 
     await db.from('profiles').update({ scrap_coins: perKey - 1, balance: 0 }).eq('id', p1.id);
     const short = await db.rpc('compact_scrap', { p_user_id: p1.id });

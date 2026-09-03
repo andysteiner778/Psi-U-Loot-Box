@@ -164,3 +164,36 @@ button,
   background: var(--color-gun-700);
   border-radius: 4px;
 }
+
+
+/*
+ * TICKER MARQUEE
+ *
+ * Deliberately CSS and not framer-motion. The old version animated
+ * `x: [0, -1000]` -- a fixed pixel distance, in a fresh array literal on every
+ * render. Every incoming live event re-rendered the ticker, which restarted
+ * the keyframes from zero, so on a busy night it never travelled and looked
+ * frozen. It also had nothing to do with how wide the content actually was.
+ *
+ * The track holds the event list TWICE and translates exactly -50%, which
+ * lands on the start of the second copy: seamless, at any content width. The
+ * duration is set inline from the number of events so the speed stays constant
+ * whether there are three pulls or thirty.
+ */
+.ticker-track {
+  display: flex;
+  width: max-content;
+  animation-name: ticker-scroll;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+@keyframes ticker-scroll {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-50%, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track { animation: none; }
+}

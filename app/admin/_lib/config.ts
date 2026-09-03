@@ -132,6 +132,8 @@ export function coerceConfig(raw: unknown): EconomyConfig {
     scrap_ev_frac: n(r.scrap_ev_frac, DEFAULT_CONFIG.scrap_ev_frac),
     filler_max_value: n(r.filler_max_value, DEFAULT_CONFIG.filler_max_value),
     scrap_coins_per_key: n(r.scrap_coins_per_key, DEFAULT_CONFIG.scrap_coins_per_key),
+    scrap_key_usd: n(r.scrap_key_usd, DEFAULT_CONFIG.scrap_key_usd ?? DEFAULT_CONFIG.box_prices.tier_2),
+    shard_salvage_value: n(r.shard_salvage_value, DEFAULT_CONFIG.shard_salvage_value ?? 10),
     scrap_key_tier: (BOX_TIERS as readonly string[]).includes(String(r.scrap_key_tier))
       ? (r.scrap_key_tier as BoxTier)
       : DEFAULT_CONFIG.scrap_key_tier,

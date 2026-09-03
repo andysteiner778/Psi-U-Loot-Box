@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { supabase, TICKER_TOPIC } from '@/lib/supabase/browser';
 import type { TickerEvent } from '@/lib/types';
 import { RARITY_COLOR, RARITY_LABEL } from '@/lib/types';
@@ -19,8 +18,30 @@ import { Trophy, Zap, Skull, RefreshCw } from 'lucide-react';
  */
 const INITIAL_EVENTS: TickerEvent[] = [];
 
+/** Pixels per second the marquee travels. Constant, whatever the list length. */
+const TICKER_SPEED_PX_PER_SEC = 70;
+
 export function Ticker() {
   const [events, setEvents] = useState<TickerEvent[]>(INITIAL_EVENTS);
+
+  /*
+   * Duration is measured, not guessed.
+   *
+   * Tying it to `events.length` meant the speed changed with the number of
+   * pulls -- 25 events came out at 112 seconds a lap, which is slow enough to
+   * look stopped. Half the track width divided by a fixed pixel speed keeps it
+   * moving at the same rate whether there are three pulls or thirty.
+   */
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [durationSec, setDurationSec] = useState(30);
+  useLayoutEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const halfWidth = el.scrollWidth / 2;
+    if (halfWidth > 0) {
+      setDurationSec(Math.max(12, halfWidth / TICKER_SPEED_PX_PER_SEC));
+    }
+  }, [events]);
 
   // Seed from recent history. Realtime only carries what happens while you are
   // watching, so navigating away and back used to leave the banner blank.
@@ -135,31 +156,23 @@ export function Ticker() {
       {/* Right Fade */}
       <div className="pointer-events-none absolute right-0 top-0 bottom-0 z-20 w-12 bg-gradient-to-l from-gun-950 to-transparent" />
 
-      {/* Marquee Track using Framer Motion */}
-      <motion.div
-        animate={{ x: [0, -1000] }}
-        transition={{
-          x: {
-            repeat: events.length === 0 ? 0 : Infinity,
-            repeatType: 'loop',
-            duration: 25,
-            ease: 'linear',
-          },
-        }}
-        className="flex w-max pl-20"
-      >
-        {events.length === 0 ? (
+      {/* Marquee Track — CSS, so a live event cannot restart it. See globals.css */}
+      {events.length === 0 ? (
+        <div className="flex w-max pl-20">
           <span className="px-4 py-1 font-mono text-[11px] text-gun-400">
             No pulls yet &mdash; be the first to open a case.
           </span>
-        ) : (
-          <>
-            {events.map((evt, idx) => formatEvent(evt, idx))}
-            {events.map((evt, idx) => formatEvent(evt, idx + events.length))}
-            {events.map((evt, idx) => formatEvent(evt, idx + events.length * 2))}
-          </>
-        )}
-      </motion.div>
+        </div>
+      ) : (
+        <div
+          ref={trackRef}
+          className="ticker-track pl-20"
+          style={{ animationDuration: `${durationSec}s` }}
+        >
+          {events.map((evt, idx) => formatEvent(evt, idx))}
+          {events.map((evt, idx) => formatEvent(evt, idx + events.length))}
+        </div>
+      )}
     </div>
   );
 }

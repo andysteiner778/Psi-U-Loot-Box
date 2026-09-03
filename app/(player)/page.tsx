@@ -1,5 +1,7 @@
 import { fetchAllOdds, fetchGameConfig } from './_lib/queries';
 import { ShardHud } from '@/components/ShardHud';
+import Link from 'next/link';
+import { List } from 'lucide-react';
 import { BoxCard } from '@/components/BoxCard';
 import { Flame, ShieldCheck, Zap, Coins } from 'lucide-react';
 import { db } from '@/lib/supabase/server';
@@ -79,6 +81,13 @@ export default async function PlayerBoxesPage() {
               Pick your tier. Odds dynamically rebalance as physical items are won.
             </p>
           </div>
+          <Link
+            href="/loot"
+            className="flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-xl border border-gun-700 bg-gun-900 px-3 font-mono text-[11px] text-gun-300 transition hover:border-cyan-500/50 hover:text-white"
+          >
+            <List className="h-4 w-4" />
+            <span>All items</span>
+          </Link>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -88,6 +97,8 @@ export default async function PlayerBoxesPage() {
               odds={odds}
               isFlashSale={isFlashSale}
               allowHighRarityScrap={config.allow_high_rarity_scrap}
+              compactCoins={config.scrap_coins_per_key}
+              compactUsd={config.scrap_key_usd}
             />
           ))}
         </div>
@@ -99,7 +110,7 @@ export default async function PlayerBoxesPage() {
           <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" />
           <span>
             {config.allow_high_rarity_scrap
-              ? 'Legendary, Mythic and Exotic items are picked up in Room 4 — or scrapped for 40% of their value if you would rather have the credit.'
+              ? 'Legendary, Mythic and Exotic items are picked up from Andy in Japan — or scrapped for 40% of their value if you would rather have the credit.'
               : 'Legendary (purple), Mythic (pink) and Exotic (gold) items are physical pickup only — they cannot be scrapped.'}
           </span>
         </div>

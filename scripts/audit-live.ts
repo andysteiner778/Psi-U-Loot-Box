@@ -62,7 +62,7 @@ async function main() {
   console.log(' pot            ' + usd(pot) + ' / ' + usd(cfg.pot_revenue_threshold) +
     '  -> shard gate ' + (gateMet ? 'OPEN' : 'shut'));
   console.log(' scrap coin     ' + usd(scrapCoinUsd(cfg)) + '   compactor: ' +
-    cfg.scrap_coins_per_key + ' coins -> ' + usd(cfg.box_prices[cfg.scrap_key_tier]));
+    cfg.scrap_coins_per_key + ' coins -> ' + usd(cfg.scrap_key_usd ?? cfg.box_prices[cfg.scrap_key_tier]));
 
   if (locked.length) {
     // The number that matters is EXPECTED REAL SPEND to farm the shards, not

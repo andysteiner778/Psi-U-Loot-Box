@@ -72,22 +72,42 @@ export const BAIT_RARITIES: readonly Rarity[] = ['gold', 'pink', 'purple'];
 /**
  * Deceleration time.
  *
- * The spec called for 5.5s. Nudged to 6.8s: the extra 1.3 seconds all lands in
- * the slow tail where the cards are crawling, which is the part that actually
- * builds tension. Going much beyond this starts to feel like waiting rather
- * than watching, especially by someone's tenth box of the night.
+ * 5.5s in the spec, then 6.8s, now 8.6s. The extra time all lands in the tail,
+ * where the strip is crawling one card at a time -- the part that builds
+ * tension and the part the ear can actually count.
  */
-export const REEL_DURATION_MS = 6800;
+export const REEL_DURATION_MS = 8600;
 
 /**
- * cubic-bezier(0.10, 0.90, 0.15, 1.0) as [x1, y1, x2, y2].
+ * cubic-bezier(0.25, 0.55, 0.40, 1.0) as [x1, y1, x2, y2].
+ *
+ * WHY THIS CURVE AND NOT A SHARPER ONE
+ * ------------------------------------
+ * The previous curve (0.10, 0.90, 0.15, 1.0) was so front-loaded that it put
+ * 35 of the 49 card crossings inside the FIRST SECOND, and only 2 in the whole
+ * second half. Two consequences, both of which read as bugs:
+ *
+ *   - The tick train went silent halfway through. It was not stopping; there
+ *     were simply no cards left to cross. "It ticks then stops" was the
+ *     symptom; a curve that had already travelled 98% of the distance was the
+ *     cause.
+ *   - The stop had no ritardando. It arrived at the last card almost
+ *     immediately and then sat nearly frozen for three seconds, which reads as
+ *     a jump followed by a wait rather than as slowing down.
+ *
+ * This curve spreads the crossings 12|12|9|6|4|3|2|0|1 per second: the ear
+ * hears a continuous slowing ratchet, and the final card takes ~1.8s to cross
+ * with the one before it taking ~0.65s. That last long crawl is the CS:GO beat
+ * -- the marker sits over the near-miss looking like it will stop there, then
+ * creeps onto the winner.
+ *
  * Deliberately a mutable tuple, not `as const`: framer-motion's `ease` prop
- * wants `[number, number, number, number]` and will reject a readonly tuple.
+ * wants [number, number, number, number] and will reject a readonly tuple.
  */
-export const REEL_EASE: [number, number, number, number] = [0.1, 0.9, 0.15, 1.0];
+export const REEL_EASE: [number, number, number, number] = [0.25, 0.55, 0.4, 1.0];
 
 /** The same curve as a CSS string, for anything driven by a transition. */
-export const REEL_EASE_CSS = 'cubic-bezier(0.10, 0.90, 0.15, 1.0)';
+export const REEL_EASE_CSS = 'cubic-bezier(0.25, 0.55, 0.40, 1.00)';
 
 /** Spec's stated near-miss cue. `nearMissCueMs()` derives ~4803ms; see below. */
 export const NEAR_MISS_CUE_MS = 4800;

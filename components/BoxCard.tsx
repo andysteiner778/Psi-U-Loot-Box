@@ -19,9 +19,11 @@ export interface BoxCardProps {
   isFlashSale?: boolean;
   /** Live config: may purple/pink/gold be turned into coins? */
   allowHighRarityScrap?: boolean;
+  compactCoins?: number;
+  compactUsd?: number;
 }
 
-export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarityScrap = false }: BoxCardProps) {
+export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarityScrap = false, compactCoins, compactUsd }: BoxCardProps) {
   /**
    * Odds are server-rendered once at page load. Stock changes on every roll --
    * yours and everyone else's -- so without refreshing them the card kept
@@ -354,6 +356,8 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarit
       {spinning && activeWinner && (
         <CaseReel
           allowHighRarityScrap={allowHighRarityScrap}
+          compactCoins={compactCoins}
+          compactUsd={compactUsd}
           decoys={decoys}
           winner={activeWinner}
           tierName={meta.name}
