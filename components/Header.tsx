@@ -51,15 +51,18 @@ export function Header() {
           {/* Logo & Navigation */}
           <div className="flex items-center gap-6">
             <Link href="/" className="flex items-center gap-2 group">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 font-black text-white shadow-lg shadow-purple-500/20 group-hover:scale-105 transition">
-                HL
+              <div className="flex flex-col items-center transition group-hover:scale-105">
+                <div className="h-1.5 w-8 rounded-t-sm bg-gradient-to-r from-yellow-600 via-yellow-300 to-yellow-600" />
+                <div className="flex h-8 w-9 items-center justify-center rounded-b-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-sm font-black tracking-tighter text-white shadow-lg shadow-purple-500/20">
+                  ΨΥ
+                </div>
               </div>
               <div>
-                <span className="text-base font-black tracking-tight text-white group-hover:text-purple-300 transition">
-                  HOUSE LOOT
+                <span className="text-base font-black tracking-tight text-white transition group-hover:text-purple-300">
+                  PSI U LOOT BOX
                 </span>
                 <span className="block text-[9px] font-mono uppercase tracking-widest text-gun-400">
-                  Frat Moving Out
+                  Moving Out
                 </span>
               </div>
             </Link>

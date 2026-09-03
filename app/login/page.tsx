@@ -31,12 +31,16 @@ export default async function LoginPage() {
       <div className="relative z-10 w-full max-w-md">
         {/* Logo / Header */}
         <div className="text-center mb-6">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500 font-black text-white text-xl shadow-2xl shadow-purple-500/30 ring-1 ring-purple-400/40">
-            HL
+          {/* Case lid + the chapter's letters, matching the tab icon. */}
+          <div className="mx-auto mb-3 flex w-fit flex-col items-center">
+            <div className="h-2.5 w-16 rounded-t-md bg-gradient-to-r from-yellow-600 via-yellow-300 to-yellow-600 shadow-lg shadow-yellow-900/40" />
+            <div className="mt-0.5 flex h-14 w-20 items-center justify-center rounded-b-xl border border-purple-400/40 bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500 text-2xl font-black tracking-tighter text-white shadow-2xl shadow-purple-500/30">
+              ΨΥ
+            </div>
           </div>
-          <h1 className="text-3xl font-black tracking-tight text-white">HOUSE LOOT</h1>
+          <h1 className="text-3xl font-black tracking-tight text-white">PSI U LOOT BOX</h1>
           <p className="mt-1 text-xs font-mono uppercase tracking-widest text-gun-400">
-            Frat Moving Out CS:GO Mystery Boxes
+            Moving Out &middot; Mystery Cases
           </p>
         </div>
 

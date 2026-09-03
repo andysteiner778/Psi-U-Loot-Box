@@ -289,6 +289,66 @@ export function AdminDashboard({
     }
   };
 
+  // Item deletion. Selection is a Set so "select all" stays O(1) per row.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const [confirmBulk, setConfirmBulk] = useState(false);
+
+  const toggleSelected = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const deleteOne = async (id: string, name: string) => {
+    if (!window.confirm('Delete "' + name + '" permanently?')) return;
+    setDeleting(true);
+    try {
+      const res = await fetch('/api/admin/items/' + id, { method: 'DELETE' });
+      const json = await res.json();
+      if (json.ok) {
+        showMsg('Deleted ' + name);
+        setSelectedIds((p) => {
+          const n = new Set(p);
+          n.delete(id);
+          return n;
+        });
+        refreshItems();
+      } else {
+        showMsg(json.error || 'Delete failed', 'bad');
+      }
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const deleteSelected = async () => {
+    if (!confirmBulk) {
+      setConfirmBulk(true);
+      return;
+    }
+    setDeleting(true);
+    const ids = [...selectedIds];
+    let gone = 0;
+    // Sequential so one failure does not abandon the rest, and so the server
+    // is not hit with 50 concurrent deletes.
+    for (const id of ids) {
+      try {
+        const res = await fetch('/api/admin/items/' + id, { method: 'DELETE' });
+        if ((await res.json()).ok) gone++;
+      } catch {
+        /* keep going */
+      }
+    }
+    setDeleting(false);
+    setConfirmBulk(false);
+    setSelectedIds(new Set());
+    showMsg('Deleted ' + gone + ' of ' + ids.length + ' items');
+    refreshItems();
+  };
+
   const handleScanItem = async () => {
     if (!scanImage) return;
     setScanning(true);
@@ -461,6 +521,14 @@ export function AdminDashboard({
   };
 
   // Pot gate threshold update
+  // Local draft so the slider stays responsive; only the released value is saved.
+  const [thresholdDraft, setThresholdDraft] = useState<number>(
+    Number(config.pot_revenue_threshold) || 0
+  );
+  useEffect(() => {
+    setThresholdDraft(Number(config.pot_revenue_threshold) || 0);
+  }, [config.pot_revenue_threshold]);
+
   const handleUpdatePotThreshold = async (threshold: number) => {
     try {
       const res = await fetch('/api/admin/config', {
@@ -967,7 +1035,36 @@ export function AdminDashboard({
           {/* Loot Pool Table with live stock management */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-base font-bold text-white font-mono">Current House Loot Pool ({items.length})</h3>
+              <h3 className="text-base font-bold text-white font-mono">Loot Pool ({items.length})</h3>
+              <div className="flex items-center gap-2">
+                {selectedIds.size > 0 && (
+                  <button
+                    onClick={deleteSelected}
+                    disabled={deleting}
+                    className={`flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-mono font-bold transition disabled:opacity-50 ${
+                      confirmBulk
+                        ? 'bg-red-600 text-white hover:bg-red-500'
+                        : 'border border-red-500/40 bg-red-950/40 text-red-300 hover:bg-red-950/70'
+                    }`}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    <span>
+                      {deleting
+                        ? 'Deleting…'
+                        : confirmBulk
+                          ? `Confirm — delete ${selectedIds.size}`
+                          : `Delete ${selectedIds.size}`}
+                    </span>
+                  </button>
+                )}
+                {confirmBulk && (
+                  <button
+                    onClick={() => setConfirmBulk(false)}
+                    className="rounded-xl px-2 py-1 text-xs font-mono text-gun-400 hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                )}
               <button
                 onClick={refreshItems}
                 className="flex items-center gap-1 rounded-xl border border-gun-700 bg-gun-850 px-2.5 py-1 text-xs font-mono text-gun-300 hover:text-white"
@@ -975,12 +1072,24 @@ export function AdminDashboard({
                 <RefreshCw className="h-3 w-3" />
                 <span>Refresh</span>
               </button>
+              </div>
             </div>
 
             <div className="rounded-2xl border border-gun-800 bg-gun-950/60 overflow-hidden shadow-xl">
               <table className="w-full text-left text-xs font-mono">
                 <thead className="bg-gun-950 text-gun-400 border-b border-gun-800">
                   <tr>
+                    <th className="py-3 pl-4 pr-1 w-8">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all items"
+                        checked={items.length > 0 && selectedIds.size === items.length}
+                        onChange={(e) =>
+                          setSelectedIds(e.target.checked ? new Set(items.map((i) => i.id)) : new Set())
+                        }
+                        className="h-3.5 w-3.5 accent-red-500"
+                      />
+                    </th>
                     <th className="py-3 px-4">Item</th>
                     <th className="py-3 px-3">Tier</th>
                     <th className="py-3 px-3">Rarity</th>
@@ -995,7 +1104,19 @@ export function AdminDashboard({
                     const rLabel = RARITY_LABEL[item.rarity] || item.rarity;
 
                     return (
-                      <tr key={item.id} className="hover:bg-gun-900/40">
+                      <tr
+                        key={item.id}
+                        className={`hover:bg-gun-900/40 ${selectedIds.has(item.id) ? 'bg-red-950/20' : ''}`}
+                      >
+                        <td className="py-3 pl-4 pr-1">
+                          <input
+                            type="checkbox"
+                            aria-label={'Select ' + item.name}
+                            checked={selectedIds.has(item.id)}
+                            onChange={() => toggleSelected(item.id)}
+                            className="h-3.5 w-3.5 accent-red-500"
+                          />
+                        </td>
                         <td className="py-3 px-4 font-sans font-semibold text-white">
                           <div className="flex items-center gap-2">
                             <span>{item.name}</span>
@@ -1045,6 +1166,14 @@ export function AdminDashboard({
                             }`}
                           >
                             {item.is_active ? 'Disable' : 'Enable'}
+                          </button>
+                          <button
+                            onClick={() => deleteOne(item.id, item.name)}
+                            disabled={deleting}
+                            title="Delete permanently"
+                            className="ml-1.5 rounded bg-gun-800 px-2 py-1 text-gun-400 transition hover:bg-red-950 hover:text-red-300 disabled:opacity-50"
+                          >
+                            <Trash2 className="h-3 w-3" />
                           </button>
                         </td>
                       </tr>
@@ -1168,20 +1297,40 @@ export function AdminDashboard({
                 </div>
               </div>
 
-              <div className="flex gap-2 font-mono text-xs">
-                {[0, 200, 400, 600].map((val) => (
-                  <button
-                    key={val}
-                    onClick={() => handleUpdatePotThreshold(val)}
-                    className={`flex-1 rounded-xl py-2 font-bold border transition ${
-                      config.pot_revenue_threshold === val
-                        ? 'border-yellow-400 bg-yellow-950/60 text-yellow-300'
-                        : 'border-gun-700 bg-gun-850 text-gun-300 hover:border-gun-600'
-                    }`}
-                  >
-                    ${val}
-                  </button>
-                ))}
+              {/* Slider in $10 steps. The preset buttons only offered 0/200/400/600,
+                  which could not express the ~$150 the owner actually wants. Value
+                  is committed on release, not on every drag frame, so one gesture
+                  is one write. */}
+              <div className="space-y-2">
+                <div className="flex items-baseline justify-between font-mono text-xs">
+                  <span className="text-gun-400">Unlock at</span>
+                  <span className="text-lg font-black text-yellow-300">${thresholdDraft}</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={1000}
+                  step={10}
+                  value={thresholdDraft}
+                  onChange={(e) => setThresholdDraft(Number(e.target.value))}
+                  onMouseUp={() => handleUpdatePotThreshold(thresholdDraft)}
+                  onTouchEnd={() => handleUpdatePotThreshold(thresholdDraft)}
+                  onKeyUp={() => handleUpdatePotThreshold(thresholdDraft)}
+                  className="w-full accent-yellow-400"
+                  aria-label="Pot gate threshold"
+                />
+                <div className="flex justify-between font-mono text-[10px] text-gun-500">
+                  <span>$0 (always on)</span>
+                  <span>$500</span>
+                  <span>$1000</span>
+                </div>
+                <p className="font-mono text-[10px] leading-relaxed text-gun-400">
+                  {grossPot >= thresholdDraft
+                    ? 'Gross pot is $' + grossPot.toFixed(2) + ' — shards are UNLOCKED at this setting.'
+                    : 'Needs $' +
+                      (thresholdDraft - grossPot).toFixed(2) +
+                      ' more in approved deposits before shards start dropping.'}
+                </p>
               </div>
             </div>
           </div>
