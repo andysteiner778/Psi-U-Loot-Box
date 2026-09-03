@@ -5,7 +5,7 @@ import { motion, useAnimation, useReducedMotion } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { Sparkles, ArrowDown, ArrowUp, RefreshCw, X, Gift, ShieldAlert } from 'lucide-react';
 import type { OpenBoxResult, Rarity } from '@/lib/types';
-import { RARITY_COLOR, isJackpot, isScrappable } from '@/lib/types';
+import { RARITY_COLOR, RARITY_LABEL, isJackpot, isScrappable } from '@/lib/types';
 import {
   buildReel,
   cardFromResult,
@@ -48,6 +48,12 @@ function celebrationFor(
 ): { particleCount: number; spread: number; origin: { y: number }; colors: string[]; scalar?: number } | null {
   if (winner.type === 'shard') {
     return { particleCount: 140, spread: 100, origin: { y: 0.6 }, colors: ['#eab308', '#fde047', '#ffffff'] };
+  }
+  // A respin is a full refund plus another roll -- strictly better than most
+  // Rare items. It carries rarity 'blue', so falling through to the switch gave
+  // it the smallest burst in the game for one of the best outcomes in it.
+  if (winner.type === 'respin') {
+    return { particleCount: 90, spread: 85, origin: { y: 0.62 }, colors: ['#22d3ee', '#3b82f6', '#a5f3fc'] };
   }
   switch (winner.rarity) {
     case 'gold':
@@ -314,7 +320,7 @@ export function CaseReel({
                     className="rounded px-1.5 py-0.5 text-white uppercase tracking-wider"
                     style={{ backgroundColor: cardColor }}
                   >
-                    {card.rarity}
+                    {RARITY_LABEL[card.rarity]}
                   </span>
                   {/* The near-miss card is deliberately NOT labelled. Marking it
                       announced the trick and killed the tension it exists to
@@ -373,7 +379,7 @@ export function CaseReel({
                   ? 'Free Re-Roll'
                   : winner.type === 'scrap'
                     ? 'Consolation Scrap'
-                    : `${winner.rarity} Item Unlocked`}
+                    : `${RARITY_LABEL[winner.rarity]} Item Unlocked`}
             </span>
           </div>
 

@@ -389,6 +389,18 @@ async function main() {
 
       const ts = computeBoxOdds({ tier, items, config: cfg, potGateMet: gate });
 
+      // The drift check compares two engines reading the SAME config row, so
+      // agreement alone cannot prove a per-tier margin actually took effect --
+      // if `tier_margins` were missing, both would fall back to house_margin
+      // and still agree. Pin the target payout to an absolute number.
+      const expectedMargin = tier === 'tier_0' ? 0 : Number((cfg as Record<string, unknown>).house_margin);
+      const expectedTarget = Number(sql.box_price) * (1 - expectedMargin);
+      ok(
+        Math.abs(Number(sql.target_ev) - expectedTarget) < 1e-6,
+        tier + ': SQL budgets ' + Number(sql.target_ev).toFixed(4) + ' on a ' +
+          Number(sql.box_price).toFixed(2) + ' box (' + (expectedMargin * 100).toFixed(1) + '% margin)'
+      );
+
       const pairs: [string, number, number][] = [
         ['p_physical', ts.p_physical, Number(sql.p_physical)],
         ['p_shard', ts.p_shard, Number(sql.p_shard)],

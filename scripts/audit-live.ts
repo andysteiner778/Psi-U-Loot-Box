@@ -12,7 +12,7 @@
 
 import { config as denv } from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
-import { computeBoxOdds, DEFAULT_CONFIG, scrapCoinUsd } from '../lib/economy';
+import { computeBoxOdds, marginForTier, DEFAULT_CONFIG, scrapCoinUsd } from '../lib/economy';
 import { BOX_TIERS, RARITY_LABEL, type BoxTier, type EconomyConfig, type Item } from '../lib/types';
 
 denv({ path: '.env.local', quiet: true });
@@ -54,7 +54,11 @@ async function main() {
   const value = active.reduce((a, i) => a + Number(i.est_value) * i.stock_qty, 0);
 
   console.log(' catalog        ' + items.length + ' items, ' + units + ' units in stock, ' + usd(value) + ' of goods');
-  console.log(' house margin   ' + pct(cfg.house_margin));
+  const overrides = BOX_TIERS.filter((t) => marginForTier(cfg, t) !== cfg.house_margin);
+  console.log(' house margin   ' + pct(cfg.house_margin) +
+    (overrides.length
+      ? '   (' + overrides.map((t) => t + ' ' + pct(marginForTier(cfg, t))).join(', ') + ')'
+      : ''));
   console.log(' pot            ' + usd(pot) + ' / ' + usd(cfg.pot_revenue_threshold) +
     '  -> shard gate ' + (gateMet ? 'OPEN' : 'shut'));
   console.log(' scrap coin     ' + usd(scrapCoinUsd(cfg)) + '   compactor: ' +
@@ -128,9 +132,10 @@ async function main() {
       '   P(junk/coins) ' + pct(o.p_scrap));
 
     if (native.length === 0) warn(tier + ' has NO items of its own — every win is borrowed junk.');
-    if (o.realized_margin > cfg.house_margin + 0.05) {
+    const tierMargin = marginForTier(cfg, tier);
+    if (o.realized_margin > tierMargin + 0.05) {
       warn(tier + ' is overcharging: keeping ' + pct(o.realized_margin) +
-        ' against a target of ' + pct(cfg.house_margin) + '.');
+        ' against a target of ' + pct(tierMargin) + '.');
     }
     if (o.realized_margin < -0.001) warn(tier + ' LOSES money: ' + pct(-o.realized_margin) + ' per roll.');
     for (const w of o.warnings) warn(tier + ': ' + w);

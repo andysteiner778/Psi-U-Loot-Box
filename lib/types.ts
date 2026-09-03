@@ -185,6 +185,16 @@ export function isJackpot(r: OpenBoxResult): boolean {
 
 export interface EconomyConfig {
   house_margin: number;
+  /**
+   * Per-tier margin overrides. A tier listed here uses its own margin instead
+   * of `house_margin`; anything absent falls back to the global number.
+   *
+   * This exists because the $1 box runs at 1:1 — it is a loss-leader whose job
+   * is to clear junk and get people rolling, not to earn. Keep it a PARTIAL
+   * map: writing every tier in here means a change to `house_margin` silently
+   * stops doing anything.
+   */
+  tier_margins?: Partial<Record<BoxTier, number>>;
   pot_revenue_threshold: number;
   box_prices: Record<BoxTier, number>;
   shard_probs: Record<BoxTier, number>;

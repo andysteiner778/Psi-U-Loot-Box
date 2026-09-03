@@ -3,17 +3,40 @@ import type { BoxTier } from '@/lib/types';
 /**
  * Case artwork.
  *
- * All three boxes shared one generic Lucide package icon in the accent colour,
- * so the only thing distinguishing a $5 crate from a $50 one was a hue. These
- * are drawn as inline SVG — no image requests on a night when thirty phones
- * share one connection — and each tier reads differently at a glance:
+ * Every box shared one generic Lucide package icon in the accent colour, so the
+ * only thing distinguishing a $5 crate from a $50 one was a hue. These are
+ * drawn as inline SVG — no image requests on a night when thirty phones share
+ * one connection — and each tier reads differently at a glance:
  *
+ *   Tier 0  a cinched paper pouch, deliberately the smallest thing here
  *   Tier 1  a battered cardboard box, flaps open, tape peeling
  *   Tier 2  a latched wooden crate with metal banding
  *   Tier 3  an armoured flight case, rivets and a glowing seam
+ *
+ * The final `return` is the tier_3 fallback, so a tier added to BOX_TIERS
+ * without a branch here silently inherits the most expensive art. That is
+ * exactly what happened to tier_0 — the $1 pouch shipped wearing the $50
+ * flight case. If you add a tier, add a branch.
  */
 export function CaseArt({ tier, color }: { tier: BoxTier; color: string }) {
   const glow = { filter: `drop-shadow(0 0 14px ${color}90)` };
+
+  if (tier === 'tier_0') {
+    return (
+      <svg viewBox="0 0 120 100" className="h-28 w-28" style={glow} aria-hidden>
+        {/* cinched neck */}
+        <path d="M46 30 L74 30 L70 42 L50 42 Z" fill={color} opacity="0.45" />
+        <path d="M44 28 Q60 22 76 28" fill="none" stroke="#e8ebf2" strokeWidth="2.5" opacity="0.35" />
+        {/* crumpled paper body — narrower than every other tier on purpose */}
+        <path d="M50 42 L70 42 L80 62 L76 86 L60 92 L44 86 L40 62 Z" fill={color} opacity="0.5" />
+        {/* creases */}
+        <path d="M60 42 L60 92 M50 46 L44 84 M70 46 L76 84" stroke="#0f1117" strokeWidth="1.4" opacity="0.4" />
+        {/* a couple of coins spilling out */}
+        <circle cx="34" cy="80" r="5" fill="#e8ebf2" opacity="0.3" />
+        <circle cx="86" cy="76" r="4" fill="#e8ebf2" opacity="0.22" />
+      </svg>
+    );
+  }
 
   if (tier === 'tier_1') {
     return (

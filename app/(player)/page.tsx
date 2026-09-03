@@ -96,7 +96,7 @@ export default async function PlayerBoxesPage() {
       <div className="rounded-2xl border border-gun-800 bg-gun-900/60 p-4 text-xs text-gun-400 font-mono flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" />
-          <span>Restricted (Purple), Covert (Pink) & Gold items are physical pickup only (no scrapping).</span>
+          <span>Legendary (purple), Mythic (pink) and Exotic (gold) items are physical pickup only — they cannot be scrapped.</span>
         </div>
         <div className="flex items-center gap-4 text-gun-300">
           <span className="flex items-center gap-1">

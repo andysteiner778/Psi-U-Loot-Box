@@ -14,7 +14,7 @@
  *   5. Monte-Carlo realized payout matches analytic EV
  */
 
-import { computeBoxOdds, drawOutcome, outcomeValue, scrapCoinUsd, DEFAULT_CONFIG } from '../lib/economy';
+import { computeBoxOdds, marginForTier, drawOutcome, outcomeValue, scrapCoinUsd, DEFAULT_CONFIG } from '../lib/economy';
 import { catalogAsItems } from '../lib/catalog';
 import { BOX_TIERS, type BoxTier, type EconomyConfig, type Item } from '../lib/types';
 
@@ -133,10 +133,14 @@ for (const tier of BOX_TIERS) {
       // (Only at step 0. Once stock depletes there is genuinely nothing left to
       // give, and underspending is unavoidable rather than a bug.)
       if (step === 0) {
+        // Per-tier, not global: the $1 box runs at 1:1, so measuring it against
+        // house_margin would either pass it while it overcharges or fail it for
+        // doing exactly what it was configured to do.
+        const tierMargin = marginForTier(cfg, tier);
         assert(
-          o.realized_margin <= cfg.house_margin + 0.05,
+          o.realized_margin <= tierMargin + 0.05,
           label + ': realized margin ' + pct(o.realized_margin) + ' far exceeds the intended ' +
-            pct(cfg.house_margin) + ' — players are being overcharged. Payout ' +
+            pct(tierMargin) + ' — players are being overcharged. Payout ' +
             usd(o.total_ev) + ' against a ' + usd(o.target_ev) + ' budget leaves ' +
             usd(o.target_ev - o.total_ev) + ' unspent per roll.'
         );
@@ -186,7 +190,7 @@ console.log(' 5. HOUSE MARGIN SWEEP  (what the party actually feels like)');
 console.log('-----------------------------------------------------------------');
 console.log(' margin   t1 scrap%  t2 scrap%  t3 scrap%   <- lower margin = fewer dud rolls');
 for (const m of [0.3, 0.2, 0.15, 0.1, 0.05, 0.0]) {
-  const c = { ...cfg, house_margin: m };
+  const c = { ...cfg, house_margin: m, tier_margins: {} };
   const row = BOX_TIERS.map((t) => {
     const o = computeBoxOdds({ tier: t, items: allItems.filter((i) => i.box_tier === t), config: c, potGateMet: true });
     return pct(o.p_scrap).padEnd(11);
@@ -205,7 +209,7 @@ console.log(' shard odds        t1        t2        t3     | P(item) t1/t2/t3   
 for (const mult of [1, 0.75, 0.5, 0.25, 0.1]) {
   const c = { ...cfg, shard_probs: Object.fromEntries(BOX_TIERS.map((t) => [t, DEFAULT_CONFIG.shard_probs[t]])) as Record<BoxTier, number> };
   const eaten = BOX_TIERS.map((t) => {
-    const budget = c.box_prices[t] * (1 - c.house_margin);
+    const budget = c.box_prices[t] * (1 - marginForTier(c, t));
     return ((c.shard_probs[t] * (c.pc_value / c.shards_required)) / budget * 100).toFixed(0) + '%';
   });
   const odds = BOX_TIERS.map((t) =>

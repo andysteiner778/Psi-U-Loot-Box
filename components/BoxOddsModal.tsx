@@ -15,11 +15,19 @@ export interface BoxOddsModalProps {
 export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps) {
   if (!isOpen) return null;
 
+  /**
+   * Long shots are the entire appeal of a loot box, so "<0.1%" censors exactly
+   * the number a player most wants to see -- and it read as though the app did
+   * not know its own odds. Below 0.1% we widen the decimals instead, to two
+   * significant figures, so a 0.04% Mythic prints as 0.040%.
+   */
   const pct = (p: number) => {
     const v = (Number.isFinite(p) ? p : 0) * 100;
-    if (v === 0) return '0%';
-    if (v < 0.1) return '<0.1%';
-    return `${v < 10 ? v.toFixed(2) : v.toFixed(1)}%`;
+    if (!(v > 0)) return '0%';
+    if (v >= 10) return `${v.toFixed(1)}%`;
+    if (v >= 0.1) return `${v.toFixed(2)}%`;
+    const decimals = Math.min(6, Math.ceil(-Math.log10(v)) + 1);
+    return `${v.toFixed(decimals)}%`;
   };
 
   return (
@@ -119,7 +127,7 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-gun-300">
-                Physical Loot Pool ({odds.items.length} native prizes)
+                Physical Loot Pool ({odds.items.length} prizes)
               </h3>
               <span className="text-[11px] font-mono text-emerald-400 font-semibold">
                 Total Physical Chance: {pct(odds.p_physical + (odds.floor_kind === 'item' ? odds.p_scrap : 0))}
@@ -179,7 +187,7 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
                           )}
                         </td>
                         <td className="py-2.5 px-3 text-right font-bold text-white">
-                          {item.probability < 0.001 ? '<0.1%' : pct(item.probability)}
+                          {pct(item.probability)}
                         </td>
                       </tr>
                     );

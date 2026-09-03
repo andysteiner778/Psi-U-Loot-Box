@@ -44,6 +44,8 @@ import type { BoxOdds, BoxTier, EconomyConfig, Item, ItemOdds, Rarity } from './
 
 export const DEFAULT_CONFIG: EconomyConfig = {
   house_margin: 0.125,
+  // The $1 box pays back everything it takes. See EconomyConfig.tier_margins.
+  tier_margins: { tier_0: 0 },
   pot_revenue_threshold: 150.0,
   box_prices: { tier_0: 1, tier_1: 5, tier_2: 20, tier_3: 50 },
   shard_probs: { tier_0: 0.007, tier_1: 0.035, tier_2: 0.14, tier_3: 0.35 },
@@ -71,6 +73,20 @@ export function scrapCoinUsd(cfg: EconomyConfig): number {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
+
+/**
+ * The margin this tier actually runs at.
+ *
+ * Every solvency check must go through this rather than reading
+ * `cfg.house_margin` directly, or a tier with an override gets measured
+ * against a target it was never built to hit — and reports as broken.
+ *
+ * Mirrored in SQL by `box_odds` (migration 0021). The two must agree.
+ */
+export function marginForTier(cfg: EconomyConfig, tier: BoxTier): number {
+  const override = cfg.tier_margins?.[tier];
+  return typeof override === 'number' && Number.isFinite(override) ? override : cfg.house_margin;
+}
 
 /** Box price after any live flash sale. The server clock is authoritative. */
 export function effectiveBoxPrice(cfg: EconomyConfig, tier: BoxTier, now = new Date()): number {
@@ -101,7 +117,7 @@ export interface OddsInput {
 export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: OddsInput): BoxOdds {
   const warnings: string[] = [];
   const C = effectiveBoxPrice(cfg, tier, now);
-  const target = C * (1 - cfg.house_margin);
+  const target = C * (1 - marginForTier(cfg, tier));
 
   // --- Ceiling-adjacent anchor: shards, gated by pot floor AND global supply ---
   // Mint cap is deliberately NOT the completion requirement -- see 0006.

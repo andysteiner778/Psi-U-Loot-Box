@@ -93,14 +93,33 @@ export function coerceConfig(raw: unknown): EconomyConfig {
       BOX_TIERS.map((t) => [t, n(o[t], d[t])])
     ) as Record<BoxTier, number>;
   };
+  // Partial per-tier map: only tiers actually present are carried, so an absent
+  // tier keeps falling back to house_margin rather than being pinned to it.
+  const partialTiers = (v: unknown): Partial<Record<BoxTier, number>> | undefined => {
+    if (!v || typeof v !== 'object') return undefined;
+    const src = v as Record<string, unknown>;
+    const out: Partial<Record<BoxTier, number>> = {};
+    for (const t of BOX_TIERS) {
+      const x = typeof src[t] === 'number' ? (src[t] as number) : Number(src[t]);
+      if (src[t] !== undefined && Number.isFinite(x)) out[t] = x;
+    }
+    return Object.keys(out).length ? out : undefined;
+  };
   const ends = r.flash_sale_ends_at;
 
   return {
     house_margin: n(r.house_margin, DEFAULT_CONFIG.house_margin),
+    tier_margins: partialTiers(r.tier_margins) ?? DEFAULT_CONFIG.tier_margins,
     pot_revenue_threshold: n(r.pot_revenue_threshold, DEFAULT_CONFIG.pot_revenue_threshold),
     box_prices: tiers(r.box_prices, DEFAULT_CONFIG.box_prices),
     shard_probs: tiers(r.shard_probs, DEFAULT_CONFIG.shard_probs),
     pc_value: n(r.pc_value, DEFAULT_CONFIG.pc_value),
+    pc_display_value: n(r.pc_display_value, DEFAULT_CONFIG.pc_display_value ?? DEFAULT_CONFIG.pc_value),
+    pc_shard_mint_cap:
+      r.pc_shard_mint_cap === undefined || r.pc_shard_mint_cap === null
+        ? DEFAULT_CONFIG.pc_shard_mint_cap
+        : n(r.pc_shard_mint_cap, DEFAULT_CONFIG.pc_shard_mint_cap ?? DEFAULT_CONFIG.pc_total_supply * DEFAULT_CONFIG.shards_required),
+    cross_tier_factor: n(r.cross_tier_factor, DEFAULT_CONFIG.cross_tier_factor ?? 0.15),
     shards_required: n(r.shards_required, DEFAULT_CONFIG.shards_required),
     pc_total_supply: n(r.pc_total_supply, DEFAULT_CONFIG.pc_total_supply),
     pc_shards_minted: n(r.pc_shards_minted, DEFAULT_CONFIG.pc_shards_minted),
