@@ -1,0 +1,160 @@
+/**
+ * LIVE ECONOMY AUDIT
+ *
+ *   npm run audit
+ *
+ * `npm run simulate` proves the ENGINE is solvent against a fixture catalog.
+ * This asks the different, and more important, question: is the economy sane
+ * against the items that are actually in the database right now?
+ *
+ * Read-only. Touches nothing.
+ */
+
+import { config as denv } from 'dotenv';
+import { createClient } from '@supabase/supabase-js';
+import { computeBoxOdds, DEFAULT_CONFIG, scrapCoinUsd } from '../lib/economy';
+import { BOX_TIERS, RARITY_LABEL, type BoxTier, type EconomyConfig, type Item } from '../lib/types';
+
+denv({ path: '.env.local', quiet: true });
+
+const db = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { persistSession: false } }
+);
+
+const usd = (n: number) => '$' + n.toFixed(2);
+const pct = (n: number) => (n * 100).toFixed(1) + '%';
+const pad = (s: string, n: number) => s.padEnd(n);
+
+let warnings = 0;
+const warn = (m: string) => {
+  warnings++;
+  console.log('  !!  ' + m);
+};
+
+async function main() {
+  const { data: cfgRow } = await db.from('config').select('value').eq('key', 'settings').single();
+  const cfg = { ...DEFAULT_CONFIG, ...(cfgRow?.value as Partial<EconomyConfig>) } as EconomyConfig;
+
+  const { data: rawItems } = await db.from('items').select('*').order('est_value', { ascending: false });
+  const items = (rawItems ?? []) as Item[];
+  const locked = items.filter((i) => (i.shard_cost ?? 0) > 0);
+
+  const { data: deps } = await db.from('deposits').select('amount').eq('status', 'approved');
+  const pot = (deps ?? []).reduce((a, d) => a + Number(d.amount), 0);
+  const gateMet = pot >= cfg.pot_revenue_threshold;
+
+  console.log('\n================================================================');
+  console.log(' LIVE ECONOMY AUDIT — the real catalog, right now');
+  console.log('================================================================\n');
+
+  const active = items.filter((i) => i.is_active && i.stock_qty > 0);
+  const units = active.reduce((a, i) => a + i.stock_qty, 0);
+  const value = active.reduce((a, i) => a + Number(i.est_value) * i.stock_qty, 0);
+
+  console.log(' catalog        ' + items.length + ' items, ' + units + ' units in stock, ' + usd(value) + ' of goods');
+  console.log(' house margin   ' + pct(cfg.house_margin));
+  console.log(' pot            ' + usd(pot) + ' / ' + usd(cfg.pot_revenue_threshold) +
+    '  -> shard gate ' + (gateMet ? 'OPEN' : 'shut'));
+  console.log(' scrap coin     ' + usd(scrapCoinUsd(cfg)) + '   compactor: ' +
+    cfg.scrap_coins_per_key + ' coins -> ' + usd(cfg.box_prices[cfg.scrap_key_tier]));
+
+  if (locked.length) {
+    console.log('\n shard-locked prizes (not in any box, claimed with shards):');
+    for (const l of locked) {
+      const perShard = Number(l.est_value) / (l.shard_cost ?? 1);
+      console.log('   ' + pad(l.name.slice(0, 28), 30) + pad(usd(Number(l.est_value)), 10) +
+        pad(l.shard_cost + ' shards', 11) + usd(perShard) + '/shard');
+    }
+    const charged = cfg.pc_value / cfg.shards_required;
+    console.log('   the economy charges ' + usd(charged) + ' per shard');
+    for (const l of locked) {
+      const perShard = Number(l.est_value) / (l.shard_cost ?? 1);
+      if (perShard > charged * 2) {
+        warn(l.name + ' pays ' + usd(perShard) + ' per shard but shards are priced at ' +
+          usd(charged) + ' — the house eats the difference on every claim.');
+      }
+    }
+  }
+
+  // ---- per tier -----------------------------------------------------------
+  for (const tier of BOX_TIERS) {
+    const pool = active.filter(
+      (i) => i.box_tier === tier || (tier !== 'tier_1' && i.box_tier === 'tier_1' &&
+        Number(i.est_value) <= (cfg.filler_max_value ?? 15))
+    );
+    const native = pool.filter((i) => i.box_tier === tier);
+    const o = computeBoxOdds({ tier, items: pool, config: cfg, potGateMet: gateMet });
+
+    console.log('\n----------------------------------------------------------------');
+    console.log(' ' + tier.toUpperCase() + '   ' + usd(o.box_price) + ' box   ' +
+      native.length + ' native items (' + native.reduce((a, i) => a + i.stock_qty, 0) + ' units)');
+    console.log('----------------------------------------------------------------');
+    console.log('   budget ' + usd(o.target_ev) + '   payout ' + usd(o.total_ev) +
+      '   margin ' + pct(o.realized_margin));
+    console.log('   P(real prize) ' + pct(o.p_physical) +
+      '   P(shard) ' + pct(o.p_shard) +
+      '   P(respin) ' + pct(o.p_respin) +
+      '   P(junk/coins) ' + pct(o.p_scrap));
+
+    if (native.length === 0) warn(tier + ' has NO items of its own — every win is borrowed junk.');
+    if (o.realized_margin > cfg.house_margin + 0.05) {
+      warn(tier + ' is overcharging: keeping ' + pct(o.realized_margin) +
+        ' against a target of ' + pct(cfg.house_margin) + '.');
+    }
+    if (o.realized_margin < -0.001) warn(tier + ' LOSES money: ' + pct(-o.realized_margin) + ' per roll.');
+    for (const w of o.warnings) warn(tier + ': ' + w);
+
+    // The gate being shut makes every tier look thinner than it will be on the
+    // night, because the whole shard slice shows as respin/junk. Project both.
+    if (!gateMet) {
+      const open = computeBoxOdds({ tier, items: pool, config: cfg, potGateMet: true });
+      console.log('   once the pot passes ' + usd(cfg.pot_revenue_threshold) + ':  ' +
+        'P(prize) ' + pct(open.p_physical) +
+        '   P(shard) ' + pct(open.p_shard) +
+        '   P(respin) ' + pct(open.p_respin) +
+        '   P(junk) ' + pct(open.p_scrap));
+    }
+
+    const top = [...o.items].sort((a, b) => b.probability - a.probability).slice(0, 8);
+    if (top.length) {
+      console.log('\n   most likely items in this box:');
+      console.log('     ' + pad('item', 30) + pad('value', 10) + pad('rarity', 12) + pad('stock', 7) + 'chance');
+      for (const it of top) {
+        console.log('     ' + pad(it.name.slice(0, 29), 30) + pad(usd(it.est_value), 10) +
+          pad(RARITY_LABEL[it.rarity], 12) + pad(String(it.stock_qty), 7) + pct(it.probability));
+      }
+    }
+  }
+
+  // ---- whole-party view ---------------------------------------------------
+  console.log('\n================================================================');
+  console.log(' WHAT THIS MEANS FOR THE PARTY');
+  console.log('================================================================');
+  const needed = value / (1 - cfg.house_margin);
+  console.log(' To clear ' + usd(value) + ' of goods, players must deposit about ' + usd(needed) + '.');
+  console.log(' Across 12 buyers that is ' + usd(needed / 12) + ' each; across 20, ' + usd(needed / 20) + ' each.');
+
+  const byTier: Record<BoxTier, { n: number; v: number }> = {
+    tier_1: { n: 0, v: 0 }, tier_2: { n: 0, v: 0 }, tier_3: { n: 0, v: 0 },
+  };
+  for (const i of active) {
+    byTier[i.box_tier].n += i.stock_qty;
+    byTier[i.box_tier].v += Number(i.est_value) * i.stock_qty;
+  }
+  console.log('');
+  for (const t of BOX_TIERS) {
+    console.log(' ' + pad(t, 9) + pad(byTier[t].n + ' units', 12) + usd(byTier[t].v));
+  }
+
+  console.log('\n----------------------------------------------------------------');
+  if (warnings === 0) console.log(' No problems found. The economy is solvent against the real catalog.');
+  else console.log(' ' + warnings + ' thing(s) worth looking at above (marked !!).');
+  console.log('----------------------------------------------------------------\n');
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

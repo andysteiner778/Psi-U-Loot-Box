@@ -74,6 +74,15 @@ export interface Item {
    * can rise without the game quietly getting stingier.
    */
   msrp?: number | null;
+  /**
+   * Shards needed to claim this. 0 (or absent) means an ordinary box drop.
+   *
+   * Anything above 0 is EXCLUDED from the drop pool: it is assembled toward,
+   * not lucked into. Both the SQL `box_odds` and `computeBoxOdds` must apply
+   * this filter or the two engines describe different games -- and only the
+   * TypeScript one is covered by the solvency proof.
+   */
+  shard_cost?: number | null;
   rarity: Rarity;
   scrap_value: number;
   stock_qty: number;

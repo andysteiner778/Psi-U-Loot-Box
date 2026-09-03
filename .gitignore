@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local photo staging — your originals, never the repo.
+# These are multi-MB camera files; GitHub rejects anything over 100MB and the
+# app reads photos from Supabase Storage, not from disk.
+photo upload/
+photos/
+*.zip

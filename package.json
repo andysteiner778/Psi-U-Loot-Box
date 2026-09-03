@@ -19,7 +19,8 @@
     "shards": "tsx scripts/shards.ts",
     "shards:tune": "tsx scripts/shard-tune.ts",
     "reset": "tsx scripts/reset-party.ts",
-    "storage:orphans": "tsx scripts/storage-orphans.ts"
+    "storage:orphans": "tsx scripts/storage-orphans.ts",
+    "audit": "tsx scripts/audit-live.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

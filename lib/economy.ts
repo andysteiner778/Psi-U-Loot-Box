@@ -124,7 +124,15 @@ export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: Od
   // That made probability, not budget, the binding constraint — and because
   // lambda is uniform, shrinking to fit probability also shrank the expensive
   // items, the only ones able to spend the budget. A $50 box paid out $23.68.
-  const live = items.filter((i) => i.is_active && i.stock_qty > 0 && i.est_value > 0);
+  const live = items.filter(
+    (i) =>
+      i.is_active &&
+      i.stock_qty > 0 &&
+      i.est_value > 0 &&
+      // Shard-locked prizes are claimed with shards, never dropped from a box.
+      // Mirrors the same predicate in box_odds SQL.
+      !(i.shard_cost && i.shard_cost > 0)
+  );
   const pool = live.filter((i) => i.box_tier === tier);
   // Predicate mirrors box_odds SQL exactly. Without the value cap, passing a
   // full catalog would let an expensive tier-3 prize act as tier-2 "filler",
@@ -174,7 +182,34 @@ export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: Od
     );
   }
 
-  const lambda = clamp(Math.min(1, lambdaProb, lambdaEv), 0, 1);
+  let lambda = clamp(Math.min(1, lambdaProb, lambdaEv), 0, 1);
+
+  // --- Scale pass 3: the UNDERSPEND case -----------------------------------
+  //
+  // Passes 1 and 2 only ever scale items DOWN to stop the house losing money.
+  // They cannot fix the opposite failure: a tier full of items far cheaper than
+  // the box. Tier 1 with 53 items averaging ~$3.90 saturated probability at
+  // 100% items and paid out $3.93 against a $4.38 budget -- a silent 21.5%
+  // margin against a 12.5% target, with no probability left for an anchor to
+  // top it up.
+  //
+  // The respin anchor is worth C, which is MORE than the budget, so handing out
+  // fewer items and some free re-rolls raises EV. Solve for the lambda where
+  // the anchors run all-respin and EV lands exactly on target:
+  //
+  //     target = lam*Wv + P_shard*V_shard + (1 - lam*Wp - P_shard) * C
+  //
+  const maxAchievable =
+    lambda * Wv + pShard * vShard + Math.max(0, 1 - lambda * Wp - pShard) * C;
+
+  if (maxAchievable < target - 1e-9) {
+    const denomUnder = Wv - Wp * C; // negative when the average item is cheaper than the box
+    if (Math.abs(denomUnder) > 1e-12) {
+      const lambdaUnder = (target - pShard * vShard - (1 - pShard) * C) / denomUnder;
+      lambda = clamp(Math.min(lambda, lambdaUnder), 0, 1);
+    }
+  }
+
   if (lambda < 1 - 1e-9 && Wp > 0) {
     warnings.push(
       'Item probabilities scaled to ' +

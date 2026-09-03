@@ -14,6 +14,7 @@ import {
   Coins,
   DollarSign,
   Zap,
+  Gift,
 } from 'lucide-react';
 import type { Profile } from '@/lib/types';
 
@@ -25,6 +26,43 @@ export function PlayerRoster() {
   const [editName, setEditName] = useState('');
   const [saving, setSaving] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ text: string; type: 'good' | 'bad' } | null>(null);
+  const [giftFor, setGiftFor] = useState<string | null>(null);
+  const [giftTier, setGiftTier] = useState<'tier_1' | 'tier_2' | 'tier_3'>('tier_1');
+  const [giftCount, setGiftCount] = useState('5');
+  const [gifting, setGifting] = useState(false);
+
+  /**
+   * Gift free spins. Credited as balance so it spends exactly like a deposit,
+   * but recorded in the gifts ledger rather than `deposits` -- a gift is not
+   * revenue and must not push the pot past the shard gate.
+   */
+  const giftSpins = async (p: Profile) => {
+    const count = parseInt(giftCount, 10);
+    if (!Number.isFinite(count) || count < 1) {
+      showMsg('Pick a number of spins', 'bad');
+      return;
+    }
+    setGifting(true);
+    try {
+      const res = await fetch('/api/admin/gift', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: p.id, tier: giftTier, count }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        showMsg('Gave ' + p.name + ' ' + count + ' free spins ($' + Number(json.data.credited).toFixed(2) + ')');
+        setGiftFor(null);
+        void fetchPlayers();
+      } else {
+        showMsg(json.error || 'Gift failed', 'bad');
+      }
+    } catch {
+      showMsg('Network error sending gift', 'bad');
+    } finally {
+      setGifting(false);
+    }
+  };
 
   const showMsg = (text: string, type: 'good' | 'bad' = 'good') => {
     setMsg({ text, type });
@@ -326,6 +364,43 @@ export function PlayerRoster() {
                       <KeyRound className="h-3.5 w-3.5" />
                       <span>Reset PIN</span>
                     </button>
+                    <button
+                      onClick={() => setGiftFor(giftFor === p.id ? null : p.id)}
+                      className="ml-1.5 inline-flex items-center gap-1 rounded-lg border border-gun-700 bg-gun-800 px-2.5 py-1 text-[11px] font-semibold text-emerald-300 transition hover:border-emerald-500/50 hover:bg-emerald-950/40"
+                      title="Gift free spins"
+                    >
+                      <Gift className="h-3.5 w-3.5" />
+                      <span>Gift</span>
+                    </button>
+
+                    {giftFor === p.id && (
+                      <div className="mt-2 flex flex-wrap items-center justify-end gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-2">
+                        <input
+                          value={giftCount}
+                          onChange={(e) => setGiftCount(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                          inputMode="numeric"
+                          className="w-12 rounded bg-gun-950 px-2 py-1 text-center font-mono text-[11px] text-white outline-none"
+                          aria-label="Number of spins"
+                        />
+                        <select
+                          value={giftTier}
+                          onChange={(e) => setGiftTier(e.target.value as typeof giftTier)}
+                          className="rounded bg-gun-950 px-2 py-1 font-mono text-[11px] text-white outline-none"
+                          aria-label="Box tier"
+                        >
+                          <option value="tier_1">Tier 1 ($5)</option>
+                          <option value="tier_2">Tier 2 ($20)</option>
+                          <option value="tier_3">Tier 3 ($50)</option>
+                        </select>
+                        <button
+                          onClick={() => giftSpins(p)}
+                          disabled={gifting}
+                          className="rounded-lg bg-emerald-600 px-3 py-1 font-mono text-[11px] font-bold text-white hover:bg-emerald-500 disabled:opacity-50"
+                        >
+                          {gifting ? 'Sending…' : 'Send'}
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               );
