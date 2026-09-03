@@ -412,7 +412,7 @@ export function AdminDashboard({
     const num = Math.max(0, parseFloat(valStr) || 0);
     const derivedRarity = rarityForValue(num);
     const derivedTier = tierForValue(num);
-    const derivedScrap = isScrappable(derivedRarity) ? String(Math.round(num * 10)) : '0';
+    const derivedScrap = isScrappable(derivedRarity) ? String(Math.max(1, Math.round((num * 0.60) / 0.10))) : '0';
 
     setItemForm((prev) => ({
       ...prev,
@@ -432,7 +432,7 @@ export function AdminDashboard({
       const valNum = Math.max(0.01, parseFloat(itemForm.est_value) || 0.01);
       const autoRarity = rarityForValue(valNum);
       const autoTier = tierForValue(valNum);
-      const autoScrap = isScrappable(autoRarity) ? Math.round(valNum * 10) : 0;
+      const autoScrap = isScrappable(autoRarity) ? Math.max(1, Math.round((valNum * 0.60) / 0.10)) : 0;
 
       const res = await fetch('/api/admin/items', {
         method: 'POST',

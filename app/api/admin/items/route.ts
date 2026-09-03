@@ -52,14 +52,12 @@ export async function POST(req: Request) {
     : tierForValue(est_value);
 
   // Enforce Anti-Exploit Rule 2
-  // Coins are $1 each, so scrap_value is a dollar figure and MUST be a fraction
-  // of est_value. The old `est_value * 10` paid 2x the item's worth at the old
-  // coin rate, which let a player scrap a $70 monitor for $140 of credit.
-  const recovery = isScrappable(rarity) ? 0.6 : 0.4;
-  const scrap_value = Math.max(
-    1,
-    parseInt(String(body.scrap_value ?? Math.round(est_value * recovery)), 10)
-  );
+  // High tier items (purple, pink, gold) cannot be scrapped and must have scrap_value = 0
+  // to satisfy the high_tier_never_scrappable CHECK constraint.
+  // For scrappable items (grey, blue), recovery is 60% of est_value in 10-cent coins (migration 0015).
+  const scrap_value = isScrappable(rarity)
+    ? Math.max(1, parseInt(String(body.scrap_value ?? Math.round((est_value * 0.60) / 0.10)), 10))
+    : 0;
 
   // Adding the same name twice splits one pile into two entries with separate
   // stock, which then compete for probability as if they were different items.

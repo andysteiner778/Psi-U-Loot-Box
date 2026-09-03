@@ -43,7 +43,7 @@ export interface GameConfig {
 
 export const DEFAULT_GAME_CONFIG: GameConfig = {
   shards_required: 2,
-  scrap_coins_per_key: 100,
+  scrap_coins_per_key: 200,
   scrap_key_tier: 'tier_2',
   pc_value: 50,
   pc_display_value: 400,

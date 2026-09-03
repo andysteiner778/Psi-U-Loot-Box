@@ -32,10 +32,13 @@ async function call<T>(url: string, init?: RequestInit): Promise<Result<T>> {
 
   const parsed = (body ?? {}) as { ok?: boolean; error?: string; code?: string };
   if (!res.ok || parsed.ok !== true) {
+    if (res.status === 401 && typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      window.location.href = '/login';
+    }
     return {
       ok: false,
-      error: parsed.error ?? `Something went wrong (${res.status}).`,
-      code: parsed.code,
+      error: parsed.error ?? (res.status === 401 ? 'Session expired. Please log in again.' : `Something went wrong (${res.status}).`),
+      code: parsed.code ?? (res.status === 401 ? 'UNAUTHORIZED' : undefined),
     };
   }
   return { ok: true, value: body as T };

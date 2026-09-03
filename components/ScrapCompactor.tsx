@@ -12,7 +12,7 @@ export function ScrapCompactor() {
   const [crunching, setCrunching] = useState(false);
 
   const coinsHeld = stats.scrap_coins;
-  const cost = config.scrap_coins_per_key || 100;
+  const cost = config.scrap_coins_per_key || 200;
   const keyTier = config.scrap_key_tier || 'tier_2';
   const keyPrice = config.base_prices?.[keyTier] ?? 20;
   const canCompact = coinsHeld >= cost;
@@ -62,7 +62,7 @@ export function ScrapCompactor() {
                 </span>
               </h3>
               <p className="text-xs text-gun-400">
-                Crush 100 junk scrap coins into $20 account credit (spendable on any tier).
+                Crush {cost} junk scrap coins into ${keyPrice} account credit (spendable on any tier).
               </p>
             </div>
           </div>

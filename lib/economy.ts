@@ -152,9 +152,21 @@ export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: Od
   // Predicate mirrors box_odds SQL exactly. Without the value cap, passing a
   // full catalog would let an expensive tier-3 prize act as tier-2 "filler",
   // and the floor anchor would be mispriced in a way the gate cannot see.
-  const fillerPool = live.filter(
-    (i) => i.box_tier !== tier && i.est_value <= fillerMax
-  );
+  // MUST match the predicate in box_odds SQL exactly. It restricts filler to
+  // cheap TIER-1 junk borrowed into tier 2 and 3; tier 1 has no filler and
+  // falls back to scrap coins.
+  //
+  // These two had silently diverged: a migration generator's conditional
+  // replace failed to match, so the SQL kept the strict predicate while this
+  // side got a loose one. Tier 1 then had an item floor anchor here and a coin
+  // floor anchor in production -- different anchor values, different lambda,
+  // different odds. The solvency proof runs on THIS engine, so it was proving
+  // properties of a game nobody was playing. Caught by an external audit, not
+  // by any gate, which is why the drift test in scripts/verify-sql.ts exists.
+  const fillerPool =
+    tier === 'tier_1'
+      ? []
+      : live.filter((i) => i.box_tier === 'tier_1' && i.est_value <= fillerMax);
 
   // --- Floor anchor: priced honestly, never $0 ------------------------------
   const coinUsd = scrapCoinUsd(cfg);

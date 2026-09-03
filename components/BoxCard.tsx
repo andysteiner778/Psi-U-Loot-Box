@@ -9,6 +9,7 @@ import { BOX_META, money, type PlayerBoxOdds } from '@/app/(player)/_lib/shared'
 import { usePlayer } from '@/app/(player)/_lib/player-store';
 import { apiOdds, apiOpenBox, newRollId } from '@/app/(player)/_lib/api';
 import { sfx } from '@/lib/sound';
+import { supabase, TICKER_TOPIC } from '@/lib/supabase/browser';
 import { CaseReel } from '@/components/CaseReel';
 import { BoxOddsModal } from '@/components/BoxOddsModal';
 import { DepositModal } from '@/components/DepositModal';
@@ -50,6 +51,28 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false }: BoxCardProps
       document.removeEventListener('visibilitychange', tick);
     };
   }, [refreshOdds]);
+
+  // Realtime odds sync: whenever any player wins an item (broadcast on house_ticker),
+  // immediately refresh this card's odds so stock decrements and probabilities
+  // rebalance without waiting for the 20s polling loop.
+  useEffect(() => {
+    try {
+      const channel = supabase
+        .channel(`box_card_sync_${initialOdds.tier}`)
+        .on('broadcast', { event: 'roll' }, () => {
+          if (document.visibilityState === 'visible') {
+            void refreshOdds();
+          }
+        })
+        .subscribe();
+
+      return () => {
+        void supabase.removeChannel(channel);
+      };
+    } catch {
+      /* fallback to interval polling */
+    }
+  }, [refreshOdds, initialOdds.tier]);
 
   const { stats, commit, adjust, toast } = usePlayer();
   const [inspectOpen, setInspectOpen] = useState(false);
@@ -95,6 +118,8 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false }: BoxCardProps
 
   const handleOpen = async () => {
     if (opening || spinning) return;
+    // Unlock iOS WebAudio synchronously during user gesture before async fetch
+    void sfx.unlock();
     if (!hasFunds) {
       setDepositOpen(true);
       return;

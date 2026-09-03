@@ -328,6 +328,113 @@ async function main() {
   );
   ok(leak.rows[0].n === 0, 'ticker payload leaks no user_id or balance');
 
+  // ---- The two engines must describe the SAME game ------------------------
+  //
+  // lib/economy.ts and the SQL box_odds are hand-mirrored, and `npm run
+  // simulate` only proves the TypeScript one. A divergence is therefore
+  // invisible: the proof passes while production plays by different numbers.
+  // That happened -- a migration generator's conditional replace silently
+  // failed to match, leaving the filler predicate different on each side, and
+  // an outside audit found it rather than any gate here.
+  //
+  // This runs both engines over the SAME catalog and config and compares the
+  // outputs. It is the only check that can catch drift at all.
+  console.log('\n--- TypeScript engine vs SQL engine ---');
+  {
+    const { computeBoxOdds } = await import('../lib/economy');
+    const cfgRow = await db.query<{ value: Record<string, unknown> }>(
+      "SELECT value FROM config WHERE key='settings'"
+    );
+    const cfg = cfgRow.rows[0].value as never;
+
+    // Fixtures that FORCE the edge cases, rather than hoping the seed catalog
+    // happens to contain them. Without these the comparison passes trivially:
+    // the real divergence only shows when a cheap item lives in a higher tier,
+    // which seed.sql does not have. A first attempt at this test passed even
+    // with the bug deliberately reintroduced.
+    await db.exec(`
+      INSERT INTO items (name, est_value, rarity, scrap_value, stock_qty, box_tier)
+      VALUES ('drift-cheap-t2',  12, 'blue', 7, 3, 'tier_2'),
+             ('drift-cheap-t3',   9, 'grey', 5, 2, 'tier_3'),
+             ('drift-dear-t1',   80, 'purple', 0, 1, 'tier_1');
+    `);
+
+    const itemRows = await db.query(
+      'SELECT id, name, description, image_url, est_value, rarity, scrap_value, ' +
+      'stock_qty, box_tier, is_active, msrp, shard_cost, created_at FROM items'
+    );
+    const items = itemRows.rows.map((r) => ({
+      ...(r as Record<string, unknown>),
+      est_value: Number((r as { est_value: string }).est_value),
+      msrp: (r as { msrp: string | null }).msrp === null ? null : Number((r as { msrp: string }).msrp),
+      stock_qty: Number((r as { stock_qty: number }).stock_qty),
+      shard_cost: Number((r as { shard_cost: number }).shard_cost ?? 0),
+    })) as never[];
+
+    const potRow = await db.query<{ pot: string }>(
+      "SELECT COALESCE(SUM(amount),0) AS pot FROM deposits WHERE status='approved'"
+    );
+    const gate =
+      Number(potRow.rows[0].pot) >= Number((cfg as Record<string, unknown>).pot_revenue_threshold);
+
+    for (const tier of ['tier_1', 'tier_2', 'tier_3'] as const) {
+      const sql = (
+        await db.query<{ box_odds: Record<string, number | string> }>(
+          'SELECT box_odds($1) AS box_odds', [tier]
+        )
+      ).rows[0].box_odds;
+
+      const ts = computeBoxOdds({ tier, items, config: cfg, potGateMet: gate });
+
+      const pairs: [string, number, number][] = [
+        ['p_physical', ts.p_physical, Number(sql.p_physical)],
+        ['p_shard', ts.p_shard, Number(sql.p_shard)],
+        ['p_respin', ts.p_respin, Number(sql.p_respin)],
+        ['p_scrap', ts.p_scrap, Number(sql.p_scrap)],
+        ['total_ev', ts.total_ev, Number(sql.total_ev)],
+        ['box_price', ts.box_price, Number(sql.box_price)],
+      ];
+
+      let worst = 0;
+      let worstField = '';
+      for (const [field, a, b] of pairs) {
+        const d = Math.abs(a - b);
+        if (d > worst) {
+          worst = d;
+          worstField = field;
+        }
+      }
+      ok(
+        worst < 1e-6,
+        tier + ': both engines agree' +
+          (worst >= 1e-6
+            ? ' — ' + worstField + ' differs by ' + worst.toFixed(9)
+            : ' (max delta ' + worst.toExponential(1) + ')')
+      );
+
+      ok(
+        String(sql.floor_kind) === ts.floor_kind,
+        tier + ': same floor anchor kind (' + ts.floor_kind + ')'
+      );
+
+      // Same pool membership, not just the same totals: two engines can reach
+      // equal probabilities from different item sets.
+      const sqlIds = new Set(
+        (sql.items as unknown as { item_id: string }[]).map((i) => i.item_id)
+      );
+      const tsIds = new Set(ts.items.map((i) => i.item_id));
+      const onlySql = [...sqlIds].filter((i) => !tsIds.has(i)).length;
+      const onlyTs = [...tsIds].filter((i) => !sqlIds.has(i)).length;
+      ok(
+        onlySql === 0 && onlyTs === 0,
+        tier + ': identical item pools (' + tsIds.size + ' items)' +
+          (onlySql || onlyTs ? ' — ' + onlySql + ' SQL-only, ' + onlyTs + ' TS-only' : '')
+      );
+    }
+
+    await db.exec("DELETE FROM items WHERE name LIKE 'drift-%'");
+  }
+
   // ---- Lockdown -----------------------------------------------------------
   console.log('\n--- lockdown ---');
   const grants = await db.query<{ n: number }>(`

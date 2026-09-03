@@ -12,6 +12,7 @@ import {
 } from 'react';
 import type { SessionUser } from '@/lib/types';
 import { DEFAULT_GAME_CONFIG, type GameConfig, type PlayerStats } from './shared';
+import { sfx } from '@/lib/sound';
 
 /**
  * One source of truth for the three numbers the whole app argues about:
@@ -59,6 +60,11 @@ export function PlayerProvider({
   const [stats, setStats] = useState<PlayerStats>(initialStats);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const nextId = useRef(1);
+
+  // Auto-unlock iOS WebAudio on the very first user gesture (tap/click anywhere)
+  useEffect(() => {
+    return sfx.autoUnlock();
+  }, []);
 
   const adjust = useCallback((delta: Partial<PlayerStats>) => {
     setStats((s) => ({
