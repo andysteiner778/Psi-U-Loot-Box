@@ -88,7 +88,9 @@ export function Ticker() {
         <span>
           <strong className="text-white font-semibold">{evt.player}</strong> found a{' '}
           <span className="font-bold text-yellow-400">PC Core Shard!</span>{' '}
-          <span className="font-mono text-yellow-300">({evt.shards ?? 1}/5)</span>
+          {/* No hardcoded denominator: shards_required is a live config value
+              and has already changed from 5 to 4 once. */}
+          <span className="font-mono text-yellow-300">({evt.shards ?? 1})</span>
         </span>
       );
     } else if (evt.kind === 'scrap') {
