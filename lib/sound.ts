@@ -707,19 +707,22 @@ class SoundEngine {
     if (!g || this.mutedValue) return;
     try {
       const t0 = at ?? g.ctx.currentTime + LOOKAHEAD;
-      [523.25, 783.99].forEach((freq, i) => {
-        const start = t0 + i * 0.09;
+      // A full ascending triad rather than two notes. C-G alone is an open
+      // fifth -- it resolves nowhere and reads as a UI blip, which is most of
+      // why Rare felt like nothing had happened.
+      [523.25, 659.25, 783.99].forEach((freq, i) => {
+        const start = t0 + i * 0.075;
         const osc = g.ctx.createOscillator();
         const env = g.ctx.createGain();
         osc.type = 'triangle';
         osc.frequency.value = freq;
         env.gain.setValueAtTime(0.0008, start);
-        env.gain.linearRampToValueAtTime(0.14, start + 0.015);
-        env.gain.exponentialRampToValueAtTime(0.0008, start + 0.28);
+        env.gain.linearRampToValueAtTime(0.17, start + 0.015);
+        env.gain.exponentialRampToValueAtTime(0.0008, start + 0.34);
         osc.connect(env);
         env.connect(g.master);
         osc.start(start);
-        osc.stop(start + 0.3);
+        osc.stop(start + 0.36);
         this.track(osc);
       });
     } catch {
@@ -905,8 +908,14 @@ class SoundEngine {
    */
   playWinFor(rarity: 'grey' | 'blue' | 'purple' | 'pink' | 'gold'): void {
     switch (rarity) {
+      // Rare gets a SHORT clang -- about four strikes -- not the sustained
+      // ring. It lands as "you got something" rather than "the house owes you
+      // money", while still being unmistakably the same bell. Before this,
+      // Rare was a two-note blip next to Legendary's arpeggio and 1.2s ring,
+      // and the gap was wide enough that it read as broken.
       case 'blue':
         this.playWinRare();
+        this.playHandPayBell(undefined, 0.36, 0.5);
         break;
       // Purple and up all get the hand-pay bell; only its length and level
       // change. Giving the top two a bell and Legendary a bare chord made a

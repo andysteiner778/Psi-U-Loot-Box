@@ -47,7 +47,7 @@ function celebrationFor(
   winner: OpenBoxResult
 ): { particleCount: number; spread: number; origin: { y: number }; colors: string[]; scalar?: number } | null {
   if (winner.type === 'shard') {
-    return { particleCount: 140, spread: 100, origin: { y: 0.6 }, colors: ['#eab308', '#fde047', '#ffffff'] };
+    return { particleCount: 150, spread: 100, origin: { y: 0.6 }, colors: ['#eab308', '#fde047', '#ffffff'] };
   }
   // A respin is a full refund plus another roll -- strictly better than most
   // Rare items. It carries rarity 'blue', so falling through to the switch gave
@@ -57,13 +57,15 @@ function celebrationFor(
   }
   switch (winner.rarity) {
     case 'gold':
-      return { particleCount: 200, spread: 120, origin: { y: 0.6 }, colors: ['#eab308', '#fde047', '#ffffff', '#f59e0b'], scalar: 1.2 };
+      return { particleCount: 230, spread: 125, origin: { y: 0.6 }, colors: ['#eab308', '#fde047', '#ffffff', '#f59e0b'], scalar: 1.2 };
     case 'pink':
-      return { particleCount: 140, spread: 100, origin: { y: 0.6 }, colors: ['#ec4899', '#f9a8d4', '#eab308'] };
+      return { particleCount: 160, spread: 108, origin: { y: 0.6 }, colors: ['#ec4899', '#f9a8d4', '#eab308'] };
     case 'purple':
-      return { particleCount: 80, spread: 75, origin: { y: 0.65 }, colors: ['#9333ea', '#c084fc', '#e9d5ff'] };
+      return { particleCount: 110, spread: 88, origin: { y: 0.65 }, colors: ['#9333ea', '#c084fc', '#e9d5ff'] };
     case 'blue':
-      return { particleCount: 36, spread: 55, origin: { y: 0.68 }, colors: ['#2563eb', '#93c5fd'] };
+      // 36 particles at 55 degrees was a polite puff that vanished before the
+      // eye found it, so a Rare pull looked like nothing had fired at all.
+      return { particleCount: 60, spread: 72, origin: { y: 0.66 }, colors: ['#2563eb', '#93c5fd', '#dbeafe'] };
     default:
       return null; // Common passes without ceremony.
   }
