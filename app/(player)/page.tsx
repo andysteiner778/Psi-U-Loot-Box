@@ -9,6 +9,9 @@ import { db } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
+/** Prices move; the copy should not have to be edited when they do. */
+const formatUsd = (n: number) => '$' + (Number(n) % 1 === 0 ? Number(n).toFixed(0) : Number(n).toFixed(2));
+
 export default async function PlayerBoxesPage() {
   const session = await getSession();
   const [oddsList, config, shardPrizes, welcomeLeft, vouchers] = await Promise.all([
@@ -87,8 +90,9 @@ export default async function PlayerBoxesPage() {
               Your next {welcomeLeft} {welcomeLeft === 1 ? 'spin is' : 'spins are'} guaranteed a real prize
             </p>
             <p className="font-mono text-[11px] leading-relaxed text-emerald-200/70">
-              No coins, no empty pulls — on the $1 and $5 boxes you will get
-              something you can take home. Better than the odds below say.
+              No empty pulls — on the {formatUsd(config.base_prices.tier_0)} and{' '}
+              {formatUsd(config.base_prices.tier_1)} boxes you will get something you
+              can take home. Better than the odds below say.
             </p>
           </div>
         </div>

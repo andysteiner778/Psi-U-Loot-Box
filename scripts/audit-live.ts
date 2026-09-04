@@ -70,20 +70,39 @@ async function main() {
     // measuring the wrong one made a perfectly healthy PC price look like a
     // $300 subsidy. Cost per shard = box_price / P(shard), taking whichever
     // tier is cheapest, because that is the route a determined player will use.
-    let cheapest = Infinity;
+    // The difficulty curve makes each successive shard rarer -- [1, 1, 0.5, 0.3]
+    // means the fourth costs three times what the first did. Costing shards at
+    // the BASE rate understated a full set by more than half and produced a
+    // "players profit by grinding" warning that was simply wrong. A warning
+    // that cries wolf is worse than no warning.
+    const curve = (cfg as unknown as { shard_difficulty_curve?: number[] })
+      .shard_difficulty_curve ?? [1, 1, 0.5, 0.3];
+    const fullSetCost = (t: BoxTier): number => {
+      const base = cfg.shard_probs[t];
+      if (!base) return Infinity;
+      let rolls = 0;
+      for (let held = 0; held < cfg.shards_required; held++) {
+        const mult = curve[Math.min(held, curve.length - 1)] ?? 1;
+        if (base * mult <= 0) return Infinity;
+        rolls += 1 / (base * mult);
+      }
+      return rolls * cfg.box_prices[t];
+    };
+
+    let cheapestSet = Infinity;
     let cheapestTier = '';
     for (const t of BOX_TIERS) {
-      const p = cfg.shard_probs[t];
-      if (!p) continue;
-      const per = cfg.box_prices[t] / p;
-      if (per < cheapest) {
-        cheapest = per;
+      const c = fullSetCost(t);
+      if (c < cheapestSet) {
+        cheapestSet = c;
         cheapestTier = t;
       }
     }
+    const cheapest = cheapestSet / Math.max(1, cfg.shards_required);
 
     console.log('\n shard-locked prizes (claimed with shards, never dropped):');
-    console.log('   cheapest shard farming: ' + cheapestTier + ' at ' + usd(cheapest) + ' per shard');
+    console.log('   cheapest route to a full set: ' + cheapestTier + ' — ' + usd(cheapestSet) +
+      ' of spend (' + usd(cheapest) + ' per shard, difficulty curve included)');
     console.log('   ' + pad('prize', 30) + pad('value', 10) + pad('shards', 9) +
       pad('to farm', 11) + 'verdict');
 

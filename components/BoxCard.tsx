@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Sparkles, Eye, Zap, Flame, Lock, PackageOpen, Ticket } from 'lucide-react';
 import { CaseArt } from './CaseArt';
 import type { BoxTier, OpenBoxResult } from '@/lib/types';
@@ -45,6 +46,14 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarit
    * under a spin that is already running, so hold refreshes until it closes and
    * take one on the way out.
    */
+  /*
+   * The welcome banner, the voucher badge and the prize showcase are all
+   * server-rendered. Nothing re-fetched them after a spin, so "your next 2
+   * spins are guaranteed" sat there unchanged however many times you rolled --
+   * which reads as the guarantee being broken rather than as a stale banner.
+   * Refreshing the route re-runs the server component with the new state.
+   */
+  const router = useRouter();
   const spinningRef = useRef(false);
   const refreshPendingRef = useRef(false);
 
@@ -65,7 +74,8 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarit
     setSpinning(false);
     refreshPendingRef.current = false;
     void refreshOdds();
-  }, [refreshOdds]);
+    router.refresh();
+  }, [refreshOdds, router]);
 
   useEffect(() => {
     setOdds(initialOdds);
