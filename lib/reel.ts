@@ -57,10 +57,14 @@ export const WINNER_INDEX = WINNER_POSITION - 1; //       49
 
 /**
  * Probability that a given spin gets a near-miss card at all.
- * ~0.45 means most players see one every one to three openings, which reads as
- * luck rather than as a scripted beat.
+ *
+ * Was 0.45. Near-miss spins deliberately land hard against the left edge of the
+ * winner, so at nearly one spin in two the reel kept stopping in the same place
+ * and the whole thing read as scripted -- the opposite of what the near-miss is
+ * for. At 0.3 roughly two spins in three land somewhere random across the card
+ * instead, and the near-miss goes back to being a surprise.
  */
-export const NEAR_MISS_CHANCE = 0.45;
+export const NEAR_MISS_CHANCE = 0.3;
 
 /** Rarities that qualify as near-miss bait. */
 export const BAIT_RARITIES: readonly Rarity[] = ['gold', 'pink', 'purple'];
@@ -336,10 +340,16 @@ export function offsetForIndex(
  * the boundary onto the real prize. That is the beat this whole reel exists
  * for, and centring the card threw it away every time.
  */
-export const LANDING_MIN = 0.12;
-export const LANDING_MAX = 0.88;
-export const LANDING_NEAR_MISS_MIN = 0.1;
-export const LANDING_NEAR_MISS_MAX = 0.28;
+export const LANDING_MIN = 0.08;
+export const LANDING_MAX = 0.92;
+// A near-miss should stop with the marker a hair inside the winner -- almost in
+// the gutter between the two cards, but unmistakably on the right one. At 4% of
+// a 180px card that is 7px past the boundary, with the bait's edge 12px further
+// back. Landing at 10-28% (the first attempt) was still visibly "on" the card
+// and, because 45% of spins carry a near-miss, it also dragged the overall
+// distribution into the first third and made every spin look the same.
+export const LANDING_NEAR_MISS_MIN = 0.04;
+export const LANDING_NEAR_MISS_MAX = 0.14;
 
 export function randomLandingFraction(hasNearMiss: boolean, rand = Math.random()): number {
   return hasNearMiss

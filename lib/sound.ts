@@ -933,22 +933,29 @@ class SoundEngine {
       // money" cue and it should mean something; ringing it on the most common
       // paid outcome in the game spends it. Its cue is still a full ascending
       // triad rather than the old open fifth, so it is clearly a win.
+      // Rare now gets what Legendary used to: the four-note arpeggio. Still no
+      // bell -- that stays the "the house owes you money" cue.
       case 'blue':
-        this.playWinRare();
+        this.playWinLegendary();
         break;
       // Purple and up all get the hand-pay bell; only its length and level
       // change. Giving the top two a bell and Legendary a bare chord made a
       // $70 monitor land quieter than it deserved -- and Legendary is the most
       // common of the three by a wide margin, so it is the one most people
       // will actually hear. The bell is what makes a win feel PAID.
+      // Legendary, Mythic and Exotic all get the TOP cue -- riser into the gold
+      // fanfare into the hand-pay bell. Only the length of the bell separates
+      // them, so a $70 monitor and the PC sound like the same class of event,
+      // which is what they are: the good stuff.
       case 'purple':
-        this.playWinLegendary();
-        this.playHandPayBell(undefined, 1.2, 0.8);
+        this.playRiser(undefined, 0.7);
+        this.playGoldFanfare();
+        this.playHandPayBell(undefined, 1.6, 1);
         break;
       case 'pink':
-        this.playRiser();
-        this.playWinLegendary();
-        this.playHandPayBell(undefined, 2.1, 1);
+        this.playRiser(undefined, 0.7);
+        this.playGoldFanfare();
+        this.playHandPayBell(undefined, 2.4, 1.1);
         break;
       case 'gold':
         this.playRiser(undefined, 0.7);
