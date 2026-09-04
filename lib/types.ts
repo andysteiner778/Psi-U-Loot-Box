@@ -260,6 +260,12 @@ export interface EconomyConfig {
    * Absent falls back to that old derivation.
    */
   scrap_key_usd?: number;
+  /**
+   * Hard ceiling on how much of a box may be free re-rolls. See the respin
+   * clamp in computeBoxOdds: without it a tier whose items are cheaper than
+   * the box turns into a re-roll machine with no prizes at all.
+   */
+  max_respin_share?: number;
   /** Dollars credited per shard salvaged. Absent falls back to a tier price. */
   shard_salvage_value?: number;
   scrap_key_tier: BoxTier;

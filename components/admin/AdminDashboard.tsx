@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   Sliders,
   Trash2,
+  Pencil,
   Lock,
   Users,
   ImagePlus,
@@ -489,6 +490,65 @@ export function AdminDashboard({
   };
 
   // Stock modifier
+  /**
+   * Inline item editing.
+   *
+   * Correcting a price used to mean deleting the item and adding it again,
+   * which loses its stock history and, worse, silently breaks unit
+   * conservation -- the deleted row took its initial_stock_qty with it while
+   * whoever had already won one still held it.
+   */
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<{
+    name: string; est_value: string; msrp: string; rarity: Rarity; box_tier: BoxTier; stock_qty: string;
+  } | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const beginEdit = (item: Item) => {
+    setEditingId(item.id);
+    setEditDraft({
+      name: item.name,
+      est_value: String(item.est_value ?? ''),
+      msrp: item.msrp === null || item.msrp === undefined ? '' : String(item.msrp),
+      rarity: item.rarity,
+      box_tier: item.box_tier,
+      stock_qty: String(item.stock_qty ?? 0),
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editingId || !editDraft || savingEdit) return;
+    setSavingEdit(true);
+    try {
+      const res = await fetch(`/api/admin/items/${editingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editDraft.name,
+          est_value: Number(editDraft.est_value),
+          // Blank clears the display price and falls back to est_value.
+          msrp: editDraft.msrp.trim() === '' ? null : Number(editDraft.msrp),
+          rarity: editDraft.rarity,
+          box_tier: editDraft.box_tier,
+          stock_qty: Number(editDraft.stock_qty),
+        }),
+      });
+      const j = await res.json().catch(() => null);
+      if (res.ok) {
+        setEditingId(null);
+        setEditDraft(null);
+        refreshItems();
+        showMsg('Saved. Scrap value recalculated from the new price.', 'good');
+      } else {
+        showMsg(j?.error || 'Could not save that item.', 'bad');
+      }
+    } catch {
+      showMsg('Could not save that item.', 'bad');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   const handleUpdateStock = async (itemId: string, delta: number, current: number) => {
     const next = Math.max(0, current + delta);
     try {
@@ -1124,8 +1184,8 @@ export function AdminDashboard({
                     const rLabel = RARITY_LABEL[item.rarity] || item.rarity;
 
                     return (
+                      <React.Fragment key={item.id}>
                       <tr
-                        key={item.id}
                         className={`hover:bg-gun-900/40 ${selectedIds.has(item.id) ? 'bg-red-950/20' : ''}`}
                       >
                         <td className="py-3 pl-4 pr-1">
@@ -1188,6 +1248,13 @@ export function AdminDashboard({
                             {item.is_active ? 'Disable' : 'Enable'}
                           </button>
                           <button
+                            onClick={() => (editingId === item.id ? setEditingId(null) : beginEdit(item))}
+                            title="Edit name, price, rarity, tier and stock"
+                            className="ml-1.5 rounded bg-gun-800 px-2 py-1 text-cyan-300 transition hover:bg-cyan-950"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                          <button
                             onClick={() => deleteOne(item.id, item.name)}
                             disabled={deleting}
                             title="Delete permanently"
@@ -1197,6 +1264,84 @@ export function AdminDashboard({
                           </button>
                         </td>
                       </tr>
+                      {editingId === item.id && editDraft && (
+                        <tr className="bg-gun-950/80">
+                          <td colSpan={7} className="px-4 py-3">
+                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                              <label className="flex flex-col gap-1 col-span-2">
+                                <span className="text-[10px] text-gun-400">Name</span>
+                                <input
+                                  value={editDraft.name}
+                                  onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })}
+                                  className="min-h-[40px] rounded-lg border border-gun-700 bg-gun-900 px-2 text-xs text-white"
+                                />
+                              </label>
+                              <label className="flex flex-col gap-1">
+                                <span className="text-[10px] text-gun-400">Real value (drives odds)</span>
+                                <input
+                                  type="number" step="0.01" min="0.01"
+                                  value={editDraft.est_value}
+                                  onChange={(e) => setEditDraft({ ...editDraft, est_value: e.target.value })}
+                                  className="min-h-[40px] rounded-lg border border-gun-700 bg-gun-900 px-2 text-xs text-white"
+                                />
+                              </label>
+                              <label className="flex flex-col gap-1">
+                                <span className="text-[10px] text-gun-400">Shown price (blank = same)</span>
+                                <input
+                                  type="number" step="0.01" min="0"
+                                  value={editDraft.msrp}
+                                  onChange={(e) => setEditDraft({ ...editDraft, msrp: e.target.value })}
+                                  className="min-h-[40px] rounded-lg border border-gun-700 bg-gun-900 px-2 text-xs text-white"
+                                />
+                              </label>
+                              <label className="flex flex-col gap-1">
+                                <span className="text-[10px] text-gun-400">Rarity</span>
+                                <select
+                                  value={editDraft.rarity}
+                                  onChange={(e) => setEditDraft({ ...editDraft, rarity: e.target.value as Rarity })}
+                                  className="min-h-[40px] rounded-lg border border-gun-700 bg-gun-900 px-2 text-xs text-white"
+                                >
+                                  {RARITIES.map((r) => (
+                                    <option key={r} value={r}>{RARITY_LABEL[r]}</option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="flex flex-col gap-1">
+                                <span className="text-[10px] text-gun-400">Box</span>
+                                <select
+                                  value={editDraft.box_tier}
+                                  onChange={(e) => setEditDraft({ ...editDraft, box_tier: e.target.value as BoxTier })}
+                                  className="min-h-[40px] rounded-lg border border-gun-700 bg-gun-900 px-2 text-xs text-white"
+                                >
+                                  {BOX_TIERS.map((t) => (
+                                    <option key={t} value={t}>{t.replace('_', ' ')}</option>
+                                  ))}
+                                </select>
+                              </label>
+                            </div>
+                            <p className="mt-2 font-mono text-[10px] text-gun-500">
+                              Real value drives the odds and the payout budget. Shown price is
+                              display only. Scrap value is recalculated from the new price on save.
+                            </p>
+                            <div className="mt-2 flex gap-2">
+                              <button
+                                onClick={saveEdit}
+                                disabled={savingEdit}
+                                className="min-h-[40px] rounded-lg bg-emerald-600 px-4 text-xs font-bold text-white transition hover:brightness-110 disabled:opacity-50"
+                              >
+                                {savingEdit ? 'Saving…' : 'Save changes'}
+                              </button>
+                              <button
+                                onClick={() => { setEditingId(null); setEditDraft(null); }}
+                                className="min-h-[40px] rounded-lg border border-gun-700 bg-gun-900 px-4 text-xs text-gun-300"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>

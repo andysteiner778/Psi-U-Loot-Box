@@ -1,4 +1,4 @@
-import { fetchAllOdds, fetchGameConfig } from './_lib/queries';
+import { fetchAllOdds, fetchGameConfig, fetchShardPrizes } from './_lib/queries';
 import { ShardHud } from '@/components/ShardHud';
 import { BoxCard } from '@/components/BoxCard';
 import { PrizeShowcase } from '@/components/PrizeShowcase';
@@ -8,9 +8,10 @@ import { db } from '@/lib/supabase/server';
 export const dynamic = 'force-dynamic';
 
 export default async function PlayerBoxesPage() {
-  const [oddsList, config] = await Promise.all([
+  const [oddsList, config, shardPrizes] = await Promise.all([
     fetchAllOdds(),
     fetchGameConfig(),
+    fetchShardPrizes(),
   ]);
 
   // Read config settings row for flash sale state
@@ -72,7 +73,7 @@ export default async function PlayerBoxesPage() {
       />
 
       {/* The good stuff, drifting past, before anyone has to tap anything. */}
-      <PrizeShowcase oddsList={oddsList} />
+      <PrizeShowcase oddsList={oddsList} shardPrizes={shardPrizes} />
 
       {/* Box Cards Section */}
       <div>

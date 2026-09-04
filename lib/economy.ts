@@ -58,11 +58,12 @@ export const DEFAULT_CONFIG: EconomyConfig = {
   max_item_prob: 0.3,
   ev_weight_factor: 0.2,
   scrap_ev_frac: 0.2,
-  scrap_key_usd: 10,
+  scrap_key_usd: 1,
+  max_respin_share: 0.25,
   shard_salvage_value: 10,
   filler_max_value: 15,
   cross_tier_factor: 0.15,
-  scrap_coins_per_key: 500,
+  scrap_coins_per_key: 50,
   scrap_key_tier: 'tier_2',
   flash_sale: false,
   flash_sale_pct: 0.2,
@@ -264,6 +265,39 @@ export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: Od
     if (Math.abs(denomUnder) > 1e-12) {
       const lambdaUnder = (target - pShard * vShard - (1 - pShard) * C) / denomUnder;
       lambda = clamp(Math.min(lambda, lambdaUnder), 0, 1);
+    }
+
+    // ---- A BOX IS NOT A RE-ROLL MACHINE ------------------------------------
+    //
+    // The solve above maximises EV, and the respin anchor is valued at the full
+    // box price C. So when the average item in a tier is worth LESS than the
+    // box, the arithmetic concludes that handing out free re-rolls "pays" more
+    // than handing out prizes, drives lambda to zero, and produces a tier with
+    // 0% items and 65% re-rolls. Technically on-budget. Useless as a game, and
+    // it presents to the player as a box that never gives anything.
+    //
+    // This is not hypothetical or confined to re-pricing. Tier 3's average item
+    // sits a few dollars above its $50 price; win the two dearest prizes and
+    // the average drops below it mid-party, and the top box quietly stops
+    // paying out.
+    //
+    // A free re-roll is also not really worth C -- it is worth the EV of a
+    // roll, which is `target`. Valuing it at the sticker price is what lets it
+    // out-compete real prizes. Rather than re-derive the whole anchor system on
+    // the eve of the party, cap the share of a box that may be re-rolls and
+    // accept the resulting underspend, which shows up honestly as a higher
+    // realized margin in `npm run audit` instead of as a dead tier.
+    const respinCap = cfg.max_respin_share ?? 0.25;
+    if (denomUnder < 0 && Wp > 0) {
+      const lambdaFloor = Math.max(0, (1 - pShard - respinCap) / Wp);
+      if (lambdaFloor > lambda) {
+        lambda = clamp(lambdaFloor, 0, 1);
+        warnings.push(
+          'Items here are worth less than the box, so the EV solve wanted to pay in free ' +
+            're-rolls. Capped re-rolls at ' + (respinCap * 100).toFixed(0) +
+            '% and accepted a smaller payout so the box still gives prizes.'
+        );
+      }
     }
   }
 

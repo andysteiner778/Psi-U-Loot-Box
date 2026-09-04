@@ -29,6 +29,21 @@ export interface PlayerBoxOdds extends BoxOdds {
 }
 
 /** Economy knobs the UI needs to render honestly, read from the `config` row. */
+/**
+ * A prize that is never dropped by a box -- you assemble shards and claim it.
+ * The PC is the only one today. Deliberately display-only: `value` is the msrp
+ * the room is shown, never est_value, which is what the ODDS are derived from.
+ */
+export interface ShardPrize {
+  item_id: string;
+  name: string;
+  image_url: string | null;
+  value: number;
+  rarity: Rarity;
+  shard_cost: number;
+  stock_qty: number;
+}
+
 export interface GameConfig {
   shards_required: number;
   scrap_coins_per_key: number;
@@ -53,8 +68,8 @@ export interface GameConfig {
 
 export const DEFAULT_GAME_CONFIG: GameConfig = {
   shards_required: 4,
-  scrap_coins_per_key: 500,
-  scrap_key_usd: 10,
+  scrap_coins_per_key: 50,
+  scrap_key_usd: 1,
   scrap_key_tier: 'tier_2',
   pc_value: 50,
   pc_display_value: 400,

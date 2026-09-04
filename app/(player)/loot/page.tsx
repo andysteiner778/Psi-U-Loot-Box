@@ -1,6 +1,6 @@
 import { getSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
-import { fetchAllOdds, fetchGameConfig } from '../_lib/queries';
+import { fetchAllOdds, fetchGameConfig, fetchShardPrizes } from '../_lib/queries';
 import { LootCatalog } from './loot-catalog';
 
 export const dynamic = 'force-dynamic';
@@ -24,7 +24,11 @@ export default async function LootPage() {
   const session = await getSession();
   if (!session) redirect('/login');
 
-  const [oddsList, config] = await Promise.all([fetchAllOdds(), fetchGameConfig()]);
+  const [oddsList, config, shardPrizes] = await Promise.all([
+    fetchAllOdds(),
+    fetchGameConfig(),
+    fetchShardPrizes(),
+  ]);
 
-  return <LootCatalog oddsList={oddsList} config={config} />;
+  return <LootCatalog oddsList={oddsList} config={config} shardPrizes={shardPrizes} />;
 }

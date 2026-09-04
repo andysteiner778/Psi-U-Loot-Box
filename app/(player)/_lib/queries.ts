@@ -1,8 +1,8 @@
 import 'server-only';
 import { db } from '@/lib/supabase/server';
-import { BOX_TIERS, type BoxTier, type Roll } from '@/lib/types';
+import { BOX_TIERS, type BoxTier, type Rarity, type Roll } from '@/lib/types';
 import { callRpc } from './http';
-import { DEFAULT_GAME_CONFIG, normalizeOdds, type GameConfig, type PlayerBoxOdds } from './shared';
+import { DEFAULT_GAME_CONFIG, normalizeOdds, type GameConfig, type PlayerBoxOdds, type ShardPrize } from './shared';
 
 /**
  * Server-side reads for the player pages.
@@ -20,6 +20,39 @@ export async function fetchOdds(tier: BoxTier): Promise<PlayerBoxOdds> {
 /** All three tiers in parallel — three cheap STABLE calls, one page render. */
 export async function fetchAllOdds(): Promise<PlayerBoxOdds[]> {
   return Promise.all(BOX_TIERS.map(fetchOdds));
+}
+
+/**
+ * Prizes claimed with shards rather than won from a box.
+ *
+ * These are excluded from `box_odds` on purpose -- they can never drop, so
+ * publishing a probability for them would be a lie. But that also meant they
+ * appeared NOWHERE in the app outside the shard HUD: the $600 machine the whole
+ * shard track exists for was invisible on the loot list and the front page.
+ */
+export async function fetchShardPrizes(): Promise<ShardPrize[]> {
+  const { data, error } = await db
+    .from('items')
+    .select('id,name,image_url,est_value,msrp,rarity,shard_cost,stock_qty')
+    .gt('shard_cost', 0)
+    .eq('is_active', true)
+    .gt('stock_qty', 0)
+    .order('est_value', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((r) => {
+    const row = r as Record<string, unknown>;
+    return {
+      item_id: String(row.id),
+      name: String(row.name),
+      image_url: (row.image_url as string | null) ?? null,
+      // msrp is the display price; est_value drives the economy and is not
+      // the number to advertise.
+      value: Number(row.msrp ?? row.est_value ?? 0),
+      rarity: row.rarity as Rarity,
+      shard_cost: Number(row.shard_cost ?? 0),
+      stock_qty: Number(row.stock_qty ?? 0),
+    };
+  });
 }
 
 /**

@@ -4,7 +4,7 @@ import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Search, Package, Sparkles } from 'lucide-react';
 import { BOX_TIERS, RARITY_COLOR, RARITY_LABEL, type BoxTier, type Rarity } from '@/lib/types';
-import type { GameConfig, PlayerBoxOdds } from '../_lib/shared';
+import type { GameConfig, PlayerBoxOdds, ShardPrize } from '../_lib/shared';
 
 const TIER_NAME: Record<BoxTier, string> = {
   tier_0: 'Pocket Lint',
@@ -25,14 +25,18 @@ interface Row {
   stock: number;
   /** Chance of pulling this item, per tier. Zero means it cannot drop there. */
   chance: Record<BoxTier, number>;
+  /** Set instead of chances for prizes claimed with shards rather than won. */
+  shardCost?: number;
 }
 
 export function LootCatalog({
   oddsList,
   config,
+  shardPrizes = [],
 }: {
   oddsList: PlayerBoxOdds[];
   config: GameConfig;
+  shardPrizes?: ShardPrize[];
 }) {
   const [query, setQuery] = useState('');
   const [onlyWinnable, setOnlyWinnable] = useState(true);
@@ -62,10 +66,23 @@ export function LootCatalog({
         row.stock = Math.max(row.stock, it.stock_qty);
       }
     }
-    return [...byId.values()].sort(
+    const dropped = [...byId.values()].sort(
       (a, b) => RARITY_RANK[a.rarity] - RARITY_RANK[b.rarity] || b.value - a.value
     );
-  }, [oddsList]);
+    // Claimed with shards, never dropped -- so absent from box_odds, and until
+    // now absent from this list too. It is the most valuable thing in the house.
+    const claimed: Row[] = shardPrizes.map((p) => ({
+      id: p.item_id,
+      name: p.name,
+      image: p.image_url,
+      value: p.value,
+      rarity: p.rarity,
+      stock: p.stock_qty,
+      chance: { tier_0: 0, tier_1: 0, tier_2: 0, tier_3: 0 },
+      shardCost: p.shard_cost,
+    }));
+    return [...claimed, ...dropped];
+  }, [oddsList, shardPrizes]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -205,7 +222,12 @@ export function LootCatalog({
 
               {/* Chance per box, which is the question this page exists to answer. */}
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {BOX_TIERS.map((t) => {
+                {r.shardCost ? (
+                  <span className="rounded-lg border border-yellow-500/40 bg-yellow-950/30 px-2 py-1 font-mono text-[10px] text-yellow-300">
+                    Claimed with <span className="font-bold">{r.shardCost} PC Core Shards</span> — not a box drop
+                  </span>
+                ) : null}
+                {!r.shardCost && BOX_TIERS.map((t) => {
                   const label = pct(r.chance[t]);
                   if (!label) return null;
                   return (
@@ -218,7 +240,7 @@ export function LootCatalog({
                     </span>
                   );
                 })}
-                {BOX_TIERS.every((t) => !pct(r.chance[t])) && (
+                {!r.shardCost && BOX_TIERS.every((t) => !pct(r.chance[t])) && (
                   <span className="font-mono text-[10px] text-gun-500">
                     not currently winnable
                   </span>
@@ -237,8 +259,9 @@ export function LootCatalog({
 
       <p className="pb-4 font-mono text-[10px] leading-relaxed text-gun-500">
         Chances are live and rebalance as items are won. Legendary and above are
-        picked up from Andy in Japan. The Gaming PC is not in this list — it is
-        claimed with {config.shards_required} PC Core Shards, not dropped.
+        picked up from Andy in Japan. Anything marked “claimed with shards” is
+        assembled from {config.shards_required} PC Core Shards rather than won
+        from a box.
       </p>
     </div>
   );

@@ -4,7 +4,7 @@ import React, { useMemo } from 'react';
 import Link from 'next/link';
 import { Package, ChevronRight } from 'lucide-react';
 import { BOX_TIERS, RARITY_COLOR, RARITY_LABEL, type BoxTier, type Rarity } from '@/lib/types';
-import type { PlayerBoxOdds } from '@/app/(player)/_lib/shared';
+import type { PlayerBoxOdds, ShardPrize } from '@/app/(player)/_lib/shared';
 
 const TIER_SHORT: Record<BoxTier, string> = {
   tier_0: '$1',
@@ -24,6 +24,8 @@ interface Prize {
   /** Cheapest box that can drop it, and the chance there. */
   bestTier: BoxTier | null;
   bestChance: number;
+  /** Set instead of a tier/chance for prizes you assemble shards for. */
+  shardCost?: number;
 }
 
 /**
@@ -40,7 +42,13 @@ interface Prize {
  * Only what is actually in stock appears. Advertising a monitor somebody
  * already took home is the kind of thing that reads as a rigged machine.
  */
-export function PrizeShowcase({ oddsList }: { oddsList: PlayerBoxOdds[] }) {
+export function PrizeShowcase({
+  oddsList,
+  shardPrizes = [],
+}: {
+  oddsList: PlayerBoxOdds[];
+  shardPrizes?: ShardPrize[];
+}) {
   const prizes = useMemo(() => {
     const byId = new Map<string, Prize>();
     for (const odds of oddsList) {
@@ -64,8 +72,24 @@ export function PrizeShowcase({ oddsList }: { oddsList: PlayerBoxOdds[] }) {
         }
       }
     }
-    return [...byId.values()].sort((a, b) => RANK[a.rarity] - RANK[b.rarity] || b.value - a.value);
-  }, [oddsList]);
+    const dropped = [...byId.values()].sort(
+      (a, b) => RANK[a.rarity] - RANK[b.rarity] || b.value - a.value
+    );
+    // Shard prizes lead: the PC is the most valuable thing in the house and the
+    // entire shard track points at it, but because it can never DROP it was
+    // absent from box_odds and therefore from this strip entirely.
+    const claimed: Prize[] = shardPrizes.map((p) => ({
+      id: p.item_id,
+      name: p.name,
+      image: p.image_url,
+      value: p.value,
+      rarity: p.rarity,
+      bestTier: null,
+      bestChance: 0,
+      shardCost: p.shard_cost,
+    }));
+    return [...claimed, ...dropped];
+  }, [oddsList, shardPrizes]);
 
   if (prizes.length === 0) return null;
 
@@ -97,11 +121,15 @@ export function PrizeShowcase({ oddsList }: { oddsList: PlayerBoxOdds[] }) {
         <span className="font-mono text-[11px] font-bold text-emerald-400">
           ${p.value.toFixed(0)}
         </span>
-        {p.bestTier && (
+        {p.shardCost ? (
+          <span className="font-mono text-[9px] text-yellow-400">
+            {p.shardCost} shards
+          </span>
+        ) : p.bestTier ? (
           <span className="font-mono text-[9px] text-gun-400">
             {TIER_SHORT[p.bestTier]} box &middot; {(p.bestChance * 100).toFixed(1)}%
           </span>
-        )}
+        ) : null}
       </div>
     </div>
   );
