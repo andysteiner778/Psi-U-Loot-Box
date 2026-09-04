@@ -2,7 +2,7 @@ import 'server-only';
 import { db } from '@/lib/supabase/server';
 import { BOX_TIERS, type BoxTier, type Rarity, type Roll } from '@/lib/types';
 import { callRpc } from './http';
-import { DEFAULT_GAME_CONFIG, normalizeOdds, type GameConfig, type PlayerBoxOdds, type ShardPrize } from './shared';
+import { DEFAULT_GAME_CONFIG, normalizeOdds, type CatalogueItem, type GameConfig, type PlayerBoxOdds, type ShardPrize } from './shared';
 
 /**
  * Server-side reads for the player pages.
@@ -20,6 +20,39 @@ export async function fetchOdds(tier: BoxTier): Promise<PlayerBoxOdds> {
 /** All three tiers in parallel — three cheap STABLE calls, one page render. */
 export async function fetchAllOdds(): Promise<PlayerBoxOdds[]> {
   return Promise.all(BOX_TIERS.map(fetchOdds));
+}
+
+/**
+ * Every item in the house, claimed or not.
+ *
+ * Display-only: `value` is msrp, never est_value. Reward rows are excluded --
+ * a voucher is not a thing sitting in a room, and listing "50% OFF a $40 box"
+ * beside a monitor makes the catalogue read as a shop rather than an inventory.
+ */
+export async function fetchCatalogue(): Promise<CatalogueItem[]> {
+  const { data, error } = await db
+    .from('items')
+    .select('id,name,image_url,est_value,msrp,rarity,stock_qty,shard_cost,is_active,reward_credit,reward_voucher_tier')
+    .eq('is_active', true)
+    .order('est_value', { ascending: false });
+  if (error) throw error;
+  return (data ?? [])
+    .filter((r) => {
+      const row = r as Record<string, unknown>;
+      return row.reward_credit === null && row.reward_voucher_tier === null;
+    })
+    .map((r) => {
+      const row = r as Record<string, unknown>;
+      return {
+        item_id: String(row.id),
+        name: String(row.name),
+        image_url: (row.image_url as string | null) ?? null,
+        value: Number(row.msrp ?? row.est_value ?? 0),
+        rarity: row.rarity as Rarity,
+        stock_qty: Number(row.stock_qty ?? 0),
+        shard_cost: Number(row.shard_cost ?? 0),
+      };
+    });
 }
 
 /**

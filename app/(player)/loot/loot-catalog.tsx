@@ -4,7 +4,7 @@ import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Search, Package, Sparkles } from 'lucide-react';
 import { BOX_TIERS, RARITY_COLOR, RARITY_LABEL, type BoxTier, type Rarity } from '@/lib/types';
-import type { GameConfig, PlayerBoxOdds, ShardPrize } from '../_lib/shared';
+import type { CatalogueItem, GameConfig, PlayerBoxOdds } from '../_lib/shared';
 
 const TIER_NAME: Record<BoxTier, string> = {
   tier_0: 'Pocket Lint',
@@ -32,57 +32,49 @@ interface Row {
 export function LootCatalog({
   oddsList,
   config,
-  shardPrizes = [],
+  catalogue = [],
 }: {
   oddsList: PlayerBoxOdds[];
   config: GameConfig;
-  shardPrizes?: ShardPrize[];
+  catalogue?: CatalogueItem[];
 }) {
   const [query, setQuery] = useState('');
   const [onlyWinnable, setOnlyWinnable] = useState(true);
 
   const rows = useMemo(() => {
-    const byId = new Map<string, Row>();
+    // Chances first, keyed by item, straight from box_odds -- the only thing
+    // that knows what the server will really do.
+    const chances = new Map<string, Record<BoxTier, number>>();
     for (const odds of oddsList) {
-      // items + filler: filler is the cheap junk that backs the consolation
-      // slot, and it is genuinely winnable, so leaving it out would understate
-      // what is in the house.
       for (const it of [...odds.items, ...odds.filler]) {
-        let row: Row | undefined = byId.get(it.item_id);
-        if (!row) {
-          row = {
-            id: it.item_id,
-            name: it.name,
-            image: it.image_url ?? null,
-            value: it.est_value,
-            rarity: it.rarity,
-            stock: it.stock_qty,
-            chance: { tier_0: 0, tier_1: 0, tier_2: 0, tier_3: 0 },
-          };
-          byId.set(it.item_id, row);
+        let c = chances.get(it.item_id);
+        if (!c) {
+          c = { tier_0: 0, tier_1: 0, tier_2: 0, tier_3: 0 };
+          chances.set(it.item_id, c);
         }
-        // Same item can appear in several tiers; keep the best chance per tier.
-        row.chance[odds.tier] = Math.max(row.chance[odds.tier], it.probability);
-        row.stock = Math.max(row.stock, it.stock_qty);
+        c[odds.tier] = Math.max(c[odds.tier], it.probability);
       }
     }
-    const dropped = [...byId.values()].sort(
-      (a, b) => RARITY_RANK[a.rarity] - RARITY_RANK[b.rarity] || b.value - a.value
-    );
-    // Claimed with shards, never dropped -- so absent from box_odds, and until
-    // now absent from this list too. It is the most valuable thing in the house.
-    const claimed: Row[] = shardPrizes.map((p) => ({
-      id: p.item_id,
-      name: p.name,
-      image: p.image_url,
-      value: p.value,
-      rarity: p.rarity,
-      stock: p.stock_qty,
-      chance: { tier_0: 0, tier_1: 0, tier_2: 0, tier_3: 0 },
-      shardCost: p.shard_cost,
-    }));
-    return [...claimed, ...dropped];
-  }, [oddsList, shardPrizes]);
+
+    // Rows come from the catalogue, so things already claimed are still listed.
+    return catalogue
+      .map<Row>((c) => ({
+        id: c.item_id,
+        name: c.name,
+        image: c.image_url,
+        value: c.value,
+        rarity: c.rarity,
+        stock: c.stock_qty,
+        chance: chances.get(c.item_id) ?? { tier_0: 0, tier_1: 0, tier_2: 0, tier_3: 0 },
+        shardCost: c.shard_cost > 0 ? c.shard_cost : undefined,
+      }))
+      .sort(
+        (a, b) =>
+          Number(b.stock > 0) - Number(a.stock > 0) ||
+          RARITY_RANK[a.rarity] - RARITY_RANK[b.rarity] ||
+          b.value - a.value
+      );
+  }, [oddsList, catalogue]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -117,7 +109,7 @@ export function LootCatalog({
             Everything in the House
           </h1>
           <p className="font-mono text-[11px] text-gun-400">
-            {totalUnits} items still unclaimed &middot; ${totalValue.toFixed(2)} of goods
+            {totalUnits} still here &middot; ${totalValue.toFixed(2)} of goods &middot; {rows.length - rows.filter((r) => r.stock > 0).length} claimed
           </p>
         </div>
       </div>

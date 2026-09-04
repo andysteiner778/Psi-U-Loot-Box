@@ -592,8 +592,9 @@ export function CaseReel({
 
           {winner.type === 'scrap' && (
             <p className="my-4 text-sm font-mono text-gun-300">
-              +{winner.scrap_gained} scrap coins added to your bag. Compact {compactCoins} into $
-              {compactUsd} credit!
+              {winner.credit_gained && winner.credit_gained > 0
+                ? `$${winner.credit_gained.toFixed(2)} credit added to your balance — spend it straight away.`
+                : `+${winner.scrap_gained} scrap coins added to your bag. Compact ${compactCoins} into $${compactUsd} credit!`}
             </p>
           )}
 

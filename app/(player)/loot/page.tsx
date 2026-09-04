@@ -1,6 +1,6 @@
 import { getSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
-import { fetchAllOdds, fetchGameConfig, fetchShardPrizes } from '../_lib/queries';
+import { fetchAllOdds, fetchCatalogue, fetchGameConfig } from '../_lib/queries';
 import { LootCatalog } from './loot-catalog';
 
 export const dynamic = 'force-dynamic';
@@ -14,21 +14,24 @@ export const dynamic = 'force-dynamic';
  * one row per item, its picture, what it is worth, and the chance of pulling
  * it from each tier side by side.
  *
- * It is built from `box_odds` rather than from the items table, deliberately.
- * The items table would say what exists; box_odds says what you can actually
- * win right now, at the probabilities the server will really use, with stock
- * and the pot gate already accounted for. Anything else would be a second
- * source of truth about the odds, and this project has been bitten by that.
+ * ROWS come from the items table; CHANCES come from box_odds.
+ *
+ * It used to build the rows from box_odds too, which seemed tidy -- one source
+ * of truth -- but box_odds only publishes what is currently WINNABLE. The
+ * moment somebody took a monitor home it vanished from this page, and the
+ * "show claimed too" toggle had nothing left to reveal: it was structurally
+ * incapable of working. The odds are still box_odds and only box_odds; the
+ * catalogue is just where the list of things comes from.
  */
 export default async function LootPage() {
   const session = await getSession();
   if (!session) redirect('/login');
 
-  const [oddsList, config, shardPrizes] = await Promise.all([
+  const [oddsList, config, catalogue] = await Promise.all([
     fetchAllOdds(),
     fetchGameConfig(),
-    fetchShardPrizes(),
+    fetchCatalogue(),
   ]);
 
-  return <LootCatalog oddsList={oddsList} config={config} shardPrizes={shardPrizes} />;
+  return <LootCatalog oddsList={oddsList} config={config} catalogue={catalogue} />;
 }

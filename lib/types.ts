@@ -192,6 +192,13 @@ export type OpenBoxResult =
       item_name: string;
       rarity: 'grey';
       scrap_gained: number;
+      /**
+       * Dollars credited by a losing roll. Migration 0030 pays the consolation
+       * straight into the balance instead of as coins, so this is the number to
+       * show; scrap_gained stays at 0 and is kept only so a reader of the old
+       * field does not get undefined.
+       */
+      credit_gained?: number;
       roll_id: string;
     };
 

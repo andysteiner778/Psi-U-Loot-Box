@@ -44,6 +44,25 @@ export interface ShardPrize {
   stock_qty: number;
 }
 
+/**
+ * One row of the full house catalogue, INCLUDING things already claimed.
+ *
+ * The loot page cannot be built from box_odds alone: box_odds only publishes
+ * what is currently winnable, so a monitor somebody took home vanishes from it
+ * entirely -- which made the "show claimed too" toggle structurally incapable
+ * of showing anything. Rows come from here; the CHANCES still come from
+ * box_odds, which stays the single source of truth about odds.
+ */
+export interface CatalogueItem {
+  item_id: string;
+  name: string;
+  image_url: string | null;
+  value: number;
+  rarity: Rarity;
+  stock_qty: number;
+  shard_cost: number;
+}
+
 export interface GameConfig {
   shards_required: number;
   scrap_coins_per_key: number;

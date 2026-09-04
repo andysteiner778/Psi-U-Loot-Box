@@ -261,28 +261,63 @@ async function main() {
 
     await db.from('vouchers').insert({ user_id: vp!.id, box_tier: 'tier_3', discount_pct: 0.5 });
 
-    const vb0 = (await balanceOf(vp!.id)).balance;
-    await db.rpc('open_box', { p_user_id: vp!.id, p_box_tier: 'tier_3', p_client_roll_id: crypto.randomUUID() });
-    const vb1 = (await balanceOf(vp!.id)).balance;
-    ok(Math.abs((vb0 - vb1) - prices.tier_3 * 0.5) < 0.001,
-      'the voucher halved the price ($' + (vb0 - vb1).toFixed(2) + ' of $' + prices.tier_3 + ')');
+    // Assert the CHARGE, from rolls.box_price, not the net balance change.
+    // Since migration 0030 a losing roll credits the balance, and a reward row
+    // credits it too, so the delta is "price minus whatever the roll paid back"
+    // -- which made this test fail roughly one run in three depending on what
+    // the forced-nothing roll happened to land on.
+    const chargeOf = async (rollId: string) => {
+      const { data } = await db.from('rolls').select('box_price').eq('id', rollId).single();
+      return Number((data as { box_price: number }).box_price);
+    };
 
-    await db.rpc('open_box', { p_user_id: vp!.id, p_box_tier: 'tier_3', p_client_roll_id: crypto.randomUUID() });
-    const vb2 = (await balanceOf(vp!.id)).balance;
-    ok(Math.abs((vb1 - vb2) - prices.tier_3) < 0.001,
-      'and it was single-use: the next roll paid full price ($' + (vb1 - vb2).toFixed(2) + ')');
+    // Force an ordinary item on every roll in this section. Without it a roll
+    // can legitimately win a "FREE $40 SPIN" -- a 100%-off voucher -- and the
+    // NEXT roll then costs nothing, which looked exactly like the single-use
+    // rule being broken. It was the feature working.
+    const { data: plain } = await db
+      .from('items')
+      .select('id')
+      .is('reward_credit', null)
+      .is('reward_voucher_tier', null)
+      .gt('stock_qty', 2)
+      .limit(1)
+      .single();
+    const forcePlain = async () => {
+      await db.from('drop_overrides')
+        .upsert({ user_id: vp!.id, item_id: (plain as { id: string }).id });
+    };
+
+    await forcePlain();
+    const r1 = await db.rpc('open_box', {
+      p_user_id: vp!.id, p_box_tier: 'tier_3', p_client_roll_id: crypto.randomUUID(),
+    });
+    const charge1 = await chargeOf((r1.data as { roll_id: string }).roll_id);
+    ok(Math.abs(charge1 - prices.tier_3 * 0.5) < 0.001,
+      'the voucher halved the price (charged $' + charge1.toFixed(2) + ' of $' + prices.tier_3 + ')');
+
+    await forcePlain();
+    const r2 = await db.rpc('open_box', {
+      p_user_id: vp!.id, p_box_tier: 'tier_3', p_client_roll_id: crypto.randomUUID(),
+    });
+    const charge2 = await chargeOf((r2.data as { roll_id: string }).roll_id);
+    ok(Math.abs(charge2 - prices.tier_3) < 0.001,
+      'and it was single-use: the next roll paid full price ($' + charge2.toFixed(2) + ')');
 
     // A voucher must not leak across tiers.
     await db.from('vouchers').insert({ user_id: vp!.id, box_tier: 'tier_3', discount_pct: 0.5 });
-    const vb3 = (await balanceOf(vp!.id)).balance;
-    await db.rpc('open_box', { p_user_id: vp!.id, p_box_tier: 'tier_1', p_client_roll_id: crypto.randomUUID() });
-    const vb4 = (await balanceOf(vp!.id)).balance;
-    ok(Math.abs((vb3 - vb4) - prices.tier_1) < 0.001,
-      'a High Roller voucher does not discount a cheap box');
+    await forcePlain();
+    const r3 = await db.rpc('open_box', {
+      p_user_id: vp!.id, p_box_tier: 'tier_1', p_client_roll_id: crypto.randomUUID(),
+    });
+    const charge3 = await chargeOf((r3.data as { roll_id: string }).roll_id);
+    ok(Math.abs(charge3 - prices.tier_1) < 0.001,
+      'a High Roller voucher does not discount a cheap box (charged $' + charge3.toFixed(2) + ')');
     const { data: unspent } = await db.from('vouchers').select('id')
       .eq('user_id', vp!.id).is('redeemed_at', null);
     ok((unspent ?? []).length === 1, 'and the wrong tier did not consume it');
 
+    await db.from('drop_overrides').delete().eq('user_id', vp!.id);
     await db.from('vouchers').delete().eq('user_id', vp!.id);
     await db.from('rolls').delete().eq('user_id', vp!.id);
     await db.from('profiles').delete().eq('id', vp!.id);
