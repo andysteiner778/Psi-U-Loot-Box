@@ -488,7 +488,13 @@ export function CaseReel({
               {winner.type === 'shard'
                 ? 'PC Core Shard'
                 : winner.type === 'respin'
-                  ? 'Free Re-Roll'
+                  ? // Reward items ride on the respin payload (migration 0028),
+                    // so a "50% OFF a $40 box" would otherwise be badged as a
+                    // free re-roll. The token has a fixed name; anything else
+                    // is a bonus.
+                    winner.item_name === 'Free Re-Roll Token'
+                    ? 'Free Re-Roll'
+                    : 'Bonus Reward'
                   : winner.type === 'scrap'
                     ? 'Consolation Scrap'
                     : `${RARITY_LABEL[winner.rarity]} Item Unlocked`}
@@ -564,7 +570,9 @@ export function CaseReel({
 
           {winner.type === 'respin' && (
             <p className="my-4 text-sm font-mono text-blue-300">
-              ${winner.refund_amount.toFixed(2)} refunded to your balance. Roll again!
+              {winner.item_name === 'Free Re-Roll Token'
+                ? `$${winner.refund_amount.toFixed(2)} refunded to your balance. Roll again!`
+                : `$${winner.refund_amount.toFixed(2)} added to your balance — spend it on anything.`}
             </p>
           )}
 

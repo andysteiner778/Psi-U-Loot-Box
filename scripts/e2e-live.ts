@@ -243,6 +243,58 @@ async function main() {
   }
 
   // =========================================================================
+  section('reward items pay credit, not objects');
+  {
+    // Free spins, half-price vouchers and house credit are rows in `items`
+    // carrying reward_credit, so the solvency engine prices them and stock caps
+    // the giveaway. Two win paths build payloads -- the ordinary draw and the
+    // admin drop-override -- and BOTH must credit rather than shelve. The
+    // override one was missed first time round, which meant forcing a reward in
+    // order to test it exercised the wrong branch entirely.
+    const { data: reward } = await db
+      .from('items')
+      .select('id,name,reward_credit,stock_qty,box_tier')
+      .not('reward_credit', 'is', null)
+      .gt('stock_qty', 0)
+      .limit(1)
+      .maybeSingle();
+
+    if (reward) {
+      const rw = reward as { id: string; name: string; reward_credit: number; stock_qty: number; box_tier: string };
+      const rname = 'zz-e2e-reward-' + Date.now().toString(36);
+      await db.rpc('auth_login_or_register', { p_name: rname, p_pin: '1234' });
+      const { data: rp } = await db.from('profiles').select('id').eq('name', rname).single();
+      await db.from('profiles').update({ balance: 100 }).eq('id', rp!.id);
+      await db.from('drop_overrides').upsert({ user_id: rp!.id, item_id: rw.id });
+
+      const bal0 = (await balanceOf(rp!.id)).balance;
+      const res = await db.rpc('open_box', {
+        p_user_id: rp!.id, p_box_tier: rw.box_tier, p_client_roll_id: crypto.randomUUID(),
+      });
+      const bal1 = (await balanceOf(rp!.id)).balance;
+      const payload = res.data as { type?: string; refund_amount?: number };
+      const cfgNow = await db.from('config').select('value').eq('key', 'settings').single();
+      const boxPrice = Number(
+        ((cfgNow.data!.value as Record<string, unknown>).box_prices as Record<string, number>)[rw.box_tier]
+      );
+
+      ok(payload?.type === 'respin', rw.name + ' pays as credit, not an object');
+      ok(Number(payload?.refund_amount) === Number(rw.reward_credit),
+        'credited exactly its face value (' + payload?.refund_amount + ')');
+      ok(Math.abs(bal1 - bal0 - (Number(rw.reward_credit) - boxPrice)) < 0.001,
+        'balance moved by face value minus the box price');
+      const { data: shelved } = await db.from('rolls').select('id')
+        .eq('user_id', rp!.id).eq('status', 'inventory');
+      ok((shelved ?? []).length === 0, 'nothing was put on the shelf');
+
+      await db.from('items').update({ stock_qty: rw.stock_qty }).eq('id', rw.id);
+      await db.from('drop_overrides').delete().eq('user_id', rp!.id);
+      await db.from('rolls').delete().eq('user_id', rp!.id);
+      await db.from('profiles').delete().eq('id', rp!.id);
+    }
+  }
+
+  // =========================================================================
   section('scrapping pays exactly what the player was promised');
   {
     // The reveal panel quotes items.scrap_value. For a long time scrap_item
