@@ -311,13 +311,49 @@ export interface ReelGeometry {
 export const REEL_START_X = 0;
 
 /** Track translation (px, negative) that centres card `index` under the marker. */
-export function offsetForIndex(index: number, g: ReelGeometry): number {
-  return g.viewportWidth / 2 - index * g.pitch - g.cardWidth / 2;
+export function offsetForIndex(
+  index: number,
+  g: ReelGeometry,
+  landingFraction = 0.5
+): number {
+  return g.viewportWidth / 2 - index * g.pitch - landingFraction * g.cardWidth;
+}
+
+/**
+ * WHERE INSIDE THE WINNING CARD THE MARKER COMES TO REST.
+ *
+ * 0 is its left edge, 1 its right, 0.5 dead centre. Every spin used to land on
+ * exactly 0.5, which is why they all felt identical and mechanical: the strip
+ * visibly snapped to a grid. A real case opening stops wherever it stops, and
+ * whatever the marker is touching is what you won.
+ *
+ * Kept inside [0.12, 0.88] so the marker is never in the 12px gutter between
+ * two cards. Which card you won is decided by the server and is not negotiable;
+ * the marker must never be ambiguous about it.
+ *
+ * On a near-miss spin the landing is biased hard to the LEFT of the winner --
+ * the strip crawls to the very end of the bait card and then barely tips over
+ * the boundary onto the real prize. That is the beat this whole reel exists
+ * for, and centring the card threw it away every time.
+ */
+export const LANDING_MIN = 0.12;
+export const LANDING_MAX = 0.88;
+export const LANDING_NEAR_MISS_MIN = 0.1;
+export const LANDING_NEAR_MISS_MAX = 0.28;
+
+export function randomLandingFraction(hasNearMiss: boolean, rand = Math.random()): number {
+  return hasNearMiss
+    ? LANDING_NEAR_MISS_MIN + rand * (LANDING_NEAR_MISS_MAX - LANDING_NEAR_MISS_MIN)
+    : LANDING_MIN + rand * (LANDING_MAX - LANDING_MIN);
 }
 
 /** Total px the track travels during one spin. */
-export function travelDistance(g: ReelGeometry, landingIndex: number = WINNER_INDEX): number {
-  return REEL_START_X - offsetForIndex(landingIndex, g);
+export function travelDistance(
+  g: ReelGeometry,
+  landingIndex: number = WINNER_INDEX,
+  landingFraction = 0.5
+): number {
+  return REEL_START_X - offsetForIndex(landingIndex, g, landingFraction);
 }
 
 /**
@@ -329,13 +365,22 @@ export function travelDistance(g: ReelGeometry, landingIndex: number = WINNER_IN
  * width (roughly 47 on a phone, 46–48 on a laptop), which is precisely why this
  * takes measured geometry instead of assuming a number.
  */
-export function tickFractions(g: ReelGeometry, landingIndex: number = WINNER_INDEX): number[] {
-  const total = travelDistance(g, landingIndex);
+export function tickFractions(
+  g: ReelGeometry,
+  landingIndex: number = WINNER_INDEX,
+  landingFraction = 0.5
+): number[] {
+  const total = travelDistance(g, landingIndex, landingFraction);
   if (!(total > 0)) return [];
   const out: number[] = [];
   for (let i = 0; i <= landingIndex; i++) {
+    // A tick is a card CENTRE passing the marker, which is where the eye reads
+    // the click -- so this stays at 0.5 regardless of where the strip stops.
     const travelled = REEL_START_X - offsetForIndex(i, g);
-    if (travelled > 0) out.push(Math.min(1, travelled / total));
+    // Landing left of centre means the winner's own centre never arrives, so
+    // its tick must not be scheduled. Clamping instead of dropping would pile
+    // a phantom tick onto the final frame.
+    if (travelled > 0 && travelled <= total) out.push(travelled / total);
   }
   return out;
 }
@@ -399,10 +444,11 @@ export function nearMissCueMs(
   durationMs: number = REEL_DURATION_MS,
   g?: ReelGeometry,
   ease: readonly [number, number, number, number] = REEL_EASE,
+  landingFraction = 0.5,
 ): number {
   let fraction: number;
   if (g) {
-    const total = travelDistance(g);
+    const total = travelDistance(g, WINNER_INDEX, landingFraction);
     const travelled =
       REEL_START_X - offsetForIndex(NEAR_MISS_INDEX, g) + NEAR_MISS_CLEARANCE * g.pitch;
     fraction = total > 0 ? Math.min(1, travelled / total) : 1;

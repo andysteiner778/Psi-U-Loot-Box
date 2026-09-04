@@ -11,6 +11,7 @@ import {
   cardFromResult,
   nearMissCueMs,
   offsetForIndex,
+  randomLandingFraction,
   tickFractions,
   tickTimes,
   travelDistance,
@@ -236,13 +237,20 @@ export function CaseReel({
       // Read through refs: these must not be effect dependencies.
       const g = geometryRef.current;
       const reduced = reducedMotionRef.current;
-      const targetOffset = offsetForIndex(WINNER_INDEX, g);
+
+      // Where in the winning card the marker will come to rest. Drawn ONCE per
+      // spin and reused by the travel target, the tick train and the near-miss
+      // cue, so the sound stays glued to what the eye sees. See the comment on
+      // randomLandingFraction: a near-miss lands just over the boundary, so the
+      // strip looks like it stopped on the bait and then thought better of it.
+      const landing = randomLandingFraction(hasNearMissRef.current);
+      const targetOffset = offsetForIndex(WINNER_INDEX, g, landing);
 
       const durationMs = reduced ? 300 : REEL_DURATION_MS;
 
       if (!reduced) {
         // Schedule tick train based on distance fractions inverted through bezier
-        const fractions = tickFractions(g, WINNER_INDEX);
+        const fractions = tickFractions(g, WINNER_INDEX, landing);
         const times = tickTimes(REEL_DURATION_MS, fractions, REEL_EASE);
         cancelTicksRef.current = sfx.scheduleTicks(times);
 
@@ -251,7 +259,7 @@ export function CaseReel({
         // player hears the tension sting, sees an ordinary card, and learns
         // the sound means nothing.
         if (hasNearMissRef.current) {
-          const cueTime = nearMissCueMs(REEL_DURATION_MS, g, REEL_EASE);
+          const cueTime = nearMissCueMs(REEL_DURATION_MS, g, REEL_EASE, landing);
           nearMissTimerRef.current = setTimeout(() => {
             sfx.playNearMissWhoosh();
           }, Math.max(0, cueTime));
