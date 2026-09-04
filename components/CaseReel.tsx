@@ -4,7 +4,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 import { motion, useAnimation, useReducedMotion } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { Sparkles, ArrowDown, ArrowUp, RefreshCw, X, Gift, ShieldAlert } from 'lucide-react';
-import type { OpenBoxResult, Rarity } from '@/lib/types';
+import type { BoxTier, OpenBoxResult, Rarity } from '@/lib/types';
 import { RARITY_COLOR, RARITY_LABEL, canScrap, isJackpot } from '@/lib/types';
 import {
   buildReel,
@@ -40,6 +40,14 @@ export interface CaseReelProps {
   compactCoins?: number;
   compactUsd?: number;
 }
+
+/** Player-facing names for the tiers a voucher can be locked to. */
+const TIER_LABEL: Record<BoxTier, string> = {
+  tier_0: 'Pocket Lint box',
+  tier_1: 'Loose Change box',
+  tier_2: 'The Good Stuff box',
+  tier_3: 'High Roller box',
+};
 
 const CARD_WIDTH = 180; // px
 const CARD_GAP = 12; // px
@@ -494,7 +502,9 @@ export function CaseReel({
                     // is a bonus.
                     winner.item_name === 'Free Re-Roll Token'
                     ? 'Free Re-Roll'
-                    : 'Bonus Reward'
+                    : winner.voucher_pct
+                      ? 'Voucher Won'
+                      : 'Bonus Reward'
                   : winner.type === 'scrap'
                     ? 'Consolation Scrap'
                     : `${RARITY_LABEL[winner.rarity]} Item Unlocked`}
@@ -570,9 +580,13 @@ export function CaseReel({
 
           {winner.type === 'respin' && (
             <p className="my-4 text-sm font-mono text-blue-300">
-              {winner.item_name === 'Free Re-Roll Token'
-                ? `$${winner.refund_amount.toFixed(2)} refunded to your balance. Roll again!`
-                : `$${winner.refund_amount.toFixed(2)} added to your balance — spend it on anything.`}
+              {winner.voucher_pct
+                ? `${Math.round(winner.voucher_pct * 100)}% off your next ${
+                    TIER_LABEL[winner.voucher_tier ?? 'tier_3']
+                  } — applied automatically when you open it.`
+                : winner.item_name === 'Free Re-Roll Token'
+                  ? `$${winner.refund_amount.toFixed(2)} refunded to your balance. Roll again!`
+                  : `$${winner.refund_amount.toFixed(2)} added to your balance — spend it on anything.`}
             </p>
           )}
 

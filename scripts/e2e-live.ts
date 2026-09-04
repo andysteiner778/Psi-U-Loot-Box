@@ -243,6 +243,52 @@ async function main() {
   }
 
   // =========================================================================
+  section('discount vouchers discount the right box, once');
+  {
+    // "50% OFF a $40 box" originally paid $20 of fungible credit -- the name
+    // promised a reason to open the dear box and the behaviour was 26 more
+    // spins of the cheap one. A voucher is now a row locked to a tier, and the
+    // price is computed server-side from it: the client sends a tier and
+    // nothing else, because accepting a box price from the caller was the
+    // spec's original security hole and a voucher id would be the same mistake.
+    const vname = 'zz-e2e-vch-' + Date.now().toString(36);
+    await db.rpc('auth_login_or_register', { p_name: vname, p_pin: '1234' });
+    const { data: vp } = await db.from('profiles').select('id').eq('name', vname).single();
+    await db.from('profiles').update({ balance: 300 }).eq('id', vp!.id);
+
+    const cfgV = await db.from('config').select('value').eq('key', 'settings').single();
+    const prices = (cfgV.data!.value as Record<string, unknown>).box_prices as Record<string, number>;
+
+    await db.from('vouchers').insert({ user_id: vp!.id, box_tier: 'tier_3', discount_pct: 0.5 });
+
+    const vb0 = (await balanceOf(vp!.id)).balance;
+    await db.rpc('open_box', { p_user_id: vp!.id, p_box_tier: 'tier_3', p_client_roll_id: crypto.randomUUID() });
+    const vb1 = (await balanceOf(vp!.id)).balance;
+    ok(Math.abs((vb0 - vb1) - prices.tier_3 * 0.5) < 0.001,
+      'the voucher halved the price ($' + (vb0 - vb1).toFixed(2) + ' of $' + prices.tier_3 + ')');
+
+    await db.rpc('open_box', { p_user_id: vp!.id, p_box_tier: 'tier_3', p_client_roll_id: crypto.randomUUID() });
+    const vb2 = (await balanceOf(vp!.id)).balance;
+    ok(Math.abs((vb1 - vb2) - prices.tier_3) < 0.001,
+      'and it was single-use: the next roll paid full price ($' + (vb1 - vb2).toFixed(2) + ')');
+
+    // A voucher must not leak across tiers.
+    await db.from('vouchers').insert({ user_id: vp!.id, box_tier: 'tier_3', discount_pct: 0.5 });
+    const vb3 = (await balanceOf(vp!.id)).balance;
+    await db.rpc('open_box', { p_user_id: vp!.id, p_box_tier: 'tier_1', p_client_roll_id: crypto.randomUUID() });
+    const vb4 = (await balanceOf(vp!.id)).balance;
+    ok(Math.abs((vb3 - vb4) - prices.tier_1) < 0.001,
+      'a High Roller voucher does not discount a cheap box');
+    const { data: unspent } = await db.from('vouchers').select('id')
+      .eq('user_id', vp!.id).is('redeemed_at', null);
+    ok((unspent ?? []).length === 1, 'and the wrong tier did not consume it');
+
+    await db.from('vouchers').delete().eq('user_id', vp!.id);
+    await db.from('rolls').delete().eq('user_id', vp!.id);
+    await db.from('profiles').delete().eq('id', vp!.id);
+  }
+
+  // =========================================================================
   section('reward items pay credit, not objects');
   {
     // Free spins, half-price vouchers and house credit are rows in `items`

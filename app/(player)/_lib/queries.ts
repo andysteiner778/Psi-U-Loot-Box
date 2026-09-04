@@ -23,6 +23,31 @@ export async function fetchAllOdds(): Promise<PlayerBoxOdds[]> {
 }
 
 /**
+ * The best unredeemed voucher this player holds for each tier.
+ *
+ * Display only. `open_box` finds and applies the voucher itself, from a row the
+ * client cannot write -- the client never sends a voucher id, because the
+ * spec's original security hole was accepting a price from the caller. This
+ * exists so the card can SHOW the discount before it is spent; the number that
+ * is actually charged is computed server-side either way.
+ */
+export async function fetchVouchers(userId: string): Promise<Partial<Record<BoxTier, number>>> {
+  const { data, error } = await db
+    .from('vouchers')
+    .select('box_tier,discount_pct')
+    .eq('user_id', userId)
+    .is('redeemed_at', null);
+  if (error) return {};
+  const best: Partial<Record<BoxTier, number>> = {};
+  for (const r of data ?? []) {
+    const row = r as { box_tier: BoxTier; discount_pct: number };
+    const pct = Number(row.discount_pct);
+    if (!best[row.box_tier] || pct > (best[row.box_tier] as number)) best[row.box_tier] = pct;
+  }
+  return best;
+}
+
+/**
  * How many guaranteed-prize spins this player still has.
  *
  * The welcome guarantee lives in `open_box` (migration 0025), which means a

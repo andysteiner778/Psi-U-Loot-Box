@@ -1,20 +1,22 @@
-import { fetchAllOdds, fetchGameConfig, fetchShardPrizes, fetchWelcomeSpinsLeft } from './_lib/queries';
+import { fetchAllOdds, fetchGameConfig, fetchShardPrizes, fetchVouchers, fetchWelcomeSpinsLeft } from './_lib/queries';
 import { ShardHud } from '@/components/ShardHud';
 import { BoxCard } from '@/components/BoxCard';
 import { PrizeShowcase } from '@/components/PrizeShowcase';
 import { Flame, ShieldCheck, Zap, Coins } from 'lucide-react';
 import { getSession } from '@/lib/session';
+import type { BoxTier } from '@/lib/types';
 import { db } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
 export default async function PlayerBoxesPage() {
   const session = await getSession();
-  const [oddsList, config, shardPrizes, welcomeLeft] = await Promise.all([
+  const [oddsList, config, shardPrizes, welcomeLeft, vouchers] = await Promise.all([
     fetchAllOdds(),
     fetchGameConfig(),
     fetchShardPrizes(),
     session ? fetchWelcomeSpinsLeft(session.id) : Promise.resolve(0),
+    session ? fetchVouchers(session.id) : Promise.resolve({} as Partial<Record<BoxTier, number>>),
   ]);
 
   // Read config settings row for flash sale state
@@ -116,6 +118,7 @@ export default async function PlayerBoxesPage() {
               compactCoins={config.scrap_coins_per_key}
               compactUsd={config.scrap_key_usd}
               listPrice={config.box_list_prices?.[odds.tier]}
+              voucherPct={vouchers[odds.tier]}
             />
           ))}
         </div>

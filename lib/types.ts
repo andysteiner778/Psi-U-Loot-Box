@@ -174,9 +174,18 @@ export type OpenBoxResult =
   | {
       type: 'respin';
       item_name: string;
-      rarity: 'blue';
+      rarity: Rarity;
       refund_amount: number;
       roll_id: string;
+      image_url?: string | null;
+      /**
+       * Set when the reward was a DISCOUNT VOUCHER rather than credit. The
+       * voucher is stored server-side and applied automatically on the next
+       * roll of that tier; refund_amount is 0 in this case, so a UI that only
+       * reads refund_amount would announce "$0.00 added to your balance".
+       */
+      voucher_tier?: BoxTier;
+      voucher_pct?: number;
     }
   | {
       type: 'scrap';

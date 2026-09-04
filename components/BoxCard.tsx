@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Sparkles, Eye, Zap, Flame, Lock, PackageOpen } from 'lucide-react';
+import { Sparkles, Eye, Zap, Flame, Lock, PackageOpen, Ticket } from 'lucide-react';
 import { CaseArt } from './CaseArt';
 import type { BoxTier, OpenBoxResult } from '@/lib/types';
 import { RARITY_COLOR } from '@/lib/types';
@@ -23,9 +23,11 @@ export interface BoxCardProps {
   allowHighRarityScrap?: boolean;
   compactCoins?: number;
   compactUsd?: number;
+  /** Best unredeemed voucher this player holds for THIS tier, 0.5 = half off. */
+  voucherPct?: number;
 }
 
-export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarityScrap = false, compactCoins, compactUsd, listPrice }: BoxCardProps) {
+export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarityScrap = false, compactCoins, compactUsd, listPrice, voucherPct }: BoxCardProps) {
   /**
    * Odds are server-rendered once at page load. Stock changes on every roll --
    * yours and everyone else's -- so without refreshing them the card kept
@@ -115,14 +117,30 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarit
   const tier = odds.tier;
   const meta = BOX_META[tier] || { name: 'Mystery Box', blurb: '', accent: 'grey' };
   const accentColor = RARITY_COLOR[meta.accent] || '#3b82f6';
-  const effectivePrice = odds.box_price;
+  /*
+   * A held voucher is applied by open_box, from its own row. Mirrored here ONLY
+   * so the card shows what the tap will actually cost -- and rounded the same
+   * way the SQL rounds it, or the card would quote a price the server does not
+   * charge.
+   */
+  const rawPrice = odds.box_price;
+  const effectivePrice =
+    voucherPct && voucherPct > 0
+      ? Math.round(rawPrice * (1 - Math.min(1, voucherPct)) * 100) / 100
+      : rawPrice;
   const basePrice = isFlashSale ? effectivePrice / 0.8 : effectivePrice;
   /*
    * The struck-through price. A flash sale is measured against the standing
    * price, so during a sale the "was" is the list price and the saving shown
    * is the two stacked together rather than just the sale.
    */
-  const wasPrice = listPrice && listPrice > effectivePrice ? listPrice : isFlashSale ? basePrice : null;
+  const wasPrice = voucherPct
+    ? rawPrice
+    : listPrice && listPrice > effectivePrice
+      ? listPrice
+      : isFlashSale
+        ? basePrice
+        : null;
   const percentOff = wasPrice ? Math.round((1 - effectivePrice / wasPrice) * 100) : 0;
   const hasFunds = stats.balance >= effectivePrice;
 
@@ -213,6 +231,15 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarit
         }}
       >
         {/* Flash Sale Ribbon */}
+        {voucherPct ? (
+          <div className="mb-3 flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-950/30 px-3 py-2">
+            <Ticket className="h-4 w-4 shrink-0 text-emerald-400" />
+            <span className="font-mono text-[11px] font-bold text-emerald-300">
+              Your {Math.round(voucherPct * 100)}% off voucher is on this box
+            </span>
+          </div>
+        ) : null}
+
         {isFlashSale && (
           <div className="absolute -right-12 top-6 rotate-45 bg-gradient-to-r from-red-600 to-amber-500 py-1 px-12 text-center text-[10px] font-mono font-black uppercase tracking-wider text-white shadow-lg">
             <span className="flex items-center justify-center gap-1">
