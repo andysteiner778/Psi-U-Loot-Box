@@ -1,17 +1,20 @@
-import { fetchAllOdds, fetchGameConfig, fetchShardPrizes } from './_lib/queries';
+import { fetchAllOdds, fetchGameConfig, fetchShardPrizes, fetchWelcomeSpinsLeft } from './_lib/queries';
 import { ShardHud } from '@/components/ShardHud';
 import { BoxCard } from '@/components/BoxCard';
 import { PrizeShowcase } from '@/components/PrizeShowcase';
 import { Flame, ShieldCheck, Zap, Coins } from 'lucide-react';
+import { getSession } from '@/lib/session';
 import { db } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
 export default async function PlayerBoxesPage() {
-  const [oddsList, config, shardPrizes] = await Promise.all([
+  const session = await getSession();
+  const [oddsList, config, shardPrizes, welcomeLeft] = await Promise.all([
     fetchAllOdds(),
     fetchGameConfig(),
     fetchShardPrizes(),
+    session ? fetchWelcomeSpinsLeft(session.id) : Promise.resolve(0),
   ]);
 
   // Read config settings row for flash sale state
@@ -71,6 +74,23 @@ export default async function PlayerBoxesPage() {
         potThreshold={potThreshold}
         potGateMet={potGateMet}
       />
+
+      {welcomeLeft > 0 && (
+        <div className="flex items-center gap-3 rounded-2xl border border-emerald-500/40 bg-emerald-950/30 p-4">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 text-lg">
+            🎁
+          </span>
+          <div>
+            <p className="text-sm font-bold text-emerald-300">
+              Your next {welcomeLeft} {welcomeLeft === 1 ? 'spin is' : 'spins are'} guaranteed a real prize
+            </p>
+            <p className="font-mono text-[11px] leading-relaxed text-emerald-200/70">
+              No coins, no empty pulls — on the $1 and $5 boxes you will get
+              something you can take home. Better than the odds below say.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* The good stuff, drifting past, before anyone has to tap anything. */}
       <PrizeShowcase oddsList={oddsList} shardPrizes={shardPrizes} />

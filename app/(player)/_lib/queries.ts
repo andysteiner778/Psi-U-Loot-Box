@@ -23,6 +23,25 @@ export async function fetchAllOdds(): Promise<PlayerBoxOdds[]> {
 }
 
 /**
+ * How many guaranteed-prize spins this player still has.
+ *
+ * The welcome guarantee lives in `open_box` (migration 0025), which means a
+ * beginner's real odds are BETTER than the ones the loot table publishes. That
+ * is the right direction to be wrong in, but it is still a gap between what the
+ * app says and what it does, so the box screen states it plainly.
+ */
+export async function fetchWelcomeSpinsLeft(userId: string): Promise<number> {
+  const { data: cfgRow } = await db.from('config').select('value').eq('key', 'settings').maybeSingle();
+  const total = Number((cfgRow?.value as Record<string, unknown> | undefined)?.welcome_spins ?? 0);
+  if (!(total > 0)) return 0;
+  const { count } = await db
+    .from('rolls')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId);
+  return Math.max(0, total - (count ?? 0));
+}
+
+/**
  * Prizes claimed with shards rather than won from a box.
  *
  * These are excluded from `box_odds` on purpose -- they can never drop, so
