@@ -1,8 +1,7 @@
 import { fetchAllOdds, fetchGameConfig } from './_lib/queries';
 import { ShardHud } from '@/components/ShardHud';
-import Link from 'next/link';
-import { List } from 'lucide-react';
 import { BoxCard } from '@/components/BoxCard';
+import { PrizeShowcase } from '@/components/PrizeShowcase';
 import { Flame, ShieldCheck, Zap, Coins } from 'lucide-react';
 import { db } from '@/lib/supabase/server';
 
@@ -72,6 +71,9 @@ export default async function PlayerBoxesPage() {
         potGateMet={potGateMet}
       />
 
+      {/* The good stuff, drifting past, before anyone has to tap anything. */}
+      <PrizeShowcase oddsList={oddsList} />
+
       {/* Box Cards Section */}
       <div>
         <div className="flex items-center justify-between mb-4">
@@ -81,13 +83,6 @@ export default async function PlayerBoxesPage() {
               Pick your tier. Odds dynamically rebalance as physical items are won.
             </p>
           </div>
-          <Link
-            href="/loot"
-            className="flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-xl border border-gun-700 bg-gun-900 px-3 font-mono text-[11px] text-gun-300 transition hover:border-cyan-500/50 hover:text-white"
-          >
-            <List className="h-4 w-4" />
-            <span>All items</span>
-          </Link>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
