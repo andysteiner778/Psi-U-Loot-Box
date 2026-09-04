@@ -56,6 +56,12 @@ export interface GameConfig {
   pc_display_value?: number;
   /** Undiscounted prices, so a flash sale can be shown as a strike-through. */
   base_prices: Record<BoxTier, number>;
+  /**
+   * The "was" price shown struck through on every card, always. Distinct from
+   * base_prices, which is what a FLASH SALE is measured against: this is a
+   * standing markdown, and a sale stacks on top of it.
+   */
+  box_list_prices?: Record<BoxTier, number>;
   /** Box tier / value awarded when salvaging a soulbound shard */
   shard_salvage_tier?: BoxTier;
   shard_salvage_value?: number;

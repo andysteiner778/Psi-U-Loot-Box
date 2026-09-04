@@ -115,6 +115,7 @@ export default async function PlayerBoxesPage() {
               allowHighRarityScrap={config.allow_high_rarity_scrap}
               compactCoins={config.scrap_coins_per_key}
               compactUsd={config.scrap_key_usd}
+              listPrice={config.box_list_prices?.[odds.tier]}
             />
           ))}
         </div>

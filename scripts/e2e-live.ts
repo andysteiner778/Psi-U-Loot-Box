@@ -211,7 +211,18 @@ async function main() {
     });
     ok(!gift.error, 'admin can gift spins' + (gift.error ? ': ' + gift.error.message : ''));
     const afterGift = await balanceOf(p2.id);
-    ok(afterGift.balance >= 25, 'the gift credited balance (' + usd(afterGift.balance) + ')');
+    // Derived from the live price, not hardcoded: gifting 5 tier_1 spins is
+    // worth 5x whatever tier_1 costs today, and the prices move.
+    const { data: giftCfg } = await db.from('config').select('value').eq('key', 'settings').single();
+    const tier1Price = Number(
+      ((giftCfg!.value as Record<string, unknown>).box_prices as Record<string, number>).tier_1
+    );
+    const expectedGift = tier1Price * 5;
+    ok(
+      Math.abs(afterGift.balance - expectedGift) < 0.001,
+      'the gift credited exactly 5 x ' + usd(tier1Price) + ' = ' + usd(expectedGift) +
+        ' (got ' + usd(afterGift.balance) + ')'
+    );
 
     const potAfter = await db.from('deposits').select('amount').eq('status', 'approved');
     const sumAfter = (potAfter.data ?? []).reduce((a, d) => a + Number(d.amount), 0);

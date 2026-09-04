@@ -106,6 +106,14 @@ export async function fetchGameConfig(): Promise<GameConfig> {
     pc_value: num(cfg.pc_value, DEFAULT_GAME_CONFIG.pc_value),
     // The UI must show this one, never pc_value -- see GameConfig.
     pc_display_value: num(cfg.pc_display_value, DEFAULT_GAME_CONFIG.pc_display_value ?? 400),
+    box_list_prices: cfg.box_list_prices
+      ? (Object.fromEntries(
+          BOX_TIERS.map((t) => [
+            t,
+            num((cfg.box_list_prices as Record<string, unknown>)[t], num(prices[t], 0)),
+          ])
+        ) as Record<BoxTier, number>)
+      : undefined,
     base_prices: Object.fromEntries(
       BOX_TIERS.map((t) => [t, num(prices[t], DEFAULT_GAME_CONFIG.base_prices[t])])
     ) as Record<BoxTier, number>,

@@ -17,13 +17,15 @@ import { DepositModal } from '@/components/DepositModal';
 export interface BoxCardProps {
   odds: PlayerBoxOdds;
   isFlashSale?: boolean;
+  /** The "was" price for this tier, struck through on the card. */
+  listPrice?: number;
   /** Live config: may purple/pink/gold be turned into coins? */
   allowHighRarityScrap?: boolean;
   compactCoins?: number;
   compactUsd?: number;
 }
 
-export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarityScrap = false, compactCoins, compactUsd }: BoxCardProps) {
+export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarityScrap = false, compactCoins, compactUsd, listPrice }: BoxCardProps) {
   /**
    * Odds are server-rendered once at page load. Stock changes on every roll --
    * yours and everyone else's -- so without refreshing them the card kept
@@ -115,6 +117,13 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarit
   const accentColor = RARITY_COLOR[meta.accent] || '#3b82f6';
   const effectivePrice = odds.box_price;
   const basePrice = isFlashSale ? effectivePrice / 0.8 : effectivePrice;
+  /*
+   * The struck-through price. A flash sale is measured against the standing
+   * price, so during a sale the "was" is the list price and the saving shown
+   * is the two stacked together rather than just the sale.
+   */
+  const wasPrice = listPrice && listPrice > effectivePrice ? listPrice : isFlashSale ? basePrice : null;
+  const percentOff = wasPrice ? Math.round((1 - effectivePrice / wasPrice) * 100) : 0;
   const hasFunds = stats.balance >= effectivePrice;
 
   /**
@@ -273,10 +282,17 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarit
           <div className="flex items-baseline justify-between font-mono">
             <span className="text-xs text-gun-400">Price per roll:</span>
             <div className="flex items-baseline gap-2">
-              {isFlashSale && (
-                <span className="text-xs text-gun-500 line-through">
-                  ${basePrice.toFixed(2)}
-                </span>
+              {wasPrice && (
+                <>
+                  <span className="text-xs text-gun-500 line-through">
+                    ${wasPrice.toFixed(2)}
+                  </span>
+                  {percentOff > 0 && (
+                    <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">
+                      -{percentOff}%
+                    </span>
+                  )}
+                </>
               )}
               <span className="text-2xl font-black text-white">
                 ${effectivePrice.toFixed(2)}
