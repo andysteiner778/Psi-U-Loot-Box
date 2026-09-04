@@ -243,6 +243,71 @@ async function main() {
   }
 
   // =========================================================================
+  section('scrapping pays exactly what the player was promised');
+  {
+    // The reveal panel quotes items.scrap_value. For a long time scrap_item
+    // derived its own coin count instead, and when the coin denomination
+    // changed in 0023 the two silently diverged: the panel said "+42 coins"
+    // and scrapping paid 3. Nothing failed, no error, the books still balanced
+    // -- the player was just quietly short-changed by fourteen times.
+    const scrapper = 'zz-e2e-scrap-' + Date.now().toString(36);
+    await db.rpc('auth_login_or_register', { p_name: scrapper, p_pin: '1234' });
+    const { data: sp } = await db.from('profiles').select('id').eq('name', scrapper).single();
+    await db.from('profiles').update({ balance: 40, scrap_coins: 0 }).eq('id', sp!.id);
+
+    const { data: target } = await db
+      .from('items')
+      .select('id,name,scrap_value')
+      .eq('rarity', 'grey')
+      .gt('stock_qty', 0)
+      .gt('scrap_value', 0)
+      .limit(1)
+      .maybeSingle();
+
+    if (target) {
+      await db.from('drop_overrides').upsert({ user_id: sp!.id, item_id: (target as { id: string }).id });
+      const roll = await db.rpc('open_box', {
+        p_user_id: sp!.id, p_box_tier: 'tier_0', p_client_roll_id: crypto.randomUUID(),
+      });
+      const promised = Number((roll.data as { scrap_value?: number })?.scrap_value ?? -1);
+      const before = (await db.from('profiles').select('scrap_coins').eq('id', sp!.id).single()).data!.scrap_coins;
+      const res = await db.rpc('scrap_item', {
+        p_user_id: sp!.id, p_roll_id: (roll.data as { roll_id: string }).roll_id,
+      });
+      const after = (await db.from('profiles').select('scrap_coins').eq('id', sp!.id).single()).data!.scrap_coins;
+      const paid = after - before;
+      ok(!res.error, 'scrapped the forced item' + (res.error ? ': ' + res.error.message : ''));
+      ok(promised > 0, 'the reveal quoted a scrap value (' + promised + ' coins)');
+      // The reveal shows msrp -- the price the room is told -- not est_value,
+      // which is the economy's cost basis. open_box did not emit msrp at all
+      // for a long time; the UI silently rendered est_value instead, and after
+      // the catalogue was re-priced that meant telling a winner their $5 item
+      // was worth $1.40.
+      const { data: rowMsrp } = await db
+        .from('items')
+        .select('msrp')
+        .eq('id', (target as { id: string }).id)
+        .single();
+      const wantMsrp = (rowMsrp as { msrp: number | null } | null)?.msrp;
+      if (wantMsrp !== null && wantMsrp !== undefined) {
+        ok(
+          Number((roll.data as { msrp?: number })?.msrp) === Number(wantMsrp),
+          'the reveal carries the sticker price, not the cost basis ($' + wantMsrp + ')'
+        );
+      }
+      ok(paid === promised, 'scrapping PAID what it promised (' + paid + ' vs ' + promised + ')');
+      ok(
+        Number((res.data as { scrap_gained?: number })?.scrap_gained ?? -1) === promised,
+        'the RPC reports the same number it credited'
+      );
+      await db.from('drop_overrides').delete().eq('user_id', sp!.id);
+    }
+    await db.from('rolls').delete().eq('user_id', sp!.id);
+    const delErr = (await db.from('profiles').delete().eq('id', sp!.id)).error;
+    ok(!delErr, 'scrap probe cleaned up' + (delErr ? ': ' + delErr.message : ''));
+  }
+
+  // =========================================================================
   section('scrapping never pays more than an item is worth');
 
   const { data: cfgRow } = await db.from('config').select('value').eq('key', 'settings').single();

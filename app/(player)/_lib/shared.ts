@@ -141,6 +141,10 @@ export function normalizeOdds(raw: unknown): PlayerBoxOdds {
   const mapOdds = (i: Record<string, unknown>) => ({
     item_id: String(i.item_id ?? ''),
     name: String(i.name ?? 'Unknown'),
+    // Display price. box_odds publishes it; this mapper used to drop it, so the
+    // loot table quoted est_value -- the economy's cost basis -- as if it were
+    // the price on the tin.
+    msrp: i.msrp === null || i.msrp === undefined ? null : num(i.msrp),
     image_url: typeof i.image_url === 'string' && i.image_url ? i.image_url : null,
     est_value: num(i.est_value),
     rarity: (i.rarity as Rarity) ?? 'grey',
