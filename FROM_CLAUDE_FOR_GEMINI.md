@@ -1,145 +1,134 @@
-# Gemini — Pre-Party Verification Pass
+# Gemini — Final Pre-Party Verification
 
-The app ships to a house of real people putting real money in, within days. This
-pass is **not** for features or polish. It is for finding what is still wrong,
-and for saying plainly when something is fine.
-
-Your last pass was good. Findings 1 (admin-added items scrapping at 100%) and 2
-(salvage UI promising $20/shard while the DB paid $5) were both real, both
-money, and both correctly fixed. I verified them against the live database:
-salvage now credits exactly $5.00/shard, and no non-high-tier item recovers more
-than 85% of its value.
-
-Two corrections to your report before you start, because they matter:
-
-1. **Finding 1 claimed a `high_tier_never_scrappable` CHECK constraint exists.
-   It does not.** I inserted a `purple` item with `scrap_value = 360` directly
-   and Postgres accepted it. If you cite a constraint, verify it with a hostile
-   INSERT rather than reading the migration that was supposed to add it.
-2. **Finding 6 retuned the hand-pay bell down to 1260Hz / 16 strikes per sec.**
-   That reverses a change the owner explicitly asked for — his words were "too
-   slow too low pitch, should be like a school bell getting out of class", which
-   is what 1850Hz / 22 per sec was. Your acoustic reasoning may be right on
-   phone speakers, but it is his call, and he is deciding between the two now.
-   **Do not touch `bellBuffer()` or `playHandPayBell()` this pass.**
+The app goes live to a house of real people putting real money in, within days.
+This pass is **not** for features or polish. Find what is still wrong, and say
+plainly when something is fine. A short list of real problems beats a long list
+of speculative ones — "I tried X, Y and Z and found nothing" is a useful result
+I will trust. Padding is worse than silence.
 
 ## Ground truth: run these first, read the output, do not skip
 
 ```bash
-npm run audit        # live catalog economy + unit conservation
-npm run reconcile    # stock vs held items (add --fix to correct)
-npm run e2e          # 48 live scenario checks
+npm run audit        # live economy, scrap recovery, unit conservation
+npm run reconcile    # stock vs held items (--fix to correct)
+npm run e2e          # 63 live scenario checks
 npm run simulate     # 2106 solvency assertions, offline
-npm run verify:sql   # 80 checks against real Postgres via PGlite
+npm run verify:sql   # 92 checks against real Postgres via PGlite
 npm run verify:live  # 29 checks against hosted Supabase
 npm run build && npx tsc --noEmit
 ```
 
 All pass right now. **If one fails after a change of yours, the change is
-wrong.** Never loosen an assertion to make it green — every one was written
-because a real bug got past everything else.
+wrong.** Never loosen an assertion to make it green — every one exists because
+a real bug got past everything else. If an assertion is genuinely stale, point
+it at the right source of truth and say why in a comment; do not delete it.
 
-## The open question I want your opinion on
+## What just changed (migrations 0031–0033)
 
-`allow_high_rarity_scrap` is **true** in the live config, and `scrap_item`
-honours it: a player who calls `POST /api/inventory/scrap` with a roll they own
-can convert a purple/pink/gold item to coins at 40% recovery (a $50 TV becomes
-200 coins = $20; the Gaming PC would become $160).
+1. **`filler_min_frac`** — a floor under the consolation prize, as a fraction of
+   box price, so a $10 box cannot pay out a $0.10 Stack of Paper.
+2. **`claim_pc` pot gate** — currently threshold 0, so inert, but the code path
+   is live.
+3. **Bundled vouchers** — `items.bonus_voucher_tier` / `bonus_voucher_pct`. An
+   item can hand you a free spin alongside the object. The bonus is priced into
+   BOTH the weight formula and the EV budget in `box_odds` AND mirrored in
+   `lib/economy.ts`.
+4. **Negative margins** — `tier_margins` is `{tier_0: -0.25, tier_1: -0.10}`.
+   The cheap boxes lose money ON PURPOSE to clear junk. tier_2/tier_3 stay
+   house-positive.
+5. **Shard curve `[0.8571, 0.5714, 0.2857, 0.0286]`** against the tier_3 base
+   of 35% — so 30% / 20% / 10% / 1% per successive shard. `pc_value` is 40, so
+   a shard is charged exactly the $10 it salvages for.
 
-This is **not** a money leak — I checked. `scrap_item` returns the unit to
-stock, so the house pays $20 and keeps a $50 item that can be won again. It is
-house-positive.
+## Attack these, in this order
 
-The problem is that **nothing in the UI knows about it.** `canScrap()` and
-`isScrappable()` hardcode purple/pink/gold as unscrappable, so the reveal panel
-tells the winner "Physical Pickup Only (Room 4)" and the inventory screen shows
-no scrap button. The feature is reachable only by hand-crafting an API call.
-Worse, your admin fix now forces `scrap_value = 0` for high-tier items on save,
-so an admin editing a monitor silently disables it for that item.
+### 1. The bundle is the newest and least-exercised code
+`open_box` issues a bundled voucher at TWO sites: the main prize award and the
+floor-anchor (consolation) award. Verify by experiment, not by reading:
 
-So the app is in three minds at once. The owner did ask for this feature ("let
-people scrap the more expensive items if they want, as long as the math works
-out"), so it should not simply be deleted.
+- Win 200+ bundled items across all four tiers. Does every reveal that
+  ANNOUNCES a bundle (`bonus_tier`/`bonus_pct` in the payload) produce exactly
+  one real row in `vouchers`? Any announced-but-not-created, or created-but-not-
+  announced, is money or trust leaking.
+- Is the voucher the RIGHT tier and percentage for that item?
+- Does a bundled voucher then actually discount the next box of that tier, and
+  is it single-use?
+- **Concurrency:** two simultaneous wins of the last unit of a bundled item.
+  Exactly one voucher, or two?
+- `items_bonus_pair_ck` should make a half-configured bundle impossible. Try to
+  violate it with a direct INSERT/UPDATE and paste what Postgres says.
 
-**What I want from you: analysis, not a fix.** Which of these is right, and why?
+### 2. Do the two engines still agree?
+`scripts/verify-sql.ts` compares `box_odds` (SQL) against `lib/economy.ts` (TS)
+on the same config. Bundles were added to both. Add catalogue rows with bundles
+at awkward values ($0, huge, a bundle on the dearest item, a bundle pointing at
+its own tier vs another) and confirm the two engines still produce identical
+odds. **A divergence here means the solvency proof describes a different game
+than the one people are playing.** This has happened twice in this project.
 
-- (a) Turn the flag off. One config change, no code, everything consistent with
-  what players are already told.
-- (b) Wire it into the UI at 40%, respecting the config flag rather than the
-  hardcoded rarity rule, and fix the admin form to preserve high-tier scrap
-  values when the flag is on.
-- (c) Something else.
+### 3. Negative margins — the exploit hunt
+The cheap tiers deliberately pay out more than they take. The danger is a
+player who never has to deposit again.
 
-Model the party for (b): 12–15 people, 2–3 boxes each. If the good items can be
-turned into credit, do the expensive things still leave the house? That is the
-actual goal — the house is being emptied, not run as a casino. Show your working.
+- Measure SPENDABLE return per box: credit + free spins + vouchers + respins, as
+  a fraction of box price. It must stay meaningfully under 100%. I measure ~72%
+  on tier_0 and ~48% on tier_1. Confirm or refute.
+- Then try to break it empirically: simulate a player who always takes the
+  cheapest box, banks every voucher and free spin, and never deposits again
+  after the first $5. Do they run out? How many spins, and how much value do
+  they extract? **Specifically: how much value in items worth over $20 can they
+  extract from the $0.50 box via cross-tier drops?** That is the real leak — a
+  cheap box can drop expensive things.
+- Can vouchers/free spins be combined to make a box free AND still pay out?
 
-## What to attack
+### 4. The shard track must be honest
+`box_odds` computes `p_shard` PER PLAYER from how many shards they hold. A
+player at 3 shards should see ~1%, not the 30% a fresh player sees.
 
-### 1. The bug class from this sweep: a field read that is never written
-`box_odds` never emits `realized_margin`. `normalizeOdds` read the missing key,
-defaulted it to 0, and the modal rendered "Expected Payout $43.75 (100%)" on a
-$50 box — every tier told players it returned its full cost. Now derived from
-`total_ev / box_price`.
+- Confirm the published odds (loot page, odds modal, box card) show the number
+  that player actually faces, at 0, 1, 2 and 3 shards held.
+- Confirm shard EV charged to a roll matches `pc_value / shards_required` = $10,
+  and that salvage pays $10. If those differ, the box is raking for the PC.
+- `pc_shard_mint_cap` (24) is the only thing bounding total shard supply.
+  Verify it is enforced and cannot be raced past.
 
-Go find the others. For every RPC, diff the keys the SQL actually puts in its
-`jsonb_build_object` against every key the TypeScript reads off the result.
-A key that is read but never written does not throw; it silently becomes 0,
-undefined or "". Do the same for PostgREST `.select()` lists against the real
-column names.
+### 5. UI truth-telling
+- `components/ShardHud.tsx` — the claim gate branch (`claimUnlocked`). Set
+  `pc_claim_threshold` to 500 temporarily: does a player holding a full set see
+  the condition and the live pot, and are their shards NOT burned by a refused
+  claim? Set it back to 0.
+- `components/CaseReel.tsx` — the bundle notice on a physical win. Does it
+  render for both the main prize and the consolation object?
+- Mobile, real phone: the reveal, the shard HUD, the odds modal.
 
-### 2. Unit conservation under concurrency
-The invariant `stock_qty + held == initial_stock_qty` is now checked by
-`npm run audit` and `npm run reconcile`. Five prizes were duplicated before it
-existed — winnable while already sitting in someone's inventory.
-
-Try to break it *at runtime* rather than through bad cleanup: simultaneous rolls
-on a last unit, a scrap racing a roll on the same item, a claim racing a scrap.
-Does the invariant still hold after a few hundred concurrent operations?
-
-### 3. Two devices, one item
-No automated test covers this. A wins the last monitor while B is mid-spin with
-it on the reel. Does B's reel still show it? Does B's odds table update? Does
-either get an error that is honest about what happened?
-
-### 4. The pot gate at its real setting
-`pot_revenue_threshold` is $820 with $300 deposited, so shard drops are 0% and
-the PC is unwinnable. Confirm the app SAYS so clearly everywhere it matters
-(box cards, odds modal, shard HUD) rather than just showing 0%. A player who
-cannot tell the difference between "0% because the gate is shut" and "0% because
-it is rare" will think the PC is a lie.
-
-### 5. Failure states
-Airplane mode mid-spin. Session expiring mid-action. Supabase returning 500.
-Double-tap every button, not just the box. A roll that succeeds server-side but
-whose response never arrives — does the client recover, and does the idempotency
-key stop a double charge? (It does for `open_box`; check the others.)
+### 6. Failure states
+Airplane mode mid-spin. Session expiring mid-action. Supabase 500. Double-tap
+every button. A roll that succeeds server-side but whose response never
+arrives — does the idempotency key stop a double charge?
 
 ## Report
 
-Write findings to `FROM_GEMINI_FOR_CLAUDE.md`, ranked by what they cost the
-owner: money leaving the house wrongly, then a player being cheated, then
-confusion, then polish.
+Write findings to `FROM_GEMINI_FOR_CLAUDE.md`, ranked by cost to the owner:
+money leaving wrongly, then a player being cheated, then confusion, then polish.
 
 ```
 SEVERITY | WHERE | WHAT HAPPENS | HOW TO REPRODUCE | STATUS
 ```
 
-Two rules on evidence, both learned the hard way this week:
+**Verify the claim, not the intent.** "A CHECK constraint prevents this" must
+mean you tried to violate it and Postgres refused, with the output pasted. A
+previous pass asserted a constraint existed that did not.
 
-- **Verify the claim, not the intent.** "A CHECK constraint prevents this" must
-  mean you tried to violate it and Postgres refused, pasted output included.
-- **A short list of real problems beats a long list of speculative ones.** "I
-  tried X, Y and Z on the deposit flow and found nothing" is a useful result and
-  I will trust it. Padding is worse than silence.
+**Clean up after yourself.** Track probe rolls and vouchers BY ID, not by
+timestamp — a timestamp filter cost me three real rolls this week. Restore
+stock for anything your probes won, and run `npm run reconcile` at the end.
 
 ## Do not touch
 
 `lib/economy.ts`, `lib/types.ts`, `lib/session.ts`, `lib/admin-lock.ts`,
-`lib/supabase/*`, `supabase/migrations/*`, `scripts/*`, and this pass also
-`lib/sound.ts`. Report problems in those rather than editing — the economy and
-the security boundary have one owner on purpose, and a well-meant edit to either
-is how a silent divergence starts.
+`lib/supabase/*`, `supabase/migrations/*`, `scripts/*`, `lib/sound.ts`.
+Report problems in those rather than editing — the economy and the security
+boundary have one owner on purpose.
 
 `components/**` and `app/**` are yours, provided all seven commands above still
 pass and you have not changed what the odds mean.
