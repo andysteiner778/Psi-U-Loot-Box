@@ -14,6 +14,7 @@ import {
   Box,
   Layers,
   User,
+  Ticket,
 } from 'lucide-react';
 import { usePlayer } from '@/app/(player)/_lib/player-store';
 import { apiLogout } from '@/app/(player)/_lib/api';
@@ -26,6 +27,11 @@ export function Header() {
   const [isMuted, setIsMuted] = useState(sfx.muted);
   const [depositOpen, setDepositOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  const totalVouchers = Object.values(stats.vouchers ?? {}).reduce(
+    (acc, v) => acc + (v?.count ?? 0),
+    0
+  );
 
   const handleToggleSound = () => {
     const next = sfx.toggleMuted();
@@ -121,6 +127,19 @@ export function Header() {
                 {stats.scrap_coins}
               </span>
             </Link>
+
+            {/* Active Discount Vouchers Pill */}
+            {totalVouchers > 0 && (
+              <div
+                title={`${totalVouchers} active discount voucher${totalVouchers > 1 ? 's' : ''} available`}
+                className="flex min-h-[44px] items-center rounded-xl border border-emerald-500/40 bg-emerald-950/40 px-2.5 py-1.5 shadow-inner"
+              >
+                <Ticket className="h-3.5 w-3.5 text-emerald-400 mr-1.5 shrink-0" />
+                <span className="font-mono text-xs font-bold text-emerald-300 whitespace-nowrap">
+                  {totalVouchers} {totalVouchers === 1 ? 'Voucher' : 'Vouchers'}
+                </span>
+              </div>
+            )}
 
             {/* Mobile Inventory Link (visible when < md) */}
             <Link

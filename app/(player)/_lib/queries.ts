@@ -2,7 +2,7 @@ import 'server-only';
 import { db } from '@/lib/supabase/server';
 import { BOX_TIERS, type BoxTier, type Rarity, type Roll } from '@/lib/types';
 import { callRpc } from './http';
-import { DEFAULT_GAME_CONFIG, normalizeOdds, type CatalogueItem, type GameConfig, type PlayerBoxOdds, type ShardPrize } from './shared';
+import { DEFAULT_GAME_CONFIG, normalizeOdds, type CatalogueItem, type GameConfig, type PlayerBoxOdds, type ShardPrize, type VoucherSummary } from './shared';
 
 /**
  * Server-side reads for the player pages.
@@ -79,20 +79,27 @@ export async function fetchCatalogue(): Promise<CatalogueItem[]> {
  * exists so the card can SHOW the discount before it is spent; the number that
  * is actually charged is computed server-side either way.
  */
-export async function fetchVouchers(userId: string): Promise<Partial<Record<BoxTier, number>>> {
+export async function fetchVouchers(userId: string): Promise<Partial<Record<BoxTier, VoucherSummary>>> {
   const { data, error } = await db
     .from('vouchers')
     .select('box_tier,discount_pct')
     .eq('user_id', userId)
     .is('redeemed_at', null);
   if (error) return {};
-  const best: Partial<Record<BoxTier, number>> = {};
+  const result: Partial<Record<BoxTier, VoucherSummary>> = {};
   for (const r of data ?? []) {
     const row = r as { box_tier: BoxTier; discount_pct: number };
     const pct = Number(row.discount_pct);
-    if (!best[row.box_tier] || pct > (best[row.box_tier] as number)) best[row.box_tier] = pct;
+    if (!result[row.box_tier]) {
+      result[row.box_tier] = { count: 1, bestPct: pct };
+    } else {
+      result[row.box_tier]!.count += 1;
+      if (pct > result[row.box_tier]!.bestPct) {
+        result[row.box_tier]!.bestPct = pct;
+      }
+    }
   }
-  return best;
+  return result;
 }
 
 /**

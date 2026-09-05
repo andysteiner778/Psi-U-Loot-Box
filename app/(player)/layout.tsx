@@ -1,11 +1,10 @@
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/session';
-import { db } from '@/lib/supabase/server';
 import { PlayerProvider, ToastStack } from './_lib/player-store';
 import { fetchGameConfig } from './_lib/queries';
+import { playerStats } from './_lib/http';
 import { Ticker } from '@/components/Ticker';
 import { Header } from '@/components/Header';
-import type { PlayerStats } from './_lib/shared';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,20 +18,11 @@ export default async function PlayerLayout({ children }: { children: React.React
     redirect('/login');
   }
 
-  // Fetch live stats from database
-  const { data: profile } = await db
-    .from('profiles')
-    .select('balance, scrap_coins, pc_shards')
-    .eq('id', session.id)
-    .single();
-
-  const initialStats: PlayerStats = {
-    balance: Number(profile?.balance ?? 0),
-    scrap_coins: Number(profile?.scrap_coins ?? 0),
-    pc_shards: Number(profile?.pc_shards ?? 0),
-  };
-
-  const config = await fetchGameConfig();
+  // Fetch live stats (balances and active vouchers) from database
+  const [initialStats, config] = await Promise.all([
+    playerStats(session.id),
+    fetchGameConfig(),
+  ]);
 
   return (
     <PlayerProvider user={session} config={config} initialStats={initialStats}>

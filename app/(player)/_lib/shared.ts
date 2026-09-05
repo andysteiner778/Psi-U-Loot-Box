@@ -8,11 +8,31 @@ import type { BoxOdds, BoxTier, Rarity, Roll } from '@/lib/types';
  * a type out of here without dragging the service-role client into the bundle.
  */
 
+/** Live voucher summary per tier: count held and best discount rate (e.g. 1.0 or 0.5). */
+export interface VoucherSummary {
+  count: number;
+  bestPct: number;
+}
+
+/** Ladder destination metadata to showcase target box and top prize upon voucher win. */
+export interface DestinationTarget {
+  tier: BoxTier;
+  boxName: string;
+  boxPrice: number;
+  topItem?: {
+    name: string;
+    value: number;
+    rarity: Rarity;
+    image_url: string | null;
+  };
+}
+
 /** Live counters echoed back after every mutation so the HUD can reconcile. */
 export interface PlayerStats {
   balance: number;
   scrap_coins: number;
   pc_shards: number;
+  vouchers?: Partial<Record<BoxTier, VoucherSummary>>;
 }
 
 /**

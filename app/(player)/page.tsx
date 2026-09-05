@@ -9,6 +9,7 @@ import { db } from '@/lib/supabase/server';
 import { readClearanceConfig } from '@/app/admin/_lib/clearance';
 import { ClearanceView } from '@/components/ClearanceView';
 import { ClearanceTabContainer } from '@/components/ClearanceTabContainer';
+import { BOX_META, type DestinationTarget, type VoucherSummary } from './_lib/shared';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +23,7 @@ export default async function PlayerBoxesPage() {
     fetchGameConfig(),
     fetchShardPrizes(),
     session ? fetchWelcomeSpinsLeft(session.id) : Promise.resolve(0),
-    session ? fetchVouchers(session.id) : Promise.resolve({} as Partial<Record<BoxTier, number>>),
+    session ? fetchVouchers(session.id) : Promise.resolve({} as Partial<Record<BoxTier, VoucherSummary>>),
     readClearanceConfig(),
   ]);
 
@@ -64,6 +65,25 @@ export default async function PlayerBoxesPage() {
 
   const potTotal = (potData ?? []).reduce((sum, d) => sum + Number(d.amount || 0), 0);
   const potGateMet = potTotal >= potThreshold;
+
+  const destinations: Partial<Record<BoxTier, DestinationTarget>> = {};
+  for (const o of oddsList) {
+    const sorted = [...o.items].sort((a, b) => (b.msrp ?? b.est_value) - (a.msrp ?? a.est_value));
+    const inStock = sorted.find((i) => i.stock_qty > 0) ?? sorted[0];
+    destinations[o.tier] = {
+      tier: o.tier,
+      boxName: BOX_META[o.tier]?.name ?? o.tier,
+      boxPrice: o.box_price,
+      topItem: inStock
+        ? {
+            name: inStock.name,
+            value: inStock.msrp ?? inStock.est_value,
+            rarity: inStock.rarity,
+            image_url: inStock.image_url ?? null,
+          }
+        : undefined,
+    };
+  }
 
   return (
     <ClearanceTabContainer
@@ -145,7 +165,8 @@ export default async function PlayerBoxesPage() {
               compactCoins={config.scrap_coins_per_key}
               compactUsd={config.scrap_key_usd}
               listPrice={config.box_list_prices?.[odds.tier]}
-              voucherPct={vouchers[odds.tier]}
+              voucherPct={vouchers[odds.tier]?.bestPct}
+              destinations={destinations}
             />
           ))}
         </div>

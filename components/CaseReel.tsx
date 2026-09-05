@@ -3,8 +3,9 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { motion, useAnimation, useReducedMotion } from 'framer-motion';
 import confetti from 'canvas-confetti';
-import { Sparkles, ArrowDown, ArrowUp, RefreshCw, X, Gift, ShieldAlert } from 'lucide-react';
+import { Sparkles, ArrowDown, ArrowUp, RefreshCw, X, Gift, ShieldAlert, Ticket, Package } from 'lucide-react';
 import type { BoxTier, OpenBoxResult, Rarity } from '@/lib/types';
+import type { DestinationTarget } from '@/app/(player)/_lib/shared';
 import { RARITY_COLOR, RARITY_LABEL, canScrap, isJackpot } from '@/lib/types';
 import {
   buildReel,
@@ -27,6 +28,8 @@ export interface CaseReelProps {
   winner: OpenBoxResult;
   decoys?: ReelCard[];
   tierName?: string;
+  tier?: BoxTier;
+  destinations?: Partial<Record<BoxTier, DestinationTarget>>;
   onFinished?: (result: OpenBoxResult) => void;
   onSpinAgain?: () => void;
   onClose?: () => void;
@@ -79,13 +82,11 @@ function celebrationFor(
     case 'pink':
       return { particleCount: 160, spread: 108, origin: { y: 0.6 }, colors: ['#ec4899', '#f9a8d4', '#eab308'] };
     case 'purple':
-      return { particleCount: 110, spread: 88, origin: { y: 0.65 }, colors: ['#9333ea', '#c084fc', '#e9d5ff'] };
+      return { particleCount: 110, spread: 90, origin: { y: 0.62 }, colors: ['#a855f7', '#c084fc', '#ffffff'] };
     case 'blue':
-      // 36 particles at 55 degrees was a polite puff that vanished before the
-      // eye found it, so a Rare pull looked like nothing had fired at all.
-      return { particleCount: 60, spread: 72, origin: { y: 0.66 }, colors: ['#2563eb', '#93c5fd', '#dbeafe'] };
+      return { particleCount: 60, spread: 70, origin: { y: 0.65 }, colors: ['#3b82f6', '#60a5fa', '#93c5fd'] };
     default:
-      return null; // Common passes without ceremony.
+      return null;
   }
 }
 
@@ -93,6 +94,8 @@ export function CaseReel({
   winner,
   decoys = [],
   tierName = 'Mystery Box',
+  tier,
+  destinations,
   onFinished,
   onSpinAgain,
   onClose,
@@ -579,15 +582,91 @@ export function CaseReel({
           )}
 
           {winner.type === 'respin' && (
-            <p className="my-4 text-sm font-mono text-blue-300">
-              {winner.voucher_pct
-                ? `${Math.round(winner.voucher_pct * 100)}% off your next ${
-                    TIER_LABEL[winner.voucher_tier ?? 'tier_3']
-                  } — applied automatically when you open it.`
-                : winner.item_name === 'Free Re-Roll Token'
-                  ? `$${winner.refund_amount.toFixed(2)} refunded to your balance. Roll again!`
-                  : `$${winner.refund_amount.toFixed(2)} added to your balance — spend it on anything.`}
-            </p>
+            <div className="my-4 w-full text-center">
+              {winner.voucher_pct ? (
+                (() => {
+                  const targetTier = winner.voucher_tier ?? 'tier_3';
+                  const target = destinations?.[targetTier];
+                  const targetName = target?.boxName ?? TIER_LABEL[targetTier];
+                  const targetPrice = target?.boxPrice ?? 10;
+                  const discountedPrice = Math.max(
+                    0,
+                    Math.round(targetPrice * (1 - Math.min(1, winner.voucher_pct)) * 100) / 100
+                  );
+                  const topPrize = target?.topItem;
+
+                  return (
+                    <div className="rounded-2xl border-2 border-cyan-500/50 bg-gradient-to-b from-cyan-950/70 to-gun-950 p-4 text-left shadow-xl shadow-cyan-950/40 space-y-3 animate-in fade-in">
+                      <div className="flex items-center justify-between gap-2 border-b border-cyan-800/40 pb-2.5">
+                        <div className="flex items-center gap-2">
+                          <Ticket className="h-5 w-5 text-cyan-400 shrink-0" />
+                          <div>
+                            <span className="text-[10px] font-mono uppercase tracking-widest text-cyan-400 block font-bold">
+                              Ladder Tier Unlocked
+                            </span>
+                            <h4 className="text-base font-black text-white">{targetName}</h4>
+                          </div>
+                        </div>
+                        <span className="rounded-lg bg-cyan-400 px-2.5 py-1 font-mono text-xs font-black text-black uppercase shrink-0">
+                          {winner.voucher_pct >= 1 ? 'FREE SPIN' : `${Math.round(winner.voucher_pct * 100)}% OFF`}
+                        </span>
+                      </div>
+
+                      <div className="flex items-baseline justify-between text-xs font-mono">
+                        <span className="text-gun-400">Target Box Price:</span>
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-gun-500 line-through">${targetPrice.toFixed(2)}</span>
+                          <span className="text-sm font-bold text-emerald-400">
+                            {discountedPrice === 0 ? 'FREE' : `$${discountedPrice.toFixed(2)}`}
+                          </span>
+                        </div>
+                      </div>
+
+                      {topPrize && (
+                        <div className="flex items-center gap-3 rounded-xl bg-gun-900/80 p-2.5 border border-gun-750">
+                          <div className="h-12 w-12 shrink-0 rounded-lg bg-gun-950 border border-gun-800 flex items-center justify-center overflow-hidden">
+                            {topPrize.image_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={topPrize.image_url} alt={topPrize.name} className="h-full w-full object-contain p-1" />
+                            ) : (
+                              <Package className="h-6 w-6 text-gun-400" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <span className="text-[9px] font-mono text-gun-400 uppercase tracking-wide block">
+                              Best Prize In Target Box:
+                            </span>
+                            <span className="font-bold text-xs text-white truncate block">{topPrize.name}</span>
+                            <span className="font-mono text-[11px] font-semibold text-emerald-400">
+                              Est. Value ${topPrize.value.toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose?.();
+                          const el = document.getElementById(`box-${targetTier}`);
+                          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }}
+                        className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 py-3 font-mono text-xs font-bold text-white shadow-lg hover:brightness-110 active:scale-95 transition"
+                      >
+                        <Ticket className="h-4 w-4" />
+                        <span>Go to {targetName} ({winner.voucher_pct >= 1 ? 'Free' : `${Math.round(winner.voucher_pct * 100)}% Off`}) ↗</span>
+                      </button>
+                    </div>
+                  );
+                })()
+              ) : (
+                <p className="text-sm font-mono text-blue-300">
+                  {winner.item_name === 'Free Re-Roll Token'
+                    ? `$${winner.refund_amount.toFixed(2)} refunded to your balance. Roll again!`
+                    : `$${winner.refund_amount.toFixed(2)} added to your balance — spend it on anything.`}
+                </p>
+              )}
+            </div>
           )}
 
           {/* A BUNDLED VOUCHER rides along with a physical win. It has already
@@ -596,25 +675,64 @@ export function CaseReel({
               never learn they had it until the discount silently appeared on
               their next box. */}
           {winner.type === 'physical' && winner.bonus_pct ? (
-            <div className="my-3 flex items-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-950/30 px-3 py-2">
-              <Gift className="h-4 w-4 shrink-0 text-cyan-300" />
-              <p className="text-left text-xs font-mono text-cyan-200">
-                <span className="font-bold text-cyan-100">
-                  {winner.bonus_pct >= 1
-                    ? `Free ${TIER_LABEL[winner.bonus_tier ?? 'tier_0']} spin`
-                    : `${Math.round(winner.bonus_pct * 100)}% off a ${TIER_LABEL[winner.bonus_tier ?? 'tier_0']}`}
-                </span>
-                {' '}bundled in — already in your account, applied automatically.
-              </p>
-            </div>
+            (() => {
+              const bonusTier = winner.bonus_tier ?? 'tier_0';
+              const target = destinations?.[bonusTier];
+              const targetName = target?.boxName ?? TIER_LABEL[bonusTier];
+              return (
+                <div className="my-3 rounded-2xl border border-cyan-500/50 bg-cyan-950/40 p-3.5 text-left space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Gift className="h-4 w-4 text-cyan-300 shrink-0" />
+                      <span className="font-bold text-xs font-mono text-cyan-200 uppercase">
+                        Bundled Bonus Spin!
+                      </span>
+                    </div>
+                    <span className="rounded-md bg-cyan-500/20 px-2 py-0.5 font-mono text-[10px] font-bold text-cyan-300 uppercase">
+                      {winner.bonus_pct >= 1 ? 'Free Spin' : `${Math.round(winner.bonus_pct * 100)}% Off`}
+                    </span>
+                  </div>
+                  <p className="text-xs font-mono text-cyan-100/90">
+                    You also won a {winner.bonus_pct >= 1 ? 'Free Spin' : `${Math.round(winner.bonus_pct * 100)}% off`} for the <span className="font-bold text-white">{targetName}</span> — loaded into your account right now.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose?.();
+                      const el = document.getElementById(`box-${bonusTier}`);
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }}
+                    className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-900/60 py-2 font-mono text-xs font-bold text-cyan-200 hover:bg-cyan-800 transition"
+                  >
+                    <span>Jump to {targetName} ↗</span>
+                  </button>
+                </div>
+              );
+            })()
           ) : null}
 
           {winner.type === 'scrap' && (
-            <p className="my-4 text-sm font-mono text-gun-300">
-              {winner.credit_gained && winner.credit_gained > 0
-                ? `$${winner.credit_gained.toFixed(2)} credit added to your balance — spend it straight away.`
-                : `+${winner.scrap_gained} scrap coins added to your bag. Compact ${compactCoins} into $${compactUsd} credit!`}
-            </p>
+            <div className="my-4 w-full space-y-2">
+              {winner.credit_gained && winner.credit_gained > 0 ? (
+                <div className="rounded-2xl border border-emerald-500/50 bg-gradient-to-b from-emerald-950/60 to-gun-950 p-4 text-center space-y-1">
+                  <span className="text-xs font-mono uppercase tracking-widest text-emerald-400 block font-bold">
+                    Consolation Cash Back
+                  </span>
+                  <span className="text-2xl font-black text-white font-mono block">
+                    +${winner.credit_gained.toFixed(2)} Instant Credit
+                  </span>
+                  <span className="text-xs font-mono text-emerald-200/90 block leading-relaxed max-w-sm mx-auto">
+                    {tier === 'tier_0' || winner.credit_gained >= 0.10
+                      ? 'That’s 20% of your roll straight back in your balance — bank it or take another spin!'
+                      : 'Credited directly to your wallet — spend it on any box!'}
+                  </span>
+                </div>
+              ) : (
+                <p className="text-sm font-mono text-gun-300">
+                  +{winner.scrap_gained} scrap coins added to your bag. Compact {compactCoins} into ${compactUsd} credit!
+                </p>
+              )}
+            </div>
           )}
 
           {/* Action buttons */}

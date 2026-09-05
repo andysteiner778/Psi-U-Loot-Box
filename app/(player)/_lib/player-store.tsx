@@ -68,9 +68,11 @@ export function PlayerProvider({
 
   const adjust = useCallback((delta: Partial<PlayerStats>) => {
     setStats((s) => ({
+      ...s,
       balance: Math.max(0, s.balance + (delta.balance ?? 0)),
       scrap_coins: Math.max(0, s.scrap_coins + (delta.scrap_coins ?? 0)),
       pc_shards: Math.max(0, s.pc_shards + (delta.pc_shards ?? 0)),
+      ...(delta.vouchers !== undefined ? { vouchers: delta.vouchers } : {}),
     }));
   }, []);
 

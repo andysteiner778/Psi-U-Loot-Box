@@ -2,7 +2,8 @@ import 'server-only';
 import { NextResponse } from 'next/server';
 import { db, rpcErrorStatus } from '@/lib/supabase/server';
 import { ForbiddenError, UnauthorizedError } from '@/lib/session';
-import type { PlayerStats } from './shared';
+import type { BoxTier } from '@/lib/types';
+import type { PlayerStats, VoucherSummary } from './shared';
 
 /**
  * Shared plumbing for the player route handlers (auth / box / inventory).
@@ -92,19 +93,33 @@ export function toErrorResponse(err: unknown, messages?: Record<string, string>)
   return fail('Something broke on our end. Try that again.', 500);
 }
 
-/** Current balances, for the optimistic HUD to reconcile against. */
+/** Current balances and active unredeemed vouchers, for the optimistic HUD and box cards to reconcile against. */
 export async function playerStats(userId: string): Promise<PlayerStats> {
-  const { data, error } = await db
-    .from('profiles')
-    .select('balance, scrap_coins, pc_shards')
-    .eq('id', userId)
-    .maybeSingle();
+  const [profRes, vchRes] = await Promise.all([
+    db.from('profiles').select('balance, scrap_coins, pc_shards').eq('id', userId).maybeSingle(),
+    db.from('vouchers').select('box_tier, discount_pct').eq('user_id', userId).is('redeemed_at', null),
+  ]);
 
-  if (error || !data) return { balance: 0, scrap_coins: 0, pc_shards: 0 };
+  const vouchers: Partial<Record<BoxTier, VoucherSummary>> = {};
+  for (const r of vchRes.data ?? []) {
+    const tier = r.box_tier as BoxTier;
+    const pct = Number(r.discount_pct);
+    if (!vouchers[tier]) {
+      vouchers[tier] = { count: 1, bestPct: pct };
+    } else {
+      vouchers[tier]!.count += 1;
+      if (pct > vouchers[tier]!.bestPct) {
+        vouchers[tier]!.bestPct = pct;
+      }
+    }
+  }
+
+  const data = profRes.data;
   return {
-    balance: Number(data.balance ?? 0),
-    scrap_coins: Number(data.scrap_coins ?? 0),
-    pc_shards: Number(data.pc_shards ?? 0),
+    balance: Number(data?.balance ?? 0),
+    scrap_coins: Number(data?.scrap_coins ?? 0),
+    pc_shards: Number(data?.pc_shards ?? 0),
+    vouchers,
   };
 }
 

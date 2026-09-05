@@ -6,7 +6,7 @@ import { Sparkles, Eye, Zap, Flame, Lock, PackageOpen, Ticket } from 'lucide-rea
 import { CaseArt } from './CaseArt';
 import type { BoxTier, OpenBoxResult } from '@/lib/types';
 import { RARITY_COLOR } from '@/lib/types';
-import { BOX_META, money, type PlayerBoxOdds } from '@/app/(player)/_lib/shared';
+import { BOX_META, money, type PlayerBoxOdds, type DestinationTarget } from '@/app/(player)/_lib/shared';
 import { usePlayer } from '@/app/(player)/_lib/player-store';
 import { apiOdds, apiOpenBox, newRollId } from '@/app/(player)/_lib/api';
 import { sfx } from '@/lib/sound';
@@ -24,11 +24,22 @@ export interface BoxCardProps {
   allowHighRarityScrap?: boolean;
   compactCoins?: number;
   compactUsd?: number;
-  /** Best unredeemed voucher this player holds for THIS tier, 0.5 = half off. */
+  /** Initial unredeemed voucher this player holds for THIS tier, 0.5 = half off. */
   voucherPct?: number;
+  /** Ladder destination metadata map for all tiers */
+  destinations?: Partial<Record<BoxTier, DestinationTarget>>;
 }
 
-export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarityScrap = false, compactCoins, compactUsd, listPrice, voucherPct }: BoxCardProps) {
+export function BoxCard({
+  odds: initialOdds,
+  isFlashSale = false,
+  allowHighRarityScrap = false,
+  compactCoins,
+  compactUsd,
+  listPrice,
+  voucherPct: initialVoucherPct,
+  destinations,
+}: BoxCardProps) {
   /**
    * Odds are server-rendered once at page load. Stock changes on every roll --
    * yours and everyone else's -- so without refreshing them the card kept
@@ -54,6 +65,7 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarit
    * Refreshing the route re-runs the server component with the new state.
    */
   const router = useRouter();
+  const { stats, commit, adjust, toast } = usePlayer();
   const spinningRef = useRef(false);
   const refreshPendingRef = useRef(false);
 
@@ -63,8 +75,13 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarit
       return;
     }
     const res = await apiOdds(initialOdds.tier);
-    if (res.ok) setOdds(res.value.data);
-  }, [initialOdds.tier]);
+    if (res.ok) {
+      setOdds(res.value.data);
+      if (res.value.stats) {
+        commit(res.value.stats);
+      }
+    }
+  }, [initialOdds.tier, commit]);
 
   const handleOpenRef = useRef<(() => Promise<void>) | null>(null);
 
@@ -117,7 +134,6 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarit
     }
   }, [refreshOdds, initialOdds.tier]);
 
-  const { stats, commit, adjust, toast } = usePlayer();
   const [inspectOpen, setInspectOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
   const [spinning, setSpinning] = useState(false);
@@ -127,6 +143,17 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarit
   const tier = odds.tier;
   const meta = BOX_META[tier] || { name: 'Mystery Box', blurb: '', accent: 'grey' };
   const accentColor = RARITY_COLOR[meta.accent] || '#3b82f6';
+
+  // Authoritative live state from player-store wins over initial server prop.
+  // When a roll burns a voucher, commit(res.value.stats) immediately clears it.
+  const tierVoucher = stats.vouchers?.[tier];
+  const voucherPct = tierVoucher
+    ? tierVoucher.bestPct
+    : stats.vouchers
+      ? 0
+      : (initialVoucherPct ?? 0);
+  const voucherCount = tierVoucher?.count ?? (voucherPct > 0 ? 1 : 0);
+
   /*
    * A held voucher is applied by open_box, from its own row. Mirrored here ONLY
    * so the card shows what the tap will actually cost -- and rounded the same
@@ -234,19 +261,39 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarit
   return (
     <>
       <div
+        id={`box-${tier}`}
         data-rarity={meta.accent}
-        className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-gun-700/80 bg-gun-900/90 p-6 shadow-2xl backdrop-blur-md transition-all hover:border-gun-600 hover:shadow-cyan-500/10"
+        className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-gun-700/80 bg-gun-900/90 p-6 shadow-2xl backdrop-blur-md transition-all hover:border-gun-600 hover:shadow-cyan-500/10 scroll-mt-24"
         style={{
           boxShadow: `0 10px 30px -10px rgba(0,0,0,0.7), 0 0 25px -10px ${accentColor}40`,
         }}
       >
-        {/* Flash Sale Ribbon */}
-        {voucherPct ? (
-          <div className="mb-3 flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-950/30 px-3 py-2">
-            <Ticket className="h-4 w-4 shrink-0 text-emerald-400" />
-            <span className="font-mono text-[11px] font-bold text-emerald-300">
-              Your {Math.round(voucherPct * 100)}% off voucher is on this box
-            </span>
+        {/* Prominent Held Voucher CTA Banner */}
+        {voucherPct && voucherPct > 0 ? (
+          <div className="mb-4 relative overflow-hidden rounded-2xl border border-emerald-400/50 bg-gradient-to-r from-emerald-950/80 via-emerald-900/60 to-emerald-950/80 p-3 shadow-lg shadow-emerald-950/50">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40">
+                  <Ticket className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="font-mono text-xs font-black uppercase tracking-wider text-emerald-300">
+                    {voucherPct >= 1 ? 'Free Spin Voucher Active' : `You Have ${Math.round(voucherPct * 100)}% Off This Box`}
+                  </div>
+                  <div className="text-[11px] text-emerald-400/90 font-medium">
+                    {voucherCount > 1 ? `${voucherCount} vouchers available • Next spin uses highest discount` : 'Applied automatically to your next roll'}
+                  </div>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <span className="font-mono text-xs text-gun-400 line-through mr-1.5">
+                  ${rawPrice.toFixed(2)}
+                </span>
+                <span className="font-mono text-sm font-black text-emerald-300">
+                  {effectivePrice === 0 ? 'FREE' : `$${effectivePrice.toFixed(2)}`}
+                </span>
+              </div>
+            </div>
           </div>
         ) : null}
 
@@ -358,9 +405,11 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarit
                   ? 'cursor-not-allowed border border-gun-700 bg-gun-850 text-gun-400 shadow-none active:scale-100'
                   : opening || spinning
                     ? 'cursor-wait border border-indigo-500/50 bg-indigo-950/60 text-indigo-300 shadow-none active:scale-100'
-                    : hasFunds
-                      ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-indigo-600/30 hover:brightness-110'
-                      : 'bg-gun-800 text-gun-400 border border-gun-700 cursor-pointer hover:border-gun-600'
+                    : voucherPct && voucherPct >= 1
+                      ? 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 text-white shadow-emerald-600/30 hover:brightness-110'
+                      : hasFunds
+                        ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-indigo-600/30 hover:brightness-110'
+                        : 'bg-gun-800 text-gun-400 border border-gun-700 cursor-pointer hover:border-gun-600'
               }`}
             >
               {isCleanedOut ? (
@@ -373,10 +422,20 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarit
                   <Sparkles className="h-4 w-4 animate-spin" />
                   <span>Rolling…</span>
                 </>
+              ) : voucherPct && voucherPct >= 1 ? (
+                <>
+                  <Ticket className="h-4 w-4" />
+                  <span>Spin for FREE</span>
+                </>
+              ) : voucherPct && voucherPct > 0 ? (
+                <>
+                  <Ticket className="h-4 w-4" />
+                  <span>{hasFunds ? `Open Box ($${effectivePrice.toFixed(2)})` : `Add $${effectivePrice.toFixed(2)}`}</span>
+                </>
               ) : (
                 <>
                   <Sparkles className="h-4 w-4" />
-                  <span>{hasFunds ? `Open Box ($${effectivePrice})` : `Add $${effectivePrice}`}</span>
+                  <span>{hasFunds ? `Open Box ($${effectivePrice.toFixed(2)})` : `Add $${effectivePrice.toFixed(2)}`}</span>
                 </>
               )}
             </button>
@@ -408,6 +467,8 @@ export function BoxCard({ odds: initialOdds, isFlashSale = false, allowHighRarit
       {/* Reel Spinner Modal */}
       {spinning && activeWinner && (
         <CaseReel
+          tier={tier}
+          destinations={destinations}
           allowHighRarityScrap={allowHighRarityScrap}
           compactCoins={compactCoins}
           compactUsd={compactUsd}
