@@ -6,6 +6,9 @@ import { Flame, ShieldCheck, Zap, Coins } from 'lucide-react';
 import { getSession } from '@/lib/session';
 import type { BoxTier } from '@/lib/types';
 import { db } from '@/lib/supabase/server';
+import { readClearanceConfig } from '@/app/admin/_lib/clearance';
+import { ClearanceView } from '@/components/ClearanceView';
+import { ClearanceTabContainer } from '@/components/ClearanceTabContainer';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,13 +17,24 @@ const formatUsd = (n: number) => '$' + (Number(n) % 1 === 0 ? Number(n).toFixed(
 
 export default async function PlayerBoxesPage() {
   const session = await getSession();
-  const [oddsList, config, shardPrizes, welcomeLeft, vouchers] = await Promise.all([
+  const [oddsList, config, shardPrizes, welcomeLeft, vouchers, clearanceConfig] = await Promise.all([
     fetchAllOdds(),
     fetchGameConfig(),
     fetchShardPrizes(),
     session ? fetchWelcomeSpinsLeft(session.id) : Promise.resolve(0),
     session ? fetchVouchers(session.id) : Promise.resolve({} as Partial<Record<BoxTier, number>>),
+    readClearanceConfig(),
   ]);
+
+  let playerBalance = 0;
+  if (session) {
+    const { data: prof } = await db
+      .from('profiles')
+      .select('balance')
+      .eq('id', session.id)
+      .single();
+    playerBalance = Number(prof?.balance ?? 0);
+  }
 
   // Read config settings row for flash sale state
   const { data: configRow } = await db
@@ -52,17 +66,26 @@ export default async function PlayerBoxesPage() {
   const potGateMet = potTotal >= potThreshold;
 
   return (
-    <div className="space-y-6">
-      {/* Flash Sale Banner if Active */}
-      {isFlashSale && (
-        <div className="flex items-center justify-between rounded-2xl bg-gradient-to-r from-red-950 via-red-900 to-amber-950 border border-red-500/50 p-4 shadow-xl text-white">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/20 text-red-400 animate-pulse">
-              <Flame className="h-6 w-6" />
-            </div>
-            <div>
-              <h2 className="text-base font-black tracking-wide">FLASH SALE ACTIVE!</h2>
-              <p className="text-xs text-red-200">
+    <ClearanceTabContainer
+      clearanceActive={clearanceConfig.enabled}
+      clearanceNode={
+        <ClearanceView
+          user={session}
+          initialBalance={playerBalance}
+        />
+      }
+      standardBoxesNode={
+        <div className="space-y-6">
+          {/* Flash Sale Banner if Active */}
+          {isFlashSale && (
+            <div className="flex items-center justify-between rounded-2xl bg-gradient-to-r from-red-950 via-red-900 to-amber-950 border border-red-500/50 p-4 shadow-xl text-white">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/20 text-red-400 animate-pulse">
+                  <Flame className="h-6 w-6" />
+                </div>
+                <div>
+                  <h2 className="text-base font-black tracking-wide">FLASH SALE ACTIVE!</h2>
+                  <p className="text-xs text-red-200">
                 All mystery box prices slashed by 20% for the next 15 minutes.
               </p>
             </div>
@@ -148,5 +171,7 @@ export default async function PlayerBoxesPage() {
         </div>
       </div>
     </div>
-  );
+  }
+/>
+);
 }

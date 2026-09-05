@@ -94,8 +94,18 @@ async function main() {
   const spent = before.balance - after.balance;
   const kind = String(roll?.type);
 
-  if (kind === 'respin') {
+  // A TRUE re-roll refunds the price. A REWARD ITEM (a free-spin or discount
+  // voucher, migration 0028/0029) also reports type 'respin' -- it is an item
+  // you won, so it costs the box price and hands you a voucher instead of a
+  // refund. Asserting a refund for those made this check fail whenever tier_2
+  // rolled its FREE $10 SPIN, roughly one run in twelve. The property under
+  // test is the re-roll refund, so test only re-rolls.
+  const isReward = !!roll?.voucher_tier || roll?.item_name !== 'Free Re-Roll Token';
+  if (kind === 'respin' && !isReward) {
     ok(spent === 0, 'a re-roll refunds the price, so net spend is $0 (was ' + usd(spent) + ')');
+  } else if (kind === 'respin') {
+    ok(Math.abs(spent - price) < 0.001,
+      'a reward item costs the box price ' + usd(price) + ' and pays a voucher (was ' + usd(spent) + ')');
   } else {
     ok(Math.abs(spent - price) < 0.001, 'charged exactly the box price ' + usd(price) + ' (was ' + usd(spent) + ')');
   }

@@ -356,19 +356,37 @@ async function main() {
     // which seed.sql does not have. A first attempt at this test passed even
     // with the bug deliberately reintroduced.
     await db.exec(`
-      INSERT INTO items (name, est_value, rarity, scrap_value, stock_qty, box_tier)
-      VALUES ('drift-cheap-t2',  12, 'blue', 7, 3, 'tier_2'),
-             ('drift-cheap-t3',   9, 'grey', 5, 2, 'tier_3'),
-             ('drift-dear-t1',   80, 'purple', 0, 1, 'tier_1');
+      INSERT INTO items (name, est_value, rarity, scrap_value, stock_qty, box_tier,
+                         bonus_voucher_tier, bonus_voucher_pct)
+      VALUES ('drift-cheap-t2',  12, 'blue',   7, 3, 'tier_2', NULL,     NULL),
+             ('drift-cheap-t3',   9, 'grey',   5, 2, 'tier_3', NULL,     NULL),
+             ('drift-dear-t1',   80, 'purple', 0, 1, 'tier_1', NULL,     NULL),
+             -- BUNDLED fixtures. A bundle changes the weight AND the EV on both
+             -- sides, so without one in the pool this check cannot see a bundle
+             -- divergence at all -- which is exactly the state it was in when
+             -- the SELECT above was missing the two columns.
+             ('drift-bundle-free',  2, 'blue', 1, 4, 'tier_1', 'tier_1', 1),
+             ('drift-bundle-half',  1, 'grey', 1, 5, 'tier_0', 'tier_2', 0.5);
     `);
 
     const itemRows = await db.query(
+      // bonus_voucher_* MUST be here. box_odds prices a bundle into the weight
+      // AND the EV budget; without these columns the TS engine sees undefined,
+      // prices the bundle at 0, and this drift check silently compares a
+      // bundled SQL result against an unbundled TS one -- i.e. the one gate
+      // that exists to catch engine divergence goes blind to the newest
+      // feature. Any column box_odds reads belongs in this list.
       'SELECT id, name, description, image_url, est_value, rarity, scrap_value, ' +
-      'stock_qty, box_tier, is_active, msrp, shard_cost, created_at FROM items'
+      'stock_qty, box_tier, is_active, msrp, shard_cost, ' +
+      'bonus_voucher_tier, bonus_voucher_pct, created_at FROM items'
     );
     const items = itemRows.rows.map((r) => ({
       ...(r as Record<string, unknown>),
       est_value: Number((r as { est_value: string }).est_value),
+      bonus_voucher_pct:
+        (r as { bonus_voucher_pct: string | null }).bonus_voucher_pct === null
+          ? null
+          : Number((r as { bonus_voucher_pct: string }).bonus_voucher_pct),
       msrp: (r as { msrp: string | null }).msrp === null ? null : Number((r as { msrp: string }).msrp),
       stock_qty: Number((r as { stock_qty: number }).stock_qty),
       shard_cost: Number((r as { shard_cost: number }).shard_cost ?? 0),

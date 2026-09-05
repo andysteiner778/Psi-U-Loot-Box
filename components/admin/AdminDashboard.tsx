@@ -66,6 +66,39 @@ export function AdminDashboard({
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{ text: string; type: 'good' | 'bad' } | null>(null);
 
+  // Post-Party Clearance Mode state
+  const [clearanceConfig, setClearanceConfig] = useState<{
+    enabled: boolean;
+    spin_discount_rate: number;
+    allow_venmo_reserve: boolean;
+  }>({
+    enabled: false,
+    spin_discount_rate: 0.75,
+    allow_venmo_reserve: true,
+  });
+  const [clearanceStats, setClearanceStats] = useState<{ unitsRemaining: number; totalEstValue: number }>({
+    unitsRemaining: 0,
+    totalEstValue: 0,
+  });
+
+  const refreshClearance = async () => {
+    try {
+      const res = await fetch('/api/admin/clearance');
+      const j = await res.json();
+      if (j?.ok && j?.data?.config) {
+        setClearanceConfig(j.data.config);
+        setClearanceStats({
+          unitsRemaining: j.data.unitsRemaining || 0,
+          totalEstValue: j.data.totalEstValue || 0,
+        });
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    refreshClearance();
+  }, []);
+
   // Vision scanner & Quick Add state
   const nameInputRef = useRef<HTMLInputElement>(null);
   const [scanImage, setScanImage] = useState<string | null>(null);
@@ -136,6 +169,29 @@ export function AdminDashboard({
       const json = await res.json();
       if (json.ok) setOverrides(json.data);
     } catch {}
+  };
+
+  const handleUpdateClearance = async (patch: Partial<typeof clearanceConfig>) => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/clearance', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      const j = await res.json();
+      if (j?.ok && j?.data?.config) {
+        setClearanceConfig(j.data.config);
+        showMsg(`Clearance mode ${j.data.config.enabled ? 'ENABLED' : 'UPDATED'}`);
+        refreshClearance();
+      } else {
+        showMsg(j?.error || 'Failed to update clearance settings', 'bad');
+      }
+    } catch (err: any) {
+      showMsg(err?.message || 'Failed to update clearance settings', 'bad');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -1498,6 +1554,150 @@ export function AdminDashboard({
                       (thresholdDraft - grossPot).toFixed(2) +
                       ' more in approved deposits before shards start dropping.'}
                 </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Post-Party Clearance Mode Control */}
+          <div
+            className={`rounded-2xl border p-5 shadow-xl transition ${
+              clearanceConfig.enabled
+                ? 'border-cyan-500/50 bg-gun-900/90 shadow-cyan-900/20'
+                : 'border-gun-800 bg-gun-900/90'
+            }`}
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-2">
+                <Package
+                  className={`h-5 w-5 ${
+                    clearanceConfig.enabled ? 'text-cyan-400' : 'text-gun-400'
+                  }`}
+                />
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    Post-Party Clearance Mode
+                  </h3>
+                  <p className="text-xs text-gun-400">
+                    Toggle after the party to let people build custom boxes or buyout leftover inventory.
+                  </p>
+                </div>
+              </div>
+              <span
+                className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold uppercase self-start sm:self-auto ${
+                  clearanceConfig.enabled
+                    ? 'bg-cyan-950 text-cyan-400 border border-cyan-500/40'
+                    : 'bg-gun-950 text-gun-500 border border-gun-800'
+                }`}
+              >
+                {clearanceConfig.enabled ? 'LIVE / ACTIVE' : 'DISABLED'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 my-4 font-mono text-xs">
+              <div className="rounded-xl bg-gun-950 p-3 border border-gun-800">
+                <span className="text-gun-500 block text-[10px] uppercase">
+                  Units Remaining
+                </span>
+                <span className="text-white text-lg font-bold">
+                  {clearanceStats.unitsRemaining} items
+                </span>
+              </div>
+              <div className="rounded-xl bg-gun-950 p-3 border border-gun-800">
+                <span className="text-gun-500 block text-[10px] uppercase">
+                  Leftover Goods Value
+                </span>
+                <span className="text-emerald-400 text-lg font-bold">
+                  ${clearanceStats.totalEstValue.toFixed(2)}
+                </span>
+              </div>
+              <div className="rounded-xl bg-gun-950 p-3 border border-gun-800">
+                <span className="text-gun-500 block text-[10px] uppercase">
+                  Custom Spin Pricing
+                </span>
+                <span className="text-yellow-400 text-lg font-bold">
+                  {Math.round((1 - clearanceConfig.spin_discount_rate) * 100)}% OFF
+                </span>
+                <span className="text-gun-500 text-[10px] block">
+                  ({Math.round(clearanceConfig.spin_discount_rate * 100)}% of avg)
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-4 pt-2 border-t border-gun-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <span className="text-xs font-mono font-bold text-gun-200 block">
+                    Pick 3 Custom Spin Discount Multiplier
+                  </span>
+                  <span className="text-[11px] font-mono text-gun-400">
+                    Multiplier applied to the average base value of 3 bundled items
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {[
+                    { label: '30% OFF (70%)', val: 0.7 },
+                    { label: '25% OFF (75%)', val: 0.75 },
+                    { label: '20% OFF (80%)', val: 0.8 },
+                  ].map((opt) => (
+                    <button
+                      key={opt.val}
+                      type="button"
+                      onClick={() => handleUpdateClearance({ spin_discount_rate: opt.val })}
+                      disabled={loading}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition ${
+                        clearanceConfig.spin_discount_rate === opt.val
+                          ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50'
+                          : 'bg-gun-950 text-gun-400 hover:text-white border border-gun-800'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-mono font-bold text-gun-200 block">
+                    Allow Venmo Reservations
+                  </span>
+                  <span className="text-[11px] font-mono text-gun-400">
+                    Instantly decrements/holds stock and lets players Venmo you on pickup
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleUpdateClearance({
+                      allow_venmo_reserve: !clearanceConfig.allow_venmo_reserve,
+                    })
+                  }
+                  disabled={loading}
+                  className={`px-3 py-1.5 rounded-xl font-mono text-xs font-bold transition ${
+                    clearanceConfig.allow_venmo_reserve
+                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40'
+                      : 'bg-gun-950 text-gun-500 border border-gun-800'
+                  }`}
+                >
+                  {clearanceConfig.allow_venmo_reserve ? 'ENABLED' : 'DISABLED'}
+                </button>
+              </div>
+
+              <div>
+                <button
+                  type="button"
+                  onClick={() => handleUpdateClearance({ enabled: !clearanceConfig.enabled })}
+                  disabled={loading}
+                  className={`w-full py-3 rounded-xl font-mono text-xs font-bold transition shadow-lg ${
+                    clearanceConfig.enabled
+                      ? 'bg-gun-800 text-cyan-300 border border-cyan-500/40 hover:bg-gun-750'
+                      : 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-cyan-600/30 hover:brightness-110 active:scale-95'
+                  }`}
+                >
+                  {clearanceConfig.enabled
+                    ? 'Turn OFF Clearance Mode (Restore Standard Mystery Boxes)'
+                    : 'Switch ON Post-Party Clearance Mode'}
+                </button>
               </div>
             </div>
           </div>
