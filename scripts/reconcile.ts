@@ -47,12 +47,15 @@ interface ItemRow {
   name: string;
   stock_qty: number;
   initial_stock_qty: number | null;
+  /** Set on consumable rewards (credit / free spin / discount voucher). */
+  reward_credit: number | null;
+  reward_voucher_tier: string | null;
 }
 
 async function main() {
   const { data: items, error: itemsErr } = await db
     .from('items')
-    .select('id,name,stock_qty,initial_stock_qty');
+    .select('id,name,stock_qty,initial_stock_qty,reward_credit,reward_voucher_tier');
   if (itemsErr) throw itemsErr;
 
   // Held = rolls, NOT a table called `inventory`. See the header.
@@ -77,6 +80,12 @@ async function main() {
   const drift: { row: ItemRow; held: number; should: number }[] = [];
   for (const raw of (items ?? []) as ItemRow[]) {
     if (raw.initial_stock_qty === null || raw.initial_stock_qty === undefined) continue;
+    // REWARD ITEMS ARE CONSUMED, NOT HELD. Winning a "FREE $3 SPIN" decrements
+    // its stock and issues a voucher; the roll is kind='respin', so it is never
+    // counted in heldBy. Reconciling them would compute should = initial - 0
+    // and --fix would RESTORE the stock -- resurrecting a voucher a player has
+    // already spent, and minting a free spin every time this script is run.
+    if (raw.reward_credit !== null || raw.reward_voucher_tier !== null) continue;
     const h = heldBy.get(raw.name) ?? 0;
     const should = Math.max(0, raw.initial_stock_qty - h);
     if (raw.stock_qty !== should) drift.push({ row: raw, held: h, should });

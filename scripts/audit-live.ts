@@ -205,12 +205,71 @@ async function main() {
     heldBy.set(n, (heldBy.get(n) ?? 0) + 1);
   }
 
+  // ---- scrap pays what the config promises --------------------------------
+  // THE BUG THIS EXISTS FOR: scrap_value is stored in COINS, but a coin's
+  // dollar value is derived from config (scrap_key_usd / scrap_coins_per_key).
+  // When the denomination became $0.02 a coin, the stored coin counts were
+  // never rebased, so 58 of 59 items silently paid about a fifteenth of their
+  // advertised recovery -- a $50 monitor scrapped for $1.34 against a
+  // configured 40% ($20). Nothing threw. Scrap just quietly became worthless,
+  // and the only symptom was players saying scrap felt pointless.
+  //
+  // Any change to scrap_key_usd, scrap_coins_per_key, scrap_key_tier or either
+  // recovery rate trips this until the catalogue is rebased.
+  const coinUsdNow = scrapCoinUsd(cfg);
+  // These two live in the config row but are not on EconomyConfig -- they are
+  // consumed by the admin form and by catalogue tooling rather than by the
+  // odds engine, so they are read structurally here.
+  const rates = cfg as unknown as {
+    scrap_recovery_frac?: number;
+    scrap_recovery_high?: number;
+  };
+  const normalRate = rates.scrap_recovery_frac ?? 0.6;
+  const highRate = rates.scrap_recovery_high ?? 0.4;
+  console.log('\n----------------------------------------------------------------');
+  console.log(' SCRAP RECOVERY   (a coin is worth $' + coinUsdNow.toFixed(4) + ')');
+  let scrapOk = true;
+  for (const it of items) {
+    if (it.scrap_value <= 0) continue;             // deliberately unscrappable
+    if ((it.shard_cost ?? 0) > 0) continue;        // shard prizes priced by hand
+    const target = ['purple', 'pink', 'gold'].includes(it.rarity) ? highRate : normalRate;
+    const actual = (it.scrap_value * coinUsdNow) / it.est_value;
+    // Rounding to whole coins makes cheap items lumpy, so the band is wide; it
+    // is here to catch a denomination shift, not to police pennies.
+    if (actual < target * 0.6 || actual > target * 1.8) {
+      scrapOk = false;
+      warn(
+        it.name + ': scraps for ' + it.scrap_value + ' coins = $' +
+        (it.scrap_value * coinUsdNow).toFixed(2) + ' on a $' + it.est_value.toFixed(2) +
+        ' item (' + (actual * 100).toFixed(1) + '%), but config promises ' +
+        (target * 100).toFixed(0) + '%. Rebase scrap_value against the current coin.'
+      );
+    }
+  }
+  if (scrapOk) {
+    console.log('   every scrappable item pays within tolerance of its configured rate.');
+  }
+
   console.log('\n----------------------------------------------------------------');
   console.log(' UNIT CONSERVATION   (' + (heldRows ?? []).length + ' physical item(s) held by players)');
   let conservationOk = true;
   for (const it of items) {
     const initial = (it as unknown as { initial_stock_qty: number | null }).initial_stock_qty;
     if (initial === null || initial === undefined) continue;
+    // REWARD ITEMS ARE CONSUMABLES, NOT OBJECTS. Winning a "FREE $3 SPIN"
+    // decrements its stock and issues a voucher; the roll recording it is
+    // kind='respin', not kind='physical', so it never appears in heldBy and
+    // stock + held can never equal initial. This invariant is about physical
+    // things leaving the house, and a free spin is not one of them.
+    //
+    // This fired as a real-looking "a unit has gone missing" on FREE $3 SPIN.
+    // Left unfixed it teaches you to skim this section, which is exactly how
+    // five duplicated prizes survived their first audit.
+    const rw = it as unknown as {
+      reward_credit: number | null;
+      reward_voucher_tier: string | null;
+    };
+    if (rw.reward_credit !== null || rw.reward_voucher_tier !== null) continue;
     const held = heldBy.get(it.name) ?? 0;
     if (it.stock_qty + held !== initial) {
       conservationOk = false;

@@ -590,6 +590,25 @@ export function CaseReel({
             </p>
           )}
 
+          {/* A BUNDLED VOUCHER rides along with a physical win. It has already
+              been issued server-side by the time this renders, so this is a
+              receipt rather than an offer -- and without it the player would
+              never learn they had it until the discount silently appeared on
+              their next box. */}
+          {winner.type === 'physical' && winner.bonus_pct ? (
+            <div className="my-3 flex items-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-950/30 px-3 py-2">
+              <Gift className="h-4 w-4 shrink-0 text-cyan-300" />
+              <p className="text-left text-xs font-mono text-cyan-200">
+                <span className="font-bold text-cyan-100">
+                  {winner.bonus_pct >= 1
+                    ? `Free ${TIER_LABEL[winner.bonus_tier ?? 'tier_0']} spin`
+                    : `${Math.round(winner.bonus_pct * 100)}% off a ${TIER_LABEL[winner.bonus_tier ?? 'tier_0']}`}
+                </span>
+                {' '}bundled in — already in your account, applied automatically.
+              </p>
+            </div>
+          ) : null}
+
           {winner.type === 'scrap' && (
             <p className="my-4 text-sm font-mono text-gun-300">
               {winner.credit_gained && winner.credit_gained > 0

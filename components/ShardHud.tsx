@@ -31,6 +31,14 @@ export function ShardHud({
   // the machine is worth. Showing it advertised a "$50 Rig" for a $400 PC.
   const pcValue = config.pc_display_value || config.pc_value || 400;
   const hasCompletedPc = shardsHeld >= shardsReq;
+  // The finished machine waits for the pot to cover it. Shards still drop and
+  // still count -- this gates the CLAIM, not the chase -- but a player holding
+  // a full set must be told the condition and the live number, not handed a
+  // button that fails. claim_pc enforces this server-side; this is the
+  // courtesy of saying so first.
+  const claimThreshold = config.pc_claim_threshold ?? 0;
+  const claimUnlocked = potTotal >= claimThreshold;
+  const claimShortfall = Math.max(0, claimThreshold - potTotal);
 
   const salvageTier = config.shard_salvage_tier || 'tier_1';
   const salvagePrice = config.shard_salvage_value ?? (config.base_prices?.[salvageTier] ?? 5);
@@ -157,8 +165,21 @@ export function ShardHud({
               </div>
             )}
 
+            {/* A full set, but the pot cannot pay for the machine yet. */}
+            {hasCompletedPc && !claimUnlocked && (
+              <div className="flex items-center gap-2 rounded-xl border border-yellow-500/40 bg-yellow-950/30 px-3 py-2 text-xs font-mono text-yellow-200">
+                <Cpu className="h-4 w-4 shrink-0 text-yellow-400" />
+                <div>
+                  <div className="font-semibold">Set complete — unlocks at ${claimThreshold} pot</div>
+                  <div className="text-[10px] text-yellow-300/80">
+                    ${potTotal.toFixed(0)} in so far &middot; ${claimShortfall.toFixed(0)} to go &middot; your {shardsReq} shards are held safe
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Claim PC Button */}
-            {hasCompletedPc && (
+            {hasCompletedPc && claimUnlocked && (
               <button
                 onClick={handleClaimPc}
                 disabled={claiming}
@@ -244,7 +265,7 @@ export function ShardHud({
             </div>
             <h2 className="text-3xl font-black text-white">GAMING PC CLAIMED!</h2>
             <p className="mt-3 text-sm text-gun-300 leading-relaxed">
-              You successfully forged all 5 PC Core Shards! The house ${pcValue} custom gaming rig is
+              You successfully forged all {shardsReq} PC Core Shards! The house ${pcValue} custom gaming rig is
               yours.
             </p>
             <div className="my-6 rounded-2xl bg-gun-950 p-4 border border-yellow-500/30">

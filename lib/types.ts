@@ -86,6 +86,18 @@ export interface Profile {
 }
 
 export interface Item {
+  /**
+   * A BUNDLED VOUCHER. Winning this item also hands the player a free spin or
+   * a discount on the named tier, so a cheap object still leaves them able to
+   * play. Priced into both the weight and the EV budget by computeBoxOdds --
+   * see bonusValue() -- and mirrored in box_odds SQL (migration 0033).
+   *
+   * Both fields are set together or neither is; a DB CHECK enforces it,
+   * because half a bundle prices at 0 and then throws at award time.
+   */
+  bonus_voucher_tier?: BoxTier | null;
+  bonus_voucher_pct?: number | null;
+
   id: string;
   name: string;
   description: string | null;
@@ -161,6 +173,13 @@ export type OpenBoxResult =
       msrp?: number | null;
       /** Always 0 for purple/pink/gold — enforced server-side, not in the client. */
       scrap_value: number;
+      /**
+       * A voucher bundled WITH the object: won the thing, still get to play.
+       * Set from items.bonus_voucher_* and already issued by open_box by the
+       * time this arrives, so the reveal is reporting a fact, not a promise.
+       */
+      bonus_tier?: BoxTier | null;
+      bonus_pct?: number | null;
       roll_id: string;
     }
   | {
@@ -261,6 +280,19 @@ export interface EconomyConfig {
    * proof describes a different game than the one players actually play.
    */
   filler_max_value: number;
+  /**
+   * Minimum est_value an item needs to serve as filler, as a fraction of the
+   * box price. The floor anchor fires on 39% of $10 spins, and without this it
+   * could hand back a Stack of Paper or a Type C cable -- a sub-$1 trinket out
+   * of a ten dollar box, which reads as the machine laughing at you.
+   *
+   * Excluded junk does not vanish; the probability mass lands on the credit,
+   * free-spin and discount-voucher rewards that share the filler pool, which
+   * is what a player who just lost actually wants.
+   *
+   * 0 (the default) restores the old behaviour. MUST match box_odds SQL.
+   */
+  filler_min_frac?: number;
   /**
    * Weight multiplier for items that belong to a DIFFERENT tier than the box
    * being opened. 1.0 would make tiers meaningless; 0 restores strict

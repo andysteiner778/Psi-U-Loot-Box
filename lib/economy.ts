@@ -192,18 +192,41 @@ export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: Od
   // "consolation", making the floor anchor worth $5.41 against a $4.38 budget --
   // the house lost 18.5% on every tier-1 roll. Cheap junk is borrowed UP the
   // ladder, never down it.
+  //
+  // A MINIMUM as well as a maximum. Borrowing junk UP the ladder is right, but
+  // without a floor the $10 box's consolation -- which fires on 39% of spins --
+  // could pay a $0.10 Stack of Paper. Items below the floor keep dropping from
+  // the boxes they belong to; they just stop being a ten dollar box's idea of
+  // a consolation prize. The mass they lose lands on the credit, free-spin and
+  // voucher rewards that share this pool.
   const tierRank = BOX_TIERS.indexOf(tier);
+  const fillerMin = (cfg.filler_min_frac ?? 0) * C;
   const fillerPool = live.filter(
-    (i) => BOX_TIERS.indexOf(i.box_tier) < tierRank && i.est_value <= fillerMax
+    (i) =>
+      BOX_TIERS.indexOf(i.box_tier) < tierRank &&
+      i.est_value <= fillerMax &&
+      i.est_value >= fillerMin
   );
 
   // --- Floor anchor: priced honestly, never $0 ------------------------------
+  // A bundled voucher costs the box real money, so it is charged to the same
+  // two places a dearer item would be: the weight (making it rarer) and the EV
+  // budget (making the box pay for it). MUST match box_odds SQL, migration
+  // 0033 -- the engine-comparison check in scripts/verify-sql.ts is what
+  // catches it if these drift.
+  const bonusValue = (i: Item): number =>
+    i.bonus_voucher_tier && i.bonus_voucher_pct
+      ? cfg.box_prices[i.bonus_voucher_tier] * i.bonus_voucher_pct
+      : 0;
+  /** What an outcome really costs: the object plus anything bundled with it. */
+  const effValue = (i: Item): number => i.est_value + bonusValue(i);
+
   const coinUsd = scrapCoinUsd(cfg);
   const coins = Math.max(1, Math.round((cfg.scrap_ev_frac * C) / coinUsd));
   const fillerStock = fillerPool.reduce((a, i) => a + i.stock_qty, 0);
   const fillerMean =
     fillerStock > 0
-      ? fillerPool.reduce((a, i) => a + i.est_value * i.stock_qty, 0) / fillerStock
+      ? fillerPool.reduce((a, i) => a + effValue(i) * i.stock_qty, 0) / fillerStock
       : 0;
 
   // A junk object beats abstract coins for the same money: in CS:GO the usual
@@ -214,10 +237,10 @@ export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: Od
 
   // --- Raw weights: the spec's expression, used as a SHAPE ------------------
   const weights = pool.map(
-    (i) => Math.min(cfg.max_item_prob, (C * cfg.ev_weight_factor) / i.est_value) * affinity(i)
+    (i) => Math.min(cfg.max_item_prob, (C * cfg.ev_weight_factor) / effValue(i)) * affinity(i)
   );
   const Wp = weights.reduce((a, w) => a + w, 0);
-  const Wv = weights.reduce((a, w, k) => a + w * pool[k].est_value, 0);
+  const Wv = weights.reduce((a, w, k) => a + w * effValue(pool[k]), 0);
 
   // --- Scale pass 1: probability mass must fit under 1 ----------------------
   const lambdaProb = Wp > 0 ? (1 - pShard) / Wp : Infinity;

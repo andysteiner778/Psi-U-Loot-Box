@@ -162,6 +162,7 @@ export async function fetchGameConfig(): Promise<GameConfig> {
     ),
     scrap_key_tier: (cfg.scrap_key_tier as BoxTier) ?? DEFAULT_GAME_CONFIG.scrap_key_tier,
     pc_value: num(cfg.pc_value, DEFAULT_GAME_CONFIG.pc_value),
+    pc_claim_threshold: num(cfg.pc_claim_threshold, 0),
     // The UI must show this one, never pc_value -- see GameConfig.
     pc_display_value: num(cfg.pc_display_value, DEFAULT_GAME_CONFIG.pc_display_value ?? 400),
     box_list_prices: cfg.box_list_prices

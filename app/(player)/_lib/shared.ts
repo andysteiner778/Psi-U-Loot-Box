@@ -73,6 +73,17 @@ export interface GameConfig {
   pc_value: number;
   /** What the machine is actually worth. This is the number the UI displays. */
   pc_display_value?: number;
+  /**
+   * Approved deposits the pot must reach before a completed PC can be CLAIMED.
+   * Distinct from the pot gate, which controls whether shards drop at all:
+   * shards accumulate freely, the finished machine waits for the pot.
+   *
+   * The UI must SHOW this condition whenever a player is holding a full set.
+   * The alternative -- quietly making the last shard undroppable -- would be a
+   * rigged jackpot, since about 21% of every spin's value is charged to the
+   * shard track and the HUD renders a progress bar toward it.
+   */
+  pc_claim_threshold?: number;
   /** Undiscounted prices, so a flash sale can be shown as a strike-through. */
   base_prices: Record<BoxTier, number>;
   /**
