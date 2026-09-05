@@ -43,9 +43,9 @@ export interface CaseReelProps {
 
 /** Player-facing names for the tiers a voucher can be locked to. */
 const TIER_LABEL: Record<BoxTier, string> = {
-  tier_0: 'Pocket Lint box',
-  tier_1: 'Loose Change box',
-  tier_2: 'The Good Stuff box',
+  tier_0: 'Mostly Junk box',
+  tier_1: 'Good Stuff box',
+  tier_2: 'Golden Chest box',
   tier_3: 'High Roller box',
 };
 

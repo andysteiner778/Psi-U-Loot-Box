@@ -12,14 +12,29 @@ import { DEFAULT_GAME_CONFIG, normalizeOdds, type CatalogueItem, type GameConfig
  * and it keeps the service-role client on the server where it belongs.
  */
 
-/** Odds for one tier. The price inside is the authoritative, sale-aware one. */
-export async function fetchOdds(tier: BoxTier): Promise<PlayerBoxOdds> {
-  return normalizeOdds(await callRpc<unknown>('box_odds', { p_box_tier: tier }));
+/**
+ * Odds for one tier. The price inside is the authoritative, sale-aware one.
+ *
+ * PASS THE USER. `box_odds` takes p_user_id because the shard chance depends on
+ * how many shards that player already holds -- the progress curve makes the
+ * first shard 30% on the $30 box and the last one 1%. Called without it, every
+ * screen showed the BASE 35% to everyone, so a player sitting on 3 shards was
+ * told 35% while the server was really going to roll 1%. That is the published
+ * number not being the number the server plays, which is the one property the
+ * odds table exists to guarantee.
+ *
+ * It also changes the shard EV charged to the roll, so the odds shown were for
+ * a differently-priced box than the one being sold.
+ */
+export async function fetchOdds(tier: BoxTier, userId?: string): Promise<PlayerBoxOdds> {
+  return normalizeOdds(
+    await callRpc<unknown>('box_odds', { p_box_tier: tier, p_user_id: userId ?? null })
+  );
 }
 
-/** All three tiers in parallel — three cheap STABLE calls, one page render. */
-export async function fetchAllOdds(): Promise<PlayerBoxOdds[]> {
-  return Promise.all(BOX_TIERS.map(fetchOdds));
+/** All four tiers in parallel — four cheap STABLE calls, one page render. */
+export async function fetchAllOdds(userId?: string): Promise<PlayerBoxOdds[]> {
+  return Promise.all(BOX_TIERS.map((t) => fetchOdds(t, userId)));
 }
 
 /**

@@ -7,9 +7,9 @@ import { BOX_TIERS, RARITY_COLOR, RARITY_LABEL, type BoxTier, type Rarity } from
 import type { CatalogueItem, GameConfig, PlayerBoxOdds } from '../_lib/shared';
 
 const TIER_NAME: Record<BoxTier, string> = {
-  tier_0: 'Pocket Lint',
-  tier_1: 'Loose Change',
-  tier_2: 'The Good Stuff',
+  tier_0: 'Mostly Junk',
+  tier_1: 'Good Stuff',
+  tier_2: 'Golden Chest',
   tier_3: 'High Roller',
 };
 

@@ -42,7 +42,10 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
   if (!isOpen) return null;
 
   const activeAmount = customAmount ? parseFloat(customAmount) : amount;
-  const venmoNote = `#BOX-${user.name}`;
+  // The note is what the host matches a Venmo payment against in the admin
+  // deposit queue, so it has to carry the player's name AND be obviously
+  // about this app when it appears in a Venmo feed.
+  const venmoNote = `loot box - ${user.name}`;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,7 +128,7 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
               </div>
               <div className="pt-1">
                 <a
-                  href={`https://venmo.com/?txn=pay&recipients=Tyler-HouseLoot&amount=${activeAmount || 20}&note=${encodeURIComponent(venmoNote)}`}
+                  href={`https://venmo.com/?txn=pay&recipients=andaysmonay&amount=${activeAmount || 20}&note=${encodeURIComponent(venmoNote)}`}
                   target="_blank"
                   rel="noreferrer"
                   className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-sky-600/20 border border-sky-500/40 py-1.5 text-[11px] font-semibold text-sky-300 hover:bg-sky-600/30 transition"

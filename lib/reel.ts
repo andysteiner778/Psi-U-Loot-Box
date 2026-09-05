@@ -64,6 +64,14 @@ export const WINNER_INDEX = WINNER_POSITION - 1; //       49
  * for. At 0.3 roughly two spins in three land somewhere random across the card
  * instead, and the near-miss goes back to being a surprise.
  */
+/**
+ * Share of filler cards drawn from Legendary/Mythic/Exotic, so a box visibly
+ * contains its good items instead of looking like a bin of greys. Raising this
+ * much above ~0.25 starts to blunt the near-miss, which needs the high rarities
+ * to be uncommon on the strip to read as a near miss at all.
+ */
+export const BAIT_IN_FILLER_RATE = 0.17;
+
 export const NEAR_MISS_CHANCE = 0.3;
 
 /** Rarities that qualify as near-miss bait. */
@@ -185,14 +193,26 @@ export function buildReel(
 ): ReelCard[] {
   const pool = decoys.length > 0 ? decoys : FALLBACK_DECOYS;
 
-  // Keep the bait rarities out of the filler so slot 49 is the only one the
-  // player sees coming. If the pool is all gold (it won't be), fall back to it.
+  // The strip used to be scrubbed of Legendary-and-better entirely, so slot 49
+  // was the only high rarity a player ever saw go past. It made the near-miss
+  // land hard, but it also made every box look like it contained nothing but
+  // greys and blues -- the owner's words were that the good items only appear
+  // "when they're won or when it's a near miss", which is exactly what a
+  // scrubbed strip looks like from the outside. A case you would not queue for.
+  //
+  // So the good stuff is SPRINKLED rather than banned: roughly one card in six
+  // is drawn from the bait rarities. That is frequent enough that the tier's
+  // real contents are visible while the reel is spinning, and still rare enough
+  // that slot 49 arriving right on the line reads as a near miss rather than as
+  // one more gold card among many.
   const filler = pool.filter((c) => !BAIT_RARITIES.includes(c.rarity));
   const fillerPool = filler.length > 0 ? filler : pool;
+  const baitPool = pool.filter((c) => BAIT_RARITIES.includes(c.rarity));
 
   const cards: ReelCard[] = new Array<ReelCard>(REEL_LENGTH);
   for (let i = 0; i < REEL_LENGTH; i++) {
-    const src = pick(fillerPool, rng);
+    const useBait = baitPool.length > 0 && rng() < BAIT_IN_FILLER_RATE;
+    const src = useBait ? pick(baitPool, rng) : pick(fillerPool, rng);
     cards[i] = { ...src, id: `reel-${i}-${src.id}`, isWinner: false, isNearMiss: false };
   }
 

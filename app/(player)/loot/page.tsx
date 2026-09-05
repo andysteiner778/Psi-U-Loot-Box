@@ -28,7 +28,7 @@ export default async function LootPage() {
   if (!session) redirect('/login');
 
   const [oddsList, config, catalogue] = await Promise.all([
-    fetchAllOdds(),
+    fetchAllOdds(session.id),
     fetchGameConfig(),
     fetchCatalogue(),
   ]);

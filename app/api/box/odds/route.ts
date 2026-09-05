@@ -25,14 +25,14 @@ export async function GET(req: Request) {
     // both a flash sale and an admin-approved Venmo deposit.
     const tier = new URL(req.url).searchParams.get('tier');
     if (tier === null) {
-      const [odds, stats] = await Promise.all([fetchAllOdds(), playerStats(user.id)]);
+      const [odds, stats] = await Promise.all([fetchAllOdds(user.id), playerStats(user.id)]);
       return ok(odds, { stats });
     }
 
     if (!BOX_TIERS.includes(tier as BoxTier)) {
       return fail('No such box.', 400);
     }
-    const [odds, stats] = await Promise.all([fetchOdds(tier as BoxTier), playerStats(user.id)]);
+    const [odds, stats] = await Promise.all([fetchOdds(tier as BoxTier, user.id), playerStats(user.id)]);
     return ok(odds, { stats });
   } catch (err) {
     return toErrorResponse(err);

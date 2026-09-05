@@ -12,7 +12,7 @@ export async function GET() {
 
     const { data, error } = await db
       .from('items')
-      .select('id, name, description, image_url, est_value, msrp, rarity, stock_qty, box_tier, reward_credit, reward_voucher_tier')
+      .select('id, name, description, image_url, est_value, msrp, rarity, stock_qty, box_tier, reward_credit, reward_voucher_tier, shard_cost')
       .gt('stock_qty', 0)
       .eq('is_active', true)
       .order('est_value', { ascending: false });
@@ -22,6 +22,10 @@ export async function GET() {
     // Filter out consumable vouchers/credits — clearance is for physical things
     const items = (data ?? [])
       .filter((i) => i.reward_credit === null && i.reward_voucher_tier === null)
+      // The Gaming PC is an ordinary items row with shard_cost = 4. Without
+      // this it was buyable outright and eligible for a 1-in-3 custom spin,
+      // which makes every shard anyone collected worthless.
+      .filter((i) => !i.shard_cost || Number(i.shard_cost) === 0)
       .map((i) => ({
         id: i.id as string,
         name: i.name as string,

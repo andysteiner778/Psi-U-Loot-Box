@@ -18,7 +18,7 @@ const formatUsd = (n: number) => '$' + (Number(n) % 1 === 0 ? Number(n).toFixed(
 export default async function PlayerBoxesPage() {
   const session = await getSession();
   const [oddsList, config, shardPrizes, welcomeLeft, vouchers, clearanceConfig] = await Promise.all([
-    fetchAllOdds(),
+    fetchAllOdds(session?.id),
     fetchGameConfig(),
     fetchShardPrizes(),
     session ? fetchWelcomeSpinsLeft(session.id) : Promise.resolve(0),

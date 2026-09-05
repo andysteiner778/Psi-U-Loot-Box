@@ -117,17 +117,17 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
 
 export const BOX_META: Record<BoxTier, { name: string; blurb: string; accent: Rarity }> = {
   tier_0: {
-    name: 'Pocket Lint',
-    blurb: 'A buck a go. Mostly oddments — but anything can show up.',
+    name: 'Mostly Junk, Some Goodies',
+    blurb: 'Cheap as it gets. Mostly oddments — but anything can show up.',
     accent: 'grey',
   },
   tier_1: {
-    name: 'Loose Change',
-    blurb: 'Cables, keys and small stuff. Cheap enough to keep spinning.',
+    name: 'Good Stuff',
+    blurb: 'Real things worth keeping. Cheap enough to keep spinning.',
     accent: 'blue',
   },
   tier_2: {
-    name: 'The Good Stuff',
+    name: 'Golden Chest',
     blurb: 'Things worth carrying home. Best odds of a real win.',
     accent: 'purple',
   },

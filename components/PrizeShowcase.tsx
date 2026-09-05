@@ -61,7 +61,11 @@ export function PrizeShowcase({
             id: it.item_id,
             name: it.name,
             image: it.image_url ?? null,
-            value: it.est_value,
+            // MSRP, not est_value. est_value is the economy's cost basis and is
+            // lower than the sticker price; showing it here made the scrolling
+            // strip quote a smaller number than the same item's row in the loot
+            // table, which reads as the app contradicting itself.
+            value: it.msrp ?? it.est_value,
             rarity: it.rarity,
             bestTier: odds.tier,
             bestChance: it.probability,
