@@ -74,6 +74,50 @@ Then check these specifically:
    two stopped running and whether they are being skipped for a bad reason. A
    check that silently stops executing is worse than one that fails.
 
+
+## JOB 3 — make the ladder visible (this replaces an idea we rejected)
+
+The owner wants players to climb: win on a cheap box, end up wanting the dear
+one. The obvious version -- bundling "50% off the next tier up" onto junk items
+-- was modelled and REJECTED, and you should not re-add it. Numbers, so nobody
+re-litigates it: applying it to items under $0.25 drops the $0.50 box's item
+rate from 63% to 29% and units-out-the-door per $20 from 83 to 49, because a
+50%-off-$3 voucher is worth three times the entire $0.50 box and can only be
+paid for out of the prize budget.
+
+The ladder already exists as real catalogue items -- `50% OFF a $3 box`,
+`50% OFF a $10 box`, `50% OFF a $30 box`, `FREE $3 SPIN`, `FREE $10 SPIN`,
+`FREE $30 SPIN`. The problem is purely that winning one is not exciting or
+obvious enough. **This is a presentation job, not an economy job.**
+
+What to do:
+
+1. When a player wins a cross-tier voucher, the reveal should sell the
+   destination, not the discount: name the box it unlocks, show what is in it
+   (the best item still in that tier), and offer a button that takes them
+   straight there with the voucher applied. Right now it renders as one line of
+   mono text.
+2. A held voucher should be visible on the target box card as a call to action
+   -- "You have 50% off this box" with the struck-through price -- not just a
+   small badge.
+3. The `+$0.10 credit` consolation on the $0.50 box reads as nothing. We are
+   NOT raising it (that trade costs 11% of the item rate). Make the reveal
+   honest and warm instead of apologetic -- it is 20% of the box price back.
+
+Do not change what anything is worth, what the server charges, or any drop rate.
+Copy, layout and navigation only.
+
+## What NOT to change (settled, with reasons)
+
+- **Do not bundle higher-tier vouchers onto junk.** Measured above.
+- **Do not raise `scrap_ev_frac`.** 0.20 -> 0.50 makes the $0.50 box pay $0.26
+  instead of $0.10, but it fires more often (47% vs 37%) and costs 11 points of
+  item rate. It buys a nicer-looking consolation with the stock the party exists
+  to clear.
+- **Do not change what the server charges for a voucher.** Verified correct.
+- The shard curve (30/20/10/1) and `pc_value` are deliberate. The PC is meant to
+  be nearly unwinnable and must not be charged to the other boxes.
+
 ## Report
 
 Write findings to `FROM_GEMINI_FOR_CLAUDE.md`, ranked by cost to the owner.
