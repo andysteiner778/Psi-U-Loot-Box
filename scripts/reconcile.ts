@@ -66,6 +66,17 @@ async function main() {
     .eq('kind', 'physical');
   if (heldErr) throw heldErr;
 
+  // Reward items are matched by item_id on the roll, not by name in heldBy.
+  const { data: allRolls, error: rollsErr } = await db
+    .from('rolls')
+    .select('item_id');
+  if (rollsErr) throw rollsErr;
+  const rewardUses = new Map<string, number>();
+  for (const r of allRolls ?? []) {
+    const id = (r as { item_id: string | null }).item_id;
+    if (id) rewardUses.set(id, (rewardUses.get(id) ?? 0) + 1);
+  }
+
   const heldBy = new Map<string, number>();
   for (const r of held ?? []) {
     const n = (r as { item_name: string | null }).item_name ?? '';
@@ -85,7 +96,24 @@ async function main() {
     // counted in heldBy. Reconciling them would compute should = initial - 0
     // and --fix would RESTORE the stock -- resurrecting a voucher a player has
     // already spent, and minting a free spin every time this script is run.
-    if (raw.reward_credit !== null || raw.reward_voucher_tier !== null) continue;
+    // REWARD ITEMS ARE CONSUMED, NOT HELD -- but they are still finite, and
+    // until now nothing checked them at all. `stock + held == initial` cannot
+    // work for them (the roll is kind='respin', never counted in heldBy), so
+    // they were skipped entirely. That blind spot let a bad cleanup script
+    // drain $3 House Credit 20 -> 0, 50% OFF a $10 box 12 -> 0 and FREE $3 SPIN
+    // 12 -> 0 while this reported "everything balances".
+    //
+    // They CAN be checked, just differently: the roll row records item_id even
+    // though the returned payload omits it, so the invariant is
+    // `stock + rolls-that-reference-it == initial`.
+    if (raw.reward_credit !== null || raw.reward_voucher_tier !== null) {
+      const used = rewardUses.get(raw.id) ?? 0;
+      const want = Math.max(0, raw.initial_stock_qty - used);
+      if (raw.stock_qty !== want) {
+        drift.push({ row: raw, held: used, should: want });
+      }
+      continue;
+    }
     const h = heldBy.get(raw.name) ?? 0;
     const should = Math.max(0, raw.initial_stock_qty - h);
     if (raw.stock_qty !== should) drift.push({ row: raw, held: h, should });
