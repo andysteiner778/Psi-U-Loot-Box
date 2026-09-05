@@ -70,9 +70,23 @@ Then check these specifically:
 3. **Clearance.** With Clearance Mode ON, confirm the Gaming PC appears in
    neither the buyout list nor the custom-box picker. Then try to buy it with a
    hand-made API call and paste what comes back.
-4. **e2e check count.** It reports 61 checks; it was 63 before. Find out which
-   two stopped running and whether they are being skipped for a bad reason. A
-   check that silently stops executing is worse than one that fails.
+4. **e2e check count — read this before you panic about it.**
+   `npm run e2e` prints one `ok`/`FAIL` line per assertion and ends with
+   `PASS — N checks, 0 failures`. **N should be 63.** I saw 61 once and wrongly
+   flagged it as two checks silently disappearing; it was self-inflicted. I had
+   probe scripts mutating balances and deleting vouchers in the same database
+   while the suite was running, so a section bailed early. Three consecutive
+   clean runs all report 63.
+
+   The rule this gives you: **run the suite with nothing else touching the
+   database.** Never run e2e concurrently with your own probes, and never run
+   two copies at once. If you see a number other than 63, first ask what else
+   was writing at the time, then look for a section that bailed — the run is
+   not deterministic in content (racer names and won item names vary), only in
+   count.
+
+   If N is genuinely not 63 on a quiet database, that IS worth chasing: a check
+   that stops executing protects nothing, and is worse than one that fails.
 
 
 ## JOB 3 — make the ladder visible (this replaces an idea we rejected)
