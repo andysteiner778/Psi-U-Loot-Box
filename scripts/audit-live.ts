@@ -156,7 +156,20 @@ async function main() {
       warn(tier + ' is overcharging: keeping ' + pct(o.realized_margin) +
         ' against a target of ' + pct(tierMargin) + '.');
     }
-    if (o.realized_margin < -0.001) warn(tier + ' LOSES money: ' + pct(-o.realized_margin) + ' per roll.');
+    // A tier CONFIGURED to lose is a clearance decision, not a fault: the cheap
+    // boxes deliberately run negative to move junk that would never sell. Only
+    // an UNPLANNED loss is a warning -- one where the solve overshot a margin
+    // that was meant to be positive. Flagging the deliberate ones taught you to
+    // skim this section, which is how the real bugs got through before.
+    if (o.realized_margin < tierMargin - 0.05) {
+      warn(tier + ' LOSES more than configured: ' + pct(-o.realized_margin) +
+        ' per roll against a target of ' + pct(tierMargin) + '.');
+    } else if (tierMargin < 0) {
+      console.log('   (by design: this tier runs at ' + pct(-tierMargin) +
+        ' a roll to clear stock that would not otherwise sell)');
+    } else if (o.realized_margin < -0.001) {
+      warn(tier + ' LOSES money: ' + pct(-o.realized_margin) + ' per roll.');
+    }
     for (const w of o.warnings) warn(tier + ': ' + w);
 
     // The gate being shut makes every tier look thinner than it will be on the

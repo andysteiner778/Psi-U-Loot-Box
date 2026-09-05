@@ -326,8 +326,13 @@ async function main() {
       const charge3 = await chargeOf((r3.data as { roll_id: string }).roll_id);
       ok(Math.abs(charge3 - prices.tier_1) < 0.001,
         'a High Roller voucher does not discount a cheap box (charged $' + charge3.toFixed(2) + ')');
+      // Check THE TIER-3 VOUCHER specifically, not a count of all of them.
+      // Counting broke when bundled vouchers landed (migration 0033): the
+      // forced plain win on tier_1 legitimately issues its own voucher, so the
+      // total is 2 and always will be. The property under test was never the
+      // total -- it is that a High Roller voucher survives a cheap roll.
       const { data: unspent } = await db.from('vouchers').select('id')
-        .eq('user_id', vp!.id).is('redeemed_at', null);
+        .eq('user_id', vp!.id).eq('box_tier', 'tier_3').is('redeemed_at', null);
       ok((unspent ?? []).length === 1, 'and the wrong tier did not consume it');
     } finally {
       try {
