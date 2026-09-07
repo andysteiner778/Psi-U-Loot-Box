@@ -44,6 +44,14 @@ export interface PlayerBoxOdds extends BoxOdds {
   shard_value: number;
   pot_total: number;
   pot_gate_met: boolean;
+  /**
+   * True when this box has no real object left to give. It still has free
+   * spins, vouchers and credit in it, and open_box would refund rather than
+   * charge -- but a box that can only hand your money back is not a box.
+   */
+  locked: boolean;
+  lock_reason: string | null;
+  real_items_left: number;
   shards_minted: number;
   shard_capacity: number;
 }
@@ -137,7 +145,7 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
 
 export const BOX_META: Record<BoxTier, { name: string; blurb: string; accent: Rarity }> = {
   tier_0: {
-    name: 'Mostly Junk, Some Goodies',
+    name: 'OG Junk Box',
     blurb: 'Cheap as it gets. Mostly oddments — but anything can show up.',
     accent: 'grey',
   },
@@ -235,6 +243,9 @@ export function normalizeOdds(raw: unknown): PlayerBoxOdds {
     shard_value: num(o.shard_value),
     pot_total: num(o.pot_total),
     pot_gate_met: Boolean(o.pot_gate_met),
+    locked: Boolean(o.locked),
+    lock_reason: typeof o.lock_reason === 'string' ? o.lock_reason : null,
+    real_items_left: num(o.real_items_left),
     shards_minted: num(o.shards_minted),
     shard_capacity: num(o.shard_capacity),
   };

@@ -207,7 +207,18 @@ export function BoxCard({
   // money when it has nothing to sell -- but without saying so, a player sees
   // "Free Re-Roll" a dozen times in a row and concludes the app is broken.
   const unitsLeft = odds.items.reduce((a, i) => a + i.stock_qty, 0);
-  const isCleanedOut = unitsLeft === 0 && odds.filler.length === 0;
+  /*
+   * `odds.locked` is the server's answer and it wins.
+   *
+   * The old predicate counted UNITS, and most of what is left in a picked-over
+   * tier is free spins, vouchers and house credit -- rows in `items` that are
+   * promises, not objects. So a box holding nothing but eight FREE SPIN rows
+   * looked fully stocked here while open_box could only refund. tier_lock_state
+   * applies the reward-row predicate the engine itself branches on, and
+   * open_box now refuses a locked tier outright, so trusting anything else here
+   * would just let the card disagree with the server.
+   */
+  const isCleanedOut = odds.locked || (unitsLeft === 0 && odds.filler.length === 0);
 
   const handleSpinAgain = useCallback(() => {
     endSpin();

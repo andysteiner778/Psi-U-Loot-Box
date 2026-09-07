@@ -180,18 +180,47 @@ async function main() {
   await db.query('UPDATE profiles SET balance=100000 WHERE id=$1', [player]);
   const kinds: Record<string, number> = {};
   let thrown = 0;
+  let locked = 0;
   for (let i = 0; i < 400; i++) {
+    const tier = ['tier_1', 'tier_2', 'tier_3'][i % 3];
     try {
       const res = (await db.query<{ open_box: { type: string } }>(
-        'SELECT open_box($1,$2,NULL) AS open_box', [player, ['tier_1', 'tier_2', 'tier_3'][i % 3]]
+        'SELECT open_box($1,$2,NULL) AS open_box', [player, tier]
       )).rows[0].open_box;
       kinds[res.type] = (kinds[res.type] ?? 0) + 1;
     } catch (e) {
-      thrown++;
-      if (thrown === 1) console.error('        first error: ' + (e as Error).message);
+      /*
+       * A tier that has run out of real objects now REFUSES the roll rather
+       * than taking the money and refunding forever. Four hundred rolls against
+       * a fixture catalogue drains it, so this is the expected terminal state,
+       * not a fault -- but it must only ever happen once tier_lock_state agrees
+       * the tier is empty, which is asserted below.
+       */
+      if ((e as Error).message.includes('This box is empty')) locked++;
+      else {
+        thrown++;
+        if (thrown === 1) console.error('        first error: ' + (e as Error).message);
+      }
     }
   }
-  ok(thrown === 0, '400 rolls with 0 exceptions');
+  ok(thrown === 0, '400 rolls with no unexpected exception (' + locked + ' refused as empty)');
+
+  // Every refusal must be backed by the lock actually reporting empty.
+  for (const t of ['tier_1', 'tier_2', 'tier_3']) {
+    const st = (await db.query<{ s: { locked: boolean; real_items_left: number } }>(
+      'SELECT tier_lock_state($1) AS s', [t]
+    )).rows[0].s;
+    const { rows: [n] } = await db.query<{ c: string }>(
+      `SELECT COUNT(*) c FROM items WHERE is_active AND stock_qty > 0 AND est_value > 0
+         AND COALESCE(shard_cost,0)=0 AND reward_credit IS NULL AND reward_voucher_tier IS NULL
+         AND box_tier = $1`, [t]
+    );
+    ok(
+      !st.locked || Number(n.c) === 0,
+      t + ' is only locked when its own shelf is bare (locked=' + st.locked +
+        ', own real rows=' + n.c + ')'
+    );
+  }
   console.log('        outcomes: ' + JSON.stringify(kinds));
   ok((kinds.physical ?? 0) > 0, 'physical wins occur (' + (kinds.physical ?? 0) + ')');
 

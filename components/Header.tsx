@@ -94,7 +94,16 @@ export function Header() {
           </div>
 
           {/* Player Balance HUD & Controls */}
-          <div className="flex min-w-0 shrink items-center gap-1.5 sm:gap-2.5">
+          {/*
+            On a narrow phone this row (balance, coins, vouchers, inventory,
+            mute, admin, sign-out) is wider than the viewport. It used to just
+            overflow, which pushed Admin and Sign Out off the right edge with
+            no way to reach them -- the only way into admin mode was to switch
+            the browser to desktop mode. It now scrolls horizontally, and every
+            control is shrink-0 so nothing is squashed into unreadability
+            instead.
+          */}
+          <div className="flex min-w-0 shrink items-center gap-1.5 overflow-x-auto sm:gap-2.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {/* Balance Pill */}
             <div className="flex shrink-0 items-center rounded-xl border border-emerald-500/30 bg-gun-950/80 px-2 py-1.5 shadow-inner sm:px-3">
               {/* "Bal:" is the first thing to go on a narrow screen -- the $ sign
@@ -120,7 +129,7 @@ export function Header() {
             <Link
               href="/inventory"
               title="View Scrap & Compactor"
-              className="hidden sm:flex min-h-[44px] items-center rounded-xl border border-cyan-500/30 bg-gun-950/80 px-3 py-1.5 shadow-inner hover:border-cyan-400 transition"
+              className="hidden sm:flex shrink-0 min-h-[44px] items-center rounded-xl border border-cyan-500/30 bg-gun-950/80 px-3 py-1.5 shadow-inner hover:border-cyan-400 transition"
             >
               <Coins className="h-3.5 w-3.5 text-cyan-400 mr-1.5" />
               <span className="font-mono text-sm font-bold text-cyan-300">
@@ -132,7 +141,7 @@ export function Header() {
             {totalVouchers > 0 && (
               <div
                 title={`${totalVouchers} active discount voucher${totalVouchers > 1 ? 's' : ''} available`}
-                className="flex min-h-[44px] items-center rounded-xl border border-emerald-500/40 bg-emerald-950/40 px-2.5 py-1.5 shadow-inner"
+                className="flex shrink-0 min-h-[44px] items-center rounded-xl border border-emerald-500/40 bg-emerald-950/40 px-2.5 py-1.5 shadow-inner"
               >
                 <Ticket className="h-3.5 w-3.5 text-emerald-400 mr-1.5 shrink-0" />
                 <span className="font-mono text-xs font-bold text-emerald-300 whitespace-nowrap">
@@ -145,7 +154,7 @@ export function Header() {
             <Link
               href="/inventory"
               title="Inventory & Scrap Compactor"
-              className="flex md:hidden min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-gun-750 bg-gun-850 text-gun-300 hover:border-purple-500/40 hover:text-white transition"
+              className="flex md:hidden shrink-0 min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-gun-750 bg-gun-850 text-gun-300 hover:border-purple-500/40 hover:text-white transition"
             >
               <Layers className="h-4 w-4 text-purple-400" />
             </Link>
@@ -154,7 +163,7 @@ export function Header() {
             <button
               onClick={handleToggleSound}
               title={isMuted ? 'Unmute' : 'Mute'}
-              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-gun-750 bg-gun-850 text-gun-300 hover:border-gun-600 hover:text-white transition"
+              className="flex shrink-0 min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-gun-750 bg-gun-850 text-gun-300 hover:border-gun-600 hover:text-white transition"
             >
               {isMuted ? <VolumeX className="h-4 w-4 text-red-400" /> : <Volume2 className="h-4 w-4 text-emerald-400" />}
             </button>
@@ -163,7 +172,7 @@ export function Header() {
             {user.role === 'admin' && (
               <Link
                 href="/admin"
-                className="flex min-h-[44px] items-center gap-1.5 rounded-xl border border-purple-500/40 bg-purple-950/50 px-3 py-2 text-xs font-mono font-bold text-purple-300 hover:bg-purple-900/60 transition shadow-sm"
+                className="flex shrink-0 min-h-[44px] items-center gap-1.5 rounded-xl border border-purple-500/40 bg-purple-950/50 px-3 py-2 text-xs font-mono font-bold text-purple-300 hover:bg-purple-900/60 transition shadow-sm"
               >
                 <Shield className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Admin</span>
@@ -171,7 +180,7 @@ export function Header() {
             )}
 
             {/* User Pill & Signout */}
-            <div className="flex items-center gap-1.5 pl-1 border-l border-gun-800">
+            <div className="flex shrink-0 items-center gap-1.5 pl-1 border-l border-gun-800">
               <span className="hidden lg:inline text-xs font-medium text-gun-300 px-1">
                 {user.name}
               </span>

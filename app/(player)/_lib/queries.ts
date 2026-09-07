@@ -27,9 +27,15 @@ import { DEFAULT_GAME_CONFIG, normalizeOdds, type CatalogueItem, type GameConfig
  * a differently-priced box than the one being sold.
  */
 export async function fetchOdds(tier: BoxTier, userId?: string): Promise<PlayerBoxOdds> {
-  return normalizeOdds(
-    await callRpc<unknown>('box_odds', { p_box_tier: tier, p_user_id: userId ?? null })
-  );
+  // box_odds prices the box; tier_lock_state answers whether it can still hand
+  // over a real object. Fetched together so a card never renders a price for a
+  // box open_box would refuse.
+  const [odds, lock] = await Promise.all([
+    callRpc<unknown>('box_odds', { p_box_tier: tier, p_user_id: userId ?? null }),
+    callRpc<unknown>('tier_lock_state', { p_box_tier: tier }),
+  ]);
+  const l = (lock ?? {}) as Record<string, unknown>;
+  return normalizeOdds({ ...(odds as Record<string, unknown>), ...l });
 }
 
 /** All four tiers in parallel — four cheap STABLE calls, one page render. */

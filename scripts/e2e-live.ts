@@ -593,8 +593,11 @@ async function main() {
 
     const { data: mintAfter } = await db.from('config').select('value').eq('key', 'settings').single();
     const drifted = Number((mintAfter!.value as Record<string, unknown>).pc_shards_minted ?? 0);
-    ok(drifted === mintedBefore - 2,
-      'salvage decrements the global mint counter (' + mintedBefore + ' -> ' + drifted + ')');
+    // GREATEST(0, ...) in salvage_shards floors the counter, so on a freshly
+    // reset party it legitimately stays at 0 rather than going negative.
+    ok(drifted === Math.max(0, mintedBefore - 2),
+      'salvage decrements the global mint counter, floored at 0 (' +
+        mintedBefore + ' -> ' + drifted + ')');
     await db
       .from('config')
       .update({
