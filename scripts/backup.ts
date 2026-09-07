@@ -29,14 +29,22 @@ denv({ path: '.env.local', quiet: true });
  * omission discovered during a restore.
  */
 const TABLES = [
-  'config',
-  'profiles',
-  'items',
-  'rolls',
-  'vouchers',
-  'deposits',
-  'drop_overrides',
-  'schema_migrations',
+  'public.config',
+  'public.profiles',
+  'public.items',
+  'public.rolls',
+  'public.vouchers',
+  'public.deposits',
+  'public.drop_overrides',
+  'public.schema_migrations',
+  /*
+   * PIN HASHES. Not optional, and not obvious -- which is exactly why it was
+   * missed the first time. `profile_secrets` is FK'd to profiles ON DELETE
+   * CASCADE, so a restore that clears profiles silently destroys every PIN in
+   * the house and nobody can log in. Backing up profiles without this is worse
+   * than not backing them up at all: it looks like it worked.
+   */
+  'app_private.profile_secrets',
 ];
 
 const ROOT = 'backups';
@@ -58,14 +66,15 @@ export async function snapshot(label = ''): Promise<string> {
 
   const summary: Record<string, number> = {};
   try {
-    for (const t of TABLES) {
+    for (const qualified of TABLES) {
+      const file = qualified.replace('.', '__');
       try {
-        const { rows } = await c.query(`SELECT * FROM public.${t}`);
-        writeFileSync(join(dir, t + '.json'), JSON.stringify(rows, null, 1));
-        summary[t] = rows.length;
+        const { rows } = await c.query(`SELECT * FROM ${qualified}`);
+        writeFileSync(join(dir, file + '.json'), JSON.stringify(rows, null, 1));
+        summary[qualified] = rows.length;
       } catch (e) {
-        summary[t] = -1;
-        writeFileSync(join(dir, t + '.ERROR.txt'), (e as Error).message);
+        summary[qualified] = -1;
+        writeFileSync(join(dir, file + '.ERROR.txt'), (e as Error).message);
       }
     }
     writeFileSync(join(dir, '_manifest.json'), JSON.stringify({
@@ -91,11 +100,19 @@ async function restore(dir: string) {
      * restoring a migration ledger over a newer schema would make the database
      * lie about what has been applied.
      */
-    const order = ['drop_overrides', 'vouchers', 'rolls', 'deposits', 'items', 'profiles'];
-    for (const t of order) await c.query(`DELETE FROM public.${t} WHERE TRUE`);
+    const order = [
+      'app_private.profile_secrets',
+      'public.drop_overrides',
+      'public.vouchers',
+      'public.rolls',
+      'public.deposits',
+      'public.items',
+      'public.profiles',
+    ];
+    for (const t of order) await c.query(`DELETE FROM ${t} WHERE TRUE`);
 
     for (const t of [...order].reverse()) {
-      const file = join(dir, t + '.json');
+      const file = join(dir, t.replace('.', '__') + '.json');
       if (!existsSync(file)) continue;
       const rows = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>[];
       for (const r of rows) {
@@ -103,7 +120,7 @@ async function restore(dir: string) {
         const vals = cols.map((k) => r[k]);
         const ph = cols.map((_, i) => '$' + (i + 1)).join(',');
         await c.query(
-          `INSERT INTO public.${t} (${cols.map((k) => '"' + k + '"').join(',')}) VALUES (${ph})`,
+          `INSERT INTO ${t} (${cols.map((k) => '"' + k + '"').join(',')}) VALUES (${ph})`,
           vals
         );
       }
