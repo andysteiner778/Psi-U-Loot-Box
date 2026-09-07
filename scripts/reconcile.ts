@@ -153,60 +153,70 @@ async function main() {
 
 
 /**
- * The global shard mint counter against reality.
+ * The global shard mint counter against what players actually hold.
  *
- * `config.pc_shards_minted` is a hand-maintained running total, and it is the
- * ONLY thing enforcing `pc_shard_mint_cap` -- the guard that stops a room
- * minting more PC shards than there are PCs to hand over. Nothing reconciled
- * it, so when it drifted low (a full-blob config overwrite reverting it while
- * the shard roll and the player's count both survived) the cap silently began
- * counting from behind and allowed more shards than intended.
+ * `config.pc_shards_minted` is the only thing enforcing `pc_shard_mint_cap` --
+ * the guard limiting how many PC shards can be in circulation at once. Three
+ * things move it, and only two of them move it in the same direction:
  *
- * Truth is the roll log: every shard that has ever existed was minted by
- * open_box and left a `kind = 'shard'` row behind. Claiming a PC spends a
- * player's shards but does not un-mint them, so the counter is cumulative and
- * must equal the number of shard rolls.
+ *   open_box       mints a shard      +1 counter, +1 held
+ *   salvage_shards destroys one       -1 counter, -1 held
+ *   claim_pc       spends four        counter unchanged, held -4
+ *
+ * So the counter tracks shards IN CIRCULATION, and the invariant is
+ *
+ *     counter == held by players + shards_required x PCs claimed
+ *
+ * Counting `kind = 'shard'` rolls does NOT work: claim_pc writes one of those
+ * too (item_name 'Gaming PC', status 'claimed'), and salvage leaves no row at
+ * all, so the roll log cannot reconstruct the total on its own.
  */
 async function checkShardMint(APPLY: boolean): Promise<void> {
   const { data: cfgRow } = await db.from('config').select('value').eq('key', 'settings').maybeSingle();
   if (!cfgRow) return;
   const cfg = (cfgRow.value ?? {}) as Record<string, unknown>;
   const minted = Number(cfg.pc_shards_minted ?? 0);
-
-  const { count: rollCount } = await db
-    .from('rolls').select('id', { count: 'exact', head: true }).eq('kind', 'shard');
-  const actual = rollCount ?? 0;
+  const required = Number(cfg.shards_required ?? 4);
 
   const { data: profs } = await db.from('profiles').select('pc_shards');
   const held = (profs ?? []).reduce((sum, pr) => sum + Number(pr.pc_shards ?? 0), 0);
 
+  const { count: claimCount } = await db
+    .from('rolls').select('id', { count: 'exact', head: true })
+    .eq('kind', 'shard').eq('status', 'claimed');
+  const claims = claimCount ?? 0;
+
+  const expected = held + required * claims;
+
   console.log('\n=================================================================');
   console.log(' PC SHARD MINT COUNTER');
   console.log('=================================================================\n');
-  console.log('  shard rolls ever logged   ' + actual);
-  console.log('  held by players right now ' + held);
+  console.log('  held by players           ' + held);
+  console.log('  PCs claimed               ' + claims + '  (x' + required + ' shards = ' + required * claims + ')');
+  console.log('  counter should read       ' + expected);
   console.log('  config.pc_shards_minted   ' + minted);
   console.log('  mint cap                  ' + (cfg.pc_shard_mint_cap ?? '(derived)'));
 
-  if (minted === actual) {
-    console.log('\n  Counter matches the roll log.\n');
+  if (minted === expected) {
+    console.log('\n  Counter matches circulation.\n');
     return;
   }
 
-  console.log('\n  !!  counter is ' + (minted < actual ? 'BEHIND' : 'AHEAD OF') +
-              ' reality by ' + Math.abs(actual - minted) + '.');
-  console.log(minted < actual
+  console.log('\n  !!  counter is ' + (minted < expected ? 'BEHIND' : 'AHEAD OF') +
+              ' circulation by ' + Math.abs(expected - minted) + '.');
+  console.log(minted < expected
     ? '      The cap counts from behind, so more shards can be minted than intended.'
     : '      The cap counts ahead, so shards stop dropping earlier than intended.');
 
   if (!APPLY) {
-    console.log('\n  Nothing was changed. Re-run with --fix to set it to ' + actual + '.\n');
+    console.log('\n  Nothing was changed. Re-run with --fix to set it to ' + expected + '.\n');
     return;
   }
-  const next = { ...cfg, pc_shards_minted: actual };
+  const { data: fresh } = await db.from('config').select('value').eq('key', 'settings').single();
+  const next = { ...(fresh!.value as Record<string, unknown>), pc_shards_minted: expected };
   const { error } = await db.from('config').update({ value: next }).eq('key', 'settings');
   console.log(error ? '\n  failed: ' + error.message + '\n'
-                    : '\n  Corrected to ' + actual + '.\n');
+                    : '\n  Corrected to ' + expected + '.\n');
 }
 
 main().catch((e) => {

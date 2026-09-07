@@ -567,6 +567,20 @@ async function main() {
       'coins became exactly ' + usd(credit) + ' of credit (' + usd(afterComp.balance) + ', ' + afterComp.coins + ' coins left)'
     );
 
+    /*
+     * This test fabricates shards with a direct UPDATE rather than minting
+     * them through open_box, but salvage_shards DECREMENTS the global
+     * pc_shards_minted counter for every shard it destroys. So each run used
+     * to take 2 off a counter that was never incremented for these three, and
+     * pc_shards_minted drifted permanently downward -- loosening the mint cap,
+     * the only thing bounding how many PC shards can be in circulation.
+     *
+     * Snapshot the counter and put it back, so the suite measures salvage
+     * without paying for it out of the real supply.
+     */
+    const { data: mintBefore } = await db.from('config').select('value').eq('key', 'settings').single();
+    const mintedBefore = Number((mintBefore!.value as Record<string, unknown>).pc_shards_minted ?? 0);
+
     await db.from('profiles').update({ pc_shards: 3, balance: 0 }).eq('id', p1.id);
     const salv = await db.rpc('salvage_shards', { p_user_id: p1.id, p_count: 2 });
     ok(!salv.error, 'salvages 2 shards' + (salv.error ? ': ' + salv.error.message : ''));
@@ -576,6 +590,18 @@ async function main() {
 
     const tooMany = await db.rpc('salvage_shards', { p_user_id: p1.id, p_count: 99 });
     ok(!!tooMany.error, 'cannot salvage more shards than are held');
+
+    const { data: mintAfter } = await db.from('config').select('value').eq('key', 'settings').single();
+    const drifted = Number((mintAfter!.value as Record<string, unknown>).pc_shards_minted ?? 0);
+    ok(drifted === mintedBefore - 2,
+      'salvage decrements the global mint counter (' + mintedBefore + ' -> ' + drifted + ')');
+    await db
+      .from('config')
+      .update({
+        value: { ...(mintAfter!.value as Record<string, unknown>), pc_shards_minted: mintedBefore },
+      })
+      .eq('key', 'settings');
+    ok(true, 'mint counter restored to ' + mintedBefore + ' — the suite leaves real supply alone');
   }
 
   // =========================================================================
@@ -588,20 +614,35 @@ async function main() {
     const { data: cfgRow2 } = await db.from('config').select('value').eq('key', 'settings').single();
     const saved = cfgRow2!.value as Record<string, unknown>;
 
+    /*
+     * Every write in this section layers onto a FRESH read of the row.
+     *
+     * These used to spread `saved` -- a snapshot taken before the section ran
+     * -- into each update, which silently reverted any field that changed in
+     * between. `pc_shards_minted` is exactly such a field: open_box writes it
+     * into this same blob on every shard drop, so a shard minted during the
+     * suite kept its roll row and its profile count while the global mint
+     * counter went backwards, quietly loosening the cap on how many PC sets
+     * can exist.
+     */
+    const patchConfig = async (patch: Record<string, unknown>) => {
+      const { data: fresh } = await db.from('config').select('value').eq('key', 'settings').single();
+      await db
+        .from('config')
+        .update({ value: { ...(fresh!.value as Record<string, unknown>), ...patch } })
+        .eq('key', 'settings');
+    };
+
     // Live sale.
-    await db.from('config').update({
-      value: { ...saved, flash_sale: true, flash_sale_pct: 0.2,
-               flash_sale_ends_at: new Date(Date.now() + 60000).toISOString() },
-    }).eq('key', 'settings');
+    await patchConfig({ flash_sale: true, flash_sale_pct: 0.2,
+                        flash_sale_ends_at: new Date(Date.now() + 60000).toISOString() });
     const onSale = await db.rpc('box_odds', { p_box_tier: 'tier_2' });
     ok(Number(onSale.data.box_price) < fullPrice,
       'price drops during a sale (' + usd(fullPrice) + ' -> ' + usd(onSale.data.box_price) + ')');
 
     // Window already closed: the server clock, not the client, decides.
-    await db.from('config').update({
-      value: { ...saved, flash_sale: true, flash_sale_pct: 0.2,
-               flash_sale_ends_at: new Date(Date.now() - 60000).toISOString() },
-    }).eq('key', 'settings');
+    await patchConfig({ flash_sale: true, flash_sale_pct: 0.2,
+                        flash_sale_ends_at: new Date(Date.now() - 60000).toISOString() });
     const expired = await db.rpc('box_odds', { p_box_tier: 'tier_2' });
     ok(Number(expired.data.box_price) === fullPrice,
       'an expired sale charges full price again (' + usd(expired.data.box_price) + ')');
@@ -625,18 +666,11 @@ async function main() {
      *
      * Re-read and patch, rather than replay a stale snapshot.
      */
-    const { data: nowRow } = await db.from('config').select('value').eq('key', 'settings').single();
-    await db
-      .from('config')
-      .update({
-        value: {
-          ...(nowRow!.value as Record<string, unknown>),
-          flash_sale: saved.flash_sale,
-          flash_sale_pct: saved.flash_sale_pct,
-          flash_sale_ends_at: saved.flash_sale_ends_at,
-        },
-      })
-      .eq('key', 'settings');
+    await patchConfig({
+      flash_sale: saved.flash_sale,
+      flash_sale_pct: saved.flash_sale_pct,
+      flash_sale_ends_at: saved.flash_sale_ends_at,
+    });
   }
 
   // =========================================================================
