@@ -1,6 +1,6 @@
-﻿# MISSION BRIEF: FRAT MOVING-OUT CS:GO MYSTERY BOX APP ("HOUSE LOOT")
+﻿# MISSION BRIEF: FRAT MOVING-OUT CS:GO MYSTERY BOX APP ("JUNK BOX")
 
-You are a principal full-stack engineer and casino math designer. You will build and deploy a complete, production-ready, mobile-responsive mystery box web application called **"House Loot"** for a house of 30 people moving out.
+You are a principal full-stack engineer and casino math designer. You will build and deploy a complete, production-ready, mobile-responsive mystery box web application called **"Junk Box"** for a house of 30 people moving out.
 
 ---
 

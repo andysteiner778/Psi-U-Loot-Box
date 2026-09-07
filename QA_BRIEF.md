@@ -1,4 +1,4 @@
-# QA Brief — House Loot
+# QA Brief — Junk Box
 
 Full-app test pass. The goal is to find things that are **broken or dishonest**,
 not to add features. Report findings; fix only what is clearly in your lane.

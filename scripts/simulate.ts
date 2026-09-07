@@ -57,7 +57,7 @@ function specFormula(tier: BoxTier, items: Item[], cfg: EconomyConfig, potGate: 
 
 // ---------------------------------------------------------------------------
 console.log('\n=================================================================');
-console.log(' HOUSE LOOT - ECONOMY SOLVENCY REPORT');
+console.log(' JUNK BOX - ECONOMY SOLVENCY REPORT');
 console.log('=================================================================');
 
 const cfg = { ...DEFAULT_CONFIG };

@@ -38,7 +38,7 @@ export default async function LoginPage() {
               ΨΥ
             </div>
           </div>
-          <h1 className="text-3xl font-black tracking-tight text-white">PSI U LOOT BOX</h1>
+          <h1 className="text-3xl font-black tracking-tight text-white">JUNK BOX</h1>
           <p className="mt-1 text-xs font-mono uppercase tracking-widest text-gun-400">
             Moving Out &middot; Mystery Cases
           </p>

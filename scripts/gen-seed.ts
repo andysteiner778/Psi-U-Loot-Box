@@ -14,7 +14,7 @@ const q = (s: string) => "'" + s.replace(/'/g, "''") + "'";
 
 const lines: string[] = [
   '-- ============================================================================',
-  '--  HOUSE LOOT — SEED DATA',
+  '--  JUNK BOX — SEED DATA',
   '--  GENERATED FILE. Edit lib/catalog.ts and run `npm run seed:gen` instead.',
   '-- ============================================================================',
   '',

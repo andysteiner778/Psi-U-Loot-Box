@@ -1,6 +1,6 @@
 # Workstream Contract
 
-Four agents work in parallel on House Loot. This file is what stops them writing
+Four agents work in parallel on Junk Box. This file is what stops them writing
 four incompatible versions of the same thing.
 
 ## The one rule

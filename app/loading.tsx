@@ -27,7 +27,7 @@ export default function Loading() {
       </div>
 
       <div className="text-center">
-        <p className="font-mono text-sm font-black tracking-[0.32em] text-white">PSI U LOOT BOX</p>
+        <p className="font-mono text-sm font-black tracking-[0.32em] text-white">JUNK BOX</p>
         <p className="mt-1.5 font-mono text-[11px] text-gun-400">Unsealing the case&hellip;</p>
       </div>
 

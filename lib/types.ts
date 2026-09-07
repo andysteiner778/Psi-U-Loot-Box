@@ -1,5 +1,5 @@
 /**
- * FROZEN CONTRACT — House Loot
+ * FROZEN CONTRACT — Junk Box
  *
  * Every workstream imports from here. Nothing else is shared.
  * If you need a change to this file, propose it; do not edit it directly.

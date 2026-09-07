@@ -1,4 +1,4 @@
-# Party-Night Runbook: House Loot Admin Operations
+# Party-Night Runbook: Junk Box Admin Operations
 
 **Target Audience:** Admin / House Host running the party on a phone.  
 **Admin Portal URL:** `http://<domain-or-local-ip>:3000/admin` (or `/admin/players`)  

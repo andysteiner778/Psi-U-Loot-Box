@@ -65,7 +65,7 @@ export function Header() {
               </div>
               <div>
                 <span className="hidden truncate text-sm font-black tracking-tight text-white transition group-hover:text-purple-300 min-[400px]:block sm:text-base">
-                  PSI U LOOT BOX
+                  JUNK BOX
                 </span>
                 {/* Hidden with the wordmark below 400px -- a lone subtitle next
                     to the crest reads as a layout mistake. */}

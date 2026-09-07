@@ -54,7 +54,7 @@ function assert(condition: boolean, description: string) {
 }
 
 console.log('\n=================================================================');
-console.log(' HOUSE LOOT — PHASE 5 END-TO-END STRESS TEST & INTEGRATION SUITE');
+console.log(' JUNK BOX — PHASE 5 END-TO-END STRESS TEST & INTEGRATION SUITE');
 console.log('=================================================================\n');
 
 // ---------------------------------------------------------------------------
