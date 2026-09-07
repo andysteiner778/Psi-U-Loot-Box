@@ -46,3 +46,9 @@ next-env.d.ts
 photo upload/
 photos/
 *.zip
+
+
+# Local database snapshots (npm run backup). Contain player names and
+# balances, so they stay out of git.
+backups/
+recovered-items.json

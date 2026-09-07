@@ -18,6 +18,7 @@
  */
 
 import { config } from 'dotenv';
+import { snapshot } from './backup';
 import { Client } from 'pg';
 import { RESOLVED_CATALOG } from '../lib/catalog';
 
@@ -65,6 +66,14 @@ async function main() {
     await c.end();
     return;
   }
+
+  /*
+   * Snapshot to disk BEFORE anything is deleted. This project has no
+   * Supabase-side backups, and a reset is irreversible without one -- which is
+   * exactly how an entire catalogue was lost once already.
+   */
+  const snapDir = await snapshot('pre-reset');
+  console.log('  snapshot saved to ' + snapDir + '\n');
 
   await c.query('BEGIN');
   try {
