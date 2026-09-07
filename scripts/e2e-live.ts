@@ -49,7 +49,17 @@ async function makePlayer(tag: string) {
   const { data, error } = await db.rpc('auth_login_or_register', { p_name: name, p_pin: '1357' });
   if (error || !data?.[0]) throw new Error('could not create probe: ' + (error?.message ?? 'no row'));
   probes.push(name);
-  return { id: data[0].profile_id as string, name };
+  const id = data[0].profile_id as string;
+  /*
+   * Signup now hands out the welcome package (free spins on the cheapest and
+   * the top box). Every assertion below reasons about what a roll COSTS, so a
+   * probe holding free spins silently invalidates them -- "cannot roll with a
+   * zero balance" passes trivially when the roll is free, and the voucher tests
+   * find tokens they did not put there. Strip them here so each test starts
+   * from a known wallet; the package itself is covered by `npm run welcome`.
+   */
+  await db.from('vouchers').delete().eq('user_id', id);
+  return { id, name };
 }
 
 const balanceOf = async (id: string) => {
@@ -265,6 +275,14 @@ async function main() {
     await db.rpc('auth_login_or_register', { p_name: vname, p_pin: '1234' });
     const { data: vp } = await db.from('profiles').select('id').eq('name', vname).single();
     await db.from('profiles').update({ balance: 300 }).eq('id', vp!.id);
+    /*
+     * Signup grants a 100%-off spin on tier_3, and open_box picks the BEST
+     * voucher a player holds (ORDER BY discount_pct DESC). Left in place it
+     * outranks the 50% token these tests insert, and every charge assertion
+     * below reads $0.00. Clear the package so the voucher under test is the
+     * only one in play.
+     */
+    await db.from('vouchers').delete().eq('user_id', vp!.id);
 
     const cfgV = await db.from('config').select('value').eq('key', 'settings').single();
     const prices = (cfgV.data!.value as Record<string, unknown>).box_prices as Record<string, number>;
@@ -380,6 +398,9 @@ async function main() {
       await db.rpc('auth_login_or_register', { p_name: rname, p_pin: '1234' });
       const { data: rp } = await db.from('profiles').select('id').eq('name', rname).single();
       await db.from('profiles').update({ balance: 100 }).eq('id', rp!.id);
+      // The signup package would make this roll free, and the assertion below
+      // measures balance against the FULL box price.
+      await db.from('vouchers').delete().eq('user_id', rp!.id);
       await db.from('drop_overrides').upsert({ user_id: rp!.id, item_id: rw.id });
 
       const bal0 = (await balanceOf(rp!.id)).balance;

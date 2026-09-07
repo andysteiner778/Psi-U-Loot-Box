@@ -20,6 +20,7 @@
     "audit": "tsx scripts/audit-live.ts",
     "e2e": "tsx scripts/e2e-live.ts",
     "race": "tsx scripts/race-live.ts",
+    "welcome": "tsx scripts/welcome-live.ts",
     "reconcile": "tsx scripts/reconcile.ts"
   },
   "dependencies": {
