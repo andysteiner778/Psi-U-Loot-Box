@@ -13,6 +13,15 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: 'Junk Box', statusBarStyle: 'black-translucent' },
 };
 
+/*
+ * Nothing in this app is static: every page reads the session cookie and live
+ * economy state. Declaring that here also skips the static prerender of Next's
+ * built-in /_not-found and /_global-error documents, which is where 16.3.4
+ * throws "Invariant: Expected workStore to be initialized" and fails the
+ * production build outright.
+ */
+export const dynamic = 'force-dynamic';
+
 export const viewport: Viewport = {
   themeColor: '#0f1117',
   width: 'device-width',

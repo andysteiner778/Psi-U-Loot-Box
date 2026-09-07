@@ -2,7 +2,7 @@ import { adminOrError } from '@/app/admin/_lib/guard';
 import { db } from '@/lib/supabase/server';
 import { jsonErr, jsonOk, readJson } from '@/app/admin/_lib/http';
 import { isScrappable, RARITIES, BOX_TIERS, type Rarity, type BoxTier } from '@/lib/types';
-import { rarityForValue, tierForValue } from '@/lib/economy';
+import { rarityForValue, tierForValue, scrapCoinUsd } from '@/lib/economy';
 import { readConfig } from '@/app/admin/_lib/config';
 
 export const runtime = 'nodejs';
@@ -66,14 +66,36 @@ export async function POST(req: Request) {
   // silently disabled the feature for any item an admin edited -- and cited a
   // `high_tier_never_scrappable` CHECK constraint that does not exist.
   const cfg = await readConfig();
-  const coin = cfg.box_prices[cfg.scrap_key_tier] / cfg.scrap_coins_per_key;
+  /*
+   * Was `cfg.box_prices[cfg.scrap_key_tier] / cfg.scrap_coins_per_key` -- the
+   * KEY TIER'S BOX PRICE over coins-per-key, $10/50 = $0.20. The engine,
+   * box_odds and the audit all use scrapCoinUsd: scrap_key_usd over
+   * coins-per-key, $1/50 = $0.02. Ten times apart, so every item created or
+   * edited through this route got a scrap_value a tenth of what it should be,
+   * and the audit reported it as "scraps for 4%, config promises 40%".
+   */
+  const coin = scrapCoinUsd(cfg);
   const highTierScrappable = cfg.allow_high_rarity_scrap === true;
+
+  /*
+   * The Math.max(1, ...) floor guarantees a scrappable item is worth at least
+   * one coin -- which quietly becomes a way to MINT money once items get cheap
+   * enough. A coin is $0.02; a $0.01 item floored to one coin scraps for twice
+   * what it is worth, so the compactor turns junk into profit.
+   *
+   * Cap the floor at what the item is actually worth: below one coin, the item
+   * simply is not scrappable. The UI already handles that case ("not worth
+   * enough to scrap -- take it home instead"), which is the right outcome for
+   * a 1c item you would rather someone just took away.
+   */
+  const affordableCoins = Math.floor(est_value / coin);
+  const withFloor = (raw: number) => Math.min(Math.max(1, raw), affordableCoins);
 
   let scrap_value: number;
   if (isScrappable(rarity)) {
-    scrap_value = Math.max(1, parseInt(String(body.scrap_value ?? Math.round((est_value * 0.6) / coin)), 10));
+    scrap_value = withFloor(parseInt(String(body.scrap_value ?? Math.round((est_value * 0.6) / coin)), 10));
   } else if (highTierScrappable) {
-    scrap_value = Math.max(1, Math.round((est_value * 0.4) / coin));
+    scrap_value = withFloor(Math.round((est_value * 0.4) / coin));
   } else {
     scrap_value = 0;
   }

@@ -26,9 +26,11 @@ const ok = (g: boolean, m: string) => { console.log((g ? '  ok    ' : '  FAIL  '
     ok(reg.created === true, 'new account created');
     const v1 = await vouchers(reg.profile_id);
     console.log('        signup vouchers: ' + JSON.stringify(v1));
-    ok(v1.length === 2, 'two tiers granted');
-    ok(v1.find((r: any) => r.box_tier === 'tier_0')?.n === 2, '2 free spins on tier_0 (the cheapest box)');
-    ok(v1.find((r: any) => r.box_tier === 'tier_3')?.n === 1, '1 free spin on tier_3 (the top box)');
+    ok(v1.length === 3, 'three tiers granted');
+    ok(v1.find((r: any) => r.box_tier === 'tier_0')?.n === 1, '1 free spin on tier_0 (OG Junk Box)');
+    ok(v1.find((r: any) => r.box_tier === 'tier_1')?.n === 1, '1 free spin on tier_1 (Good Stuff)');
+    ok(v1.find((r: any) => r.box_tier === 'tier_2')?.n === 1, '1 free spin on tier_2 (Golden Chest)');
+    ok(!v1.find((r: any) => r.box_tier === 'tier_3'), 'and NO free High Roller spin');
 
     // ---- logging back in must NOT mint more -----------------------------
     await c.query('SELECT * FROM auth_login_or_register($1,$2)', ['__welcome_probe__', '1234']);
@@ -66,8 +68,8 @@ const ok = (g: boolean, m: string) => { console.log((g ? '  ok    ' : '  FAIL  '
       'exactly 3 welcome spins per account afterwards (' + after.n + ' for ' + profCount.n + ' players)');
 
     const v3 = await vouchers(reg.profile_id);
-    ok(v3.find((r: any) => r.box_tier === 'tier_0')?.n === 2 &&
-       v3.find((r: any) => r.box_tier === 'tier_3')?.n === 1,
+    ok(v3.length === 3 && v3.every((r: any) => r.n === 1) &&
+       v3.map((r: any) => r.box_tier).join(',') === 'tier_0,tier_1,tier_2',
       'and the mix is right after a reset: ' + JSON.stringify(v3));
 
     // ---- redeemed vouchers do not survive either -------------------------

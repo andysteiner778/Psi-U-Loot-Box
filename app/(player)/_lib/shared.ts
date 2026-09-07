@@ -49,6 +49,10 @@ export interface PlayerBoxOdds extends BoxOdds {
    * spins, vouchers and credit in it, and open_box would refund rather than
    * charge -- but a box that can only hand your money back is not a box.
    */
+  /** Price THIS player pays, voucher already applied, quoted by the server. */
+  your_price: number;
+  /** The voucher the server would actually burn on this roll. 0 = none. */
+  your_voucher_pct: number;
   locked: boolean;
   lock_reason: string | null;
   real_items_left: number;
@@ -243,6 +247,8 @@ export function normalizeOdds(raw: unknown): PlayerBoxOdds {
     shard_value: num(o.shard_value),
     pot_total: num(o.pot_total),
     pot_gate_met: Boolean(o.pot_gate_met),
+    your_price: num(o.your_price, num(o.box_price)),
+    your_voucher_pct: num(o.your_voucher_pct),
     locked: Boolean(o.locked),
     lock_reason: typeof o.lock_reason === 'string' ? o.lock_reason : null,
     real_items_left: num(o.real_items_left),

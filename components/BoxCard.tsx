@@ -146,12 +146,29 @@ export function BoxCard({
 
   // Authoritative live state from player-store wins over initial server prop.
   // When a roll burns a voucher, commit(res.value.stats) immediately clears it.
+  /*
+   * The server quotes the price, including the voucher it would actually burn.
+   *
+   * This used to be derived from the voucher summary in the player store, and
+   * the two could disagree. After a roll spent the last free spin for a tier,
+   * a store that had not caught up still rendered "FREE SPIN ACTIVE" on the
+   * card while open_box correctly charged full price -- so the button promised
+   * a free High Roller roll and took $30. `odds` is refetched after every spin,
+   * on a 20s poll, and on any other player's win, so it is the fresher of the
+   * two as well as the authoritative one.
+   *
+   * The store is still the fallback for the voucher COUNT badge, which is
+   * cosmetic, and for the moment before the first odds fetch resolves.
+   */
   const tierVoucher = stats.vouchers?.[tier];
-  const voucherPct = tierVoucher
-    ? tierVoucher.bestPct
-    : stats.vouchers
-      ? 0
-      : (initialVoucherPct ?? 0);
+  const voucherPct =
+    odds.your_voucher_pct > 0
+      ? odds.your_voucher_pct
+      : tierVoucher
+        ? tierVoucher.bestPct
+        : stats.vouchers
+          ? 0
+          : (initialVoucherPct ?? 0);
   const voucherCount = tierVoucher?.count ?? (voucherPct > 0 ? 1 : 0);
 
   /*
@@ -161,10 +178,9 @@ export function BoxCard({
    * charge.
    */
   const rawPrice = odds.box_price;
-  const effectivePrice =
-    voucherPct && voucherPct > 0
-      ? Math.round(rawPrice * (1 - Math.min(1, voucherPct)) * 100) / 100
-      : rawPrice;
+  // Quoted by the server from the player's own voucher row, rounded the same
+  // way the SQL rounds it. Never recomputed here.
+  const effectivePrice = odds.your_price;
   const basePrice = isFlashSale ? effectivePrice / 0.8 : effectivePrice;
   /*
    * The struck-through price. A flash sale is measured against the standing

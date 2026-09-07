@@ -35,7 +35,41 @@ export async function fetchOdds(tier: BoxTier, userId?: string): Promise<PlayerB
     callRpc<unknown>('tier_lock_state', { p_box_tier: tier }),
   ]);
   const l = (lock ?? {}) as Record<string, unknown>;
-  return normalizeOdds({ ...(odds as Record<string, unknown>), ...l });
+  const o = { ...(odds as Record<string, unknown>), ...l };
+
+  /*
+   * What THIS player will actually be charged, quoted by the server.
+   *
+   * The card used to work this out itself from the voucher summary in the
+   * player store, and the two could disagree: after a roll burned the last
+   * free spin for a tier, a stale store still advertised "FREE SPIN" while
+   * open_box correctly charged full price. The player taps expecting free and
+   * watches $30 leave their balance.
+   *
+   * Same selection rule as open_box -- best discount first, oldest as the
+   * tie-break -- and the same rounding, so the number on the button is the
+   * number that gets charged.
+   */
+  if (userId) {
+    const { data: v } = await db
+      .from('vouchers')
+      .select('discount_pct')
+      .eq('user_id', userId)
+      .eq('box_tier', tier)
+      .is('redeemed_at', null)
+      .order('discount_pct', { ascending: false })
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    const pct = v ? Math.min(1, Math.max(0, Number(v.discount_pct))) : 0;
+    o.your_voucher_pct = pct;
+    o.your_price = Math.round(Number(o.box_price) * (1 - pct) * 100) / 100;
+  } else {
+    o.your_voucher_pct = 0;
+    o.your_price = Number(o.box_price);
+  }
+
+  return normalizeOdds(o);
 }
 
 /** All four tiers in parallel — four cheap STABLE calls, one page render. */
