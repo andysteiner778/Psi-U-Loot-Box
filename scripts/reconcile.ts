@@ -121,6 +121,7 @@ async function main() {
 
   if (drift.length === 0) {
     console.log(' Everything balances. Every unit is either in stock or in a player inventory.\n');
+    await checkShardMint(APPLY);
     return;
   }
 
@@ -136,6 +137,7 @@ async function main() {
 
   if (!APPLY) {
     console.log('\n Nothing was changed. Re-run with --fix to correct these.\n');
+    await checkShardMint(APPLY);
     return;
   }
 
@@ -146,6 +148,65 @@ async function main() {
     else n++;
   }
   console.log('\n Corrected ' + n + ' of ' + drift.length + ' item(s).\n');
+  await checkShardMint(APPLY);
+}
+
+
+/**
+ * The global shard mint counter against reality.
+ *
+ * `config.pc_shards_minted` is a hand-maintained running total, and it is the
+ * ONLY thing enforcing `pc_shard_mint_cap` -- the guard that stops a room
+ * minting more PC shards than there are PCs to hand over. Nothing reconciled
+ * it, so when it drifted low (a full-blob config overwrite reverting it while
+ * the shard roll and the player's count both survived) the cap silently began
+ * counting from behind and allowed more shards than intended.
+ *
+ * Truth is the roll log: every shard that has ever existed was minted by
+ * open_box and left a `kind = 'shard'` row behind. Claiming a PC spends a
+ * player's shards but does not un-mint them, so the counter is cumulative and
+ * must equal the number of shard rolls.
+ */
+async function checkShardMint(APPLY: boolean): Promise<void> {
+  const { data: cfgRow } = await db.from('config').select('value').eq('key', 'settings').maybeSingle();
+  if (!cfgRow) return;
+  const cfg = (cfgRow.value ?? {}) as Record<string, unknown>;
+  const minted = Number(cfg.pc_shards_minted ?? 0);
+
+  const { count: rollCount } = await db
+    .from('rolls').select('id', { count: 'exact', head: true }).eq('kind', 'shard');
+  const actual = rollCount ?? 0;
+
+  const { data: profs } = await db.from('profiles').select('pc_shards');
+  const held = (profs ?? []).reduce((sum, pr) => sum + Number(pr.pc_shards ?? 0), 0);
+
+  console.log('\n=================================================================');
+  console.log(' PC SHARD MINT COUNTER');
+  console.log('=================================================================\n');
+  console.log('  shard rolls ever logged   ' + actual);
+  console.log('  held by players right now ' + held);
+  console.log('  config.pc_shards_minted   ' + minted);
+  console.log('  mint cap                  ' + (cfg.pc_shard_mint_cap ?? '(derived)'));
+
+  if (minted === actual) {
+    console.log('\n  Counter matches the roll log.\n');
+    return;
+  }
+
+  console.log('\n  !!  counter is ' + (minted < actual ? 'BEHIND' : 'AHEAD OF') +
+              ' reality by ' + Math.abs(actual - minted) + '.');
+  console.log(minted < actual
+    ? '      The cap counts from behind, so more shards can be minted than intended.'
+    : '      The cap counts ahead, so shards stop dropping earlier than intended.');
+
+  if (!APPLY) {
+    console.log('\n  Nothing was changed. Re-run with --fix to set it to ' + actual + '.\n');
+    return;
+  }
+  const next = { ...cfg, pc_shards_minted: actual };
+  const { error } = await db.from('config').update({ value: next }).eq('key', 'settings');
+  console.log(error ? '\n  failed: ' + error.message + '\n'
+                    : '\n  Corrected to ' + actual + '.\n');
 }
 
 main().catch((e) => {

@@ -611,7 +611,32 @@ async function main() {
     const { data: final } = await db.from('config').select('value').eq('key', 'settings').single();
     ok((final!.value as Record<string, unknown>).flash_sale === false, 'flag is false afterwards');
 
-    await db.from('config').update({ value: saved }).eq('key', 'settings');
+    /*
+     * Restore ONLY the flash-sale keys this section touched.
+     *
+     * This used to write `saved` -- the whole config blob, snapshotted before
+     * the section ran -- straight back over the row. Any field that changed in
+     * between was silently reverted, and `pc_shards_minted` is exactly such a
+     * field: open_box writes it into this same blob on every shard drop. A
+     * shard minted during the suite (or by a real player rolling at the same
+     * time) kept its roll row and its profile count while the global mint
+     * counter went backwards, which quietly loosens the one guard that limits
+     * how many PC sets can exist.
+     *
+     * Re-read and patch, rather than replay a stale snapshot.
+     */
+    const { data: nowRow } = await db.from('config').select('value').eq('key', 'settings').single();
+    await db
+      .from('config')
+      .update({
+        value: {
+          ...(nowRow!.value as Record<string, unknown>),
+          flash_sale: saved.flash_sale,
+          flash_sale_pct: saved.flash_sale_pct,
+          flash_sale_ends_at: saved.flash_sale_ends_at,
+        },
+      })
+      .eq('key', 'settings');
   }
 
   // =========================================================================
