@@ -1,6 +1,6 @@
 import { requireUser } from '@/lib/session';
 import type { BoxTier } from '@/lib/types';
-import { callRpc, ok, playerStats, toErrorResponse } from '@/app/(player)/_lib/http';
+import { callRpc, ok, playerStats, toErrorResponse, readJson } from '@/app/(player)/_lib/http';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,13 +13,17 @@ export const dynamic = 'force-dynamic';
  * `compact_scrap`, so an admin retuning the economy mid-party is picked up
  * without a deploy — and a client that thinks the price is 50 gets a PT402.
  */
-export async function POST() {
+export async function POST(req: Request) {
   try {
     const user = await requireUser();
+    // `all` converts every whole key the player is holding in one call. The
+    // remainder stays as coins -- compact_scrap never rounds a partial key into
+    // credit the house did not charge for.
+    const body = await readJson(req).catch(() => ({}) as Record<string, unknown>);
 
-    const result = await callRpc<{ ok: boolean; spent: number; credit: number; tier: BoxTier }>(
+    const result = await callRpc<{ ok: boolean; spent: number; credit: number; keys: number; tier: BoxTier }>(
       'compact_scrap',
-      { p_user_id: user.id }
+      { p_user_id: user.id, p_all: body.all === true }
     );
 
     return ok(result, { stats: await playerStats(user.id) });

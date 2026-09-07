@@ -156,7 +156,9 @@ export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: Od
       i.est_value > 0 &&
       // Shard-locked prizes are claimed with shards, never dropped from a box.
       // Mirrors the same predicate in box_odds SQL.
-      !(i.shard_cost && i.shard_cost > 0)
+      !(i.shard_cost && i.shard_cost > 0) &&
+      // A rider reaches players attached to something else, never on its own.
+      !i.bundle_only
   );
   // Every box can drop anything, but off-tier prizes are heavily suppressed.
   // Strict partitioning meant a $5 crate could never produce anything exciting,
@@ -214,10 +216,23 @@ export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: Od
   // budget (making the box pay for it). MUST match box_odds SQL, migration
   // 0033 -- the engine-comparison check in scripts/verify-sql.ts is what
   // catches it if these drift.
-  const bonusValue = (i: Item): number =>
-    i.bonus_voucher_tier && i.bonus_voucher_pct
-      ? cfg.box_prices[i.bonus_voucher_tier] * i.bonus_voucher_pct
-      : 0;
+  const byId = new Map(items.map((i) => [i.id, i]));
+  /*
+   * Everything that rides along with this item and therefore has to be paid
+   * for out of the same budget: a bundled voucher, and a bundled OBJECT.
+   *
+   * Charging it here does two jobs at once -- the weight formula makes a
+   * bundled item rarer, and the EV solve pays for it. Doing only one of the two
+   * silently overspends.
+   */
+  const bonusValue = (i: Item): number => {
+    const voucher =
+      i.bonus_voucher_tier && i.bonus_voucher_pct
+        ? cfg.box_prices[i.bonus_voucher_tier] * i.bonus_voucher_pct
+        : 0;
+    const rider = i.bonus_item_id ? (byId.get(i.bonus_item_id)?.est_value ?? 0) : 0;
+    return voucher + rider;
+  };
   /** What an outcome really costs: the object plus anything bundled with it. */
   const effValue = (i: Item): number => i.est_value + bonusValue(i);
 

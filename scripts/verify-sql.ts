@@ -24,7 +24,8 @@ import { PGlite } from '@electric-sql/pglite';
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
 // Iterate the real tier list rather than a hardcoded three: adding tier_0 left
 // it silently untested by both the odds checks and the engine-drift comparison.
-import { BOX_TIERS } from '../lib/types';
+import { BOX_TIERS, type EconomyConfig } from '../lib/types';
+import { scrapCoinUsd, DEFAULT_CONFIG } from '../lib/economy';
 
 let failures = 0;
 let checks = 0;
@@ -254,9 +255,13 @@ async function main() {
     const cfg = (await db.query<{ value: Record<string, unknown> }>(
       "SELECT value FROM config WHERE key='settings'"
     )).rows[0].value;
-    const coinUsd =
-      Number((cfg.box_prices as Record<string, number>)[String(cfg.scrap_key_tier)]) /
-      Number(cfg.scrap_coins_per_key);
+    /*
+     * scrapCoinUsd, not a local formula. This was the THIRD copy of "what is a
+     * coin worth" in the repo, and like the admin item route it divided the key
+     * tier's BOX PRICE by coins-per-key instead of scrap_key_usd -- ten times
+     * the real value, so this gate was measuring a coin the game does not use.
+     */
+    const coinUsd = scrapCoinUsd({ ...DEFAULT_CONFIG, ...(cfg as Partial<EconomyConfig>) } as EconomyConfig);
     ok(coinUsd > 0, 'a scrap coin is worth $' + coinUsd.toFixed(2));
 
     const rows = (await db.query<{ name: string; est_value: string; scrap_value: number; rarity: string }>(
@@ -269,8 +274,13 @@ async function main() {
       const ratio = (r.scrap_value * coinUsd) / Number(r.est_value);
       if (ratio > worst) { worst = ratio; worstName = r.name; }
     }
+    /*
+     * <= 1, not < 1. Scrap values are whole coins, so an item worth exactly one
+     * coin can only scrap for one coin -- 100%, break-even, the floor doing its
+     * job. Above 100% is a leak and still fails.
+     */
     ok(
-      worst < 1,
+      worst <= 1 + 1e-9,
       'no item scraps for more than it is worth (worst: ' + worstName + ' at ' +
         (worst * 100).toFixed(0) + '% of value)'
     );

@@ -23,6 +23,8 @@
     "welcome": "tsx scripts/welcome-live.ts",
     "quote": "tsx scripts/quote-live.ts",
     "rebase-scrap": "tsx scripts/rebase-scrap.ts",
+    "compact": "tsx scripts/compact-live.ts",
+    "bundle": "tsx scripts/bundle-live.ts",
     "reconcile": "tsx scripts/reconcile.ts"
   },
   "dependencies": {

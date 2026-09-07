@@ -95,6 +95,10 @@ export interface Item {
    * Both fields are set together or neither is; a DB CHECK enforces it,
    * because half a bundle prices at 0 and then throws at award time.
    */
+  /** A second object handed over with this one. Priced into the budget. */
+  bonus_item_id?: string | null;
+  /** A rider: reaches players only via someone else's bonus_item_id, never drawn alone. */
+  bundle_only?: boolean | null;
   bonus_voucher_tier?: BoxTier | null;
   bonus_voucher_pct?: number | null;
 
@@ -179,6 +183,16 @@ export type OpenBoxResult =
        * time this arrives, so the reveal is reporting a fact, not a promise.
        */
       bonus_tier?: BoxTier | null;
+      bonus_item?: {
+        item_id: string;
+        item_name: string;
+        rarity: Rarity;
+        est_value: number;
+        scrap_value: number;
+        image_url?: string | null;
+        msrp?: number | null;
+        roll_id: string;
+      } | null;
       bonus_pct?: number | null;
       roll_id: string;
     }

@@ -12,6 +12,13 @@ const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPAB
   auth: { persistSession: false },
 });
 const PLAYERS = 15;
+/*
+ * Fixed probe names collide with leftovers if a previous run died before its
+ * cleanup, and the insert then fails on the unique index -- a gate that fails
+ * because of its own debris teaches nothing. Same reason e2e's makePlayer
+ * salts its names.
+ */
+const RUN = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 let fails = 0;
 const ok = (g: boolean, m: string) => { console.log((g ? '  ok    ' : '  FAIL  ') + m); if (!g) fails++; };
@@ -32,14 +39,14 @@ const ok = (g: boolean, m: string) => { console.log((g ? '  ok    ' : '  FAIL  '
     const { data: snap } = await db.from('items').select('id,stock_qty');
     for (const i of snap ?? []) stockBefore.set(i.id, i.stock_qty);
     const { data: it } = await db.from('items').insert({
-      name: '__race_prize__', box_tier: 'tier_3', rarity: 'blue', est_value: 25, msrp: 25,
+      name: '__race_prize_' + RUN + '__', box_tier: 'tier_3', rarity: 'blue', est_value: 25, msrp: 25,
       stock_qty: 1, initial_stock_qty: 1, scrap_value: 10, is_active: true,
     }).select('id').single();
     itemId = it!.id;
 
     for (let i = 0; i < PLAYERS; i++) {
       const { data: p } = await db.from('profiles')
-        .insert({ name: '__race_' + i + '__', balance: 500 }).select('id').single();
+        .insert({ name: '__race_' + RUN + '_' + i + '__', balance: 500 }).select('id').single();
       ids.push(p!.id);
       await db.from('drop_overrides').insert({ user_id: p!.id, item_id: itemId });
     }

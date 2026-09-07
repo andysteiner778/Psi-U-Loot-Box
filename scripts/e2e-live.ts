@@ -114,8 +114,17 @@ async function main() {
   if (kind === 'respin' && !isReward) {
     ok(spent === 0, 'a re-roll refunds the price, so net spend is $0 (was ' + usd(spent) + ')');
   } else if (kind === 'respin') {
-    ok(Math.abs(spent - price) < 0.001,
-      'a reward item costs the box price ' + usd(price) + ' and pays a voucher (was ' + usd(spent) + ')');
+    /*
+     * A reward item costs the box price and hands back whatever it is worth.
+     * For a VOUCHER row that is nothing, so net spend is the full price -- but
+     * a CREDIT row ($1/$3 House Credit) refunds its face value, so net spend is
+     * price minus that. Asserting the full price for both was wrong for credit
+     * rows, and only showed up once the reward share of tier_2 grew.
+     */
+    const refund = Number(roll?.refund_amount ?? 0);
+    ok(Math.abs(spent - (price - refund)) < 0.001,
+      'a reward item costs ' + usd(price) + ' and hands back ' + usd(refund) +
+      ', so net spend is ' + usd(price - refund) + ' (was ' + usd(spent) + ')');
   } else {
     ok(Math.abs(spent - price) < 0.001, 'charged exactly the box price ' + usd(price) + ' (was ' + usd(spent) + ')');
   }
@@ -517,7 +526,13 @@ async function main() {
       worstName = i.name;
     }
   }
-  ok(worst < 1, 'worst scrap ratio is ' + (worst * 100).toFixed(0) + '% (' + worstName + ')');
+  /*
+   * <= 1, not < 1. Scrap values are whole coins, so the cheapest item in the
+   * catalogue can only be one coin -- and the owner prices giveaway junk at
+   * exactly one coin's worth. That is break-even, which is the floor working,
+   * not a leak. Anything ABOVE 100% is a leak and still fails.
+   */
+  ok(worst <= 1 + 1e-9, 'worst scrap ratio is ' + (worst * 100).toFixed(0) + '% (' + worstName + ')');
 
   // =========================================================================
   section('two people racing for the last unit');

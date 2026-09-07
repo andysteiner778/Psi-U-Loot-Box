@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Package, Trash2, MapPin, Sparkles, History, Check, ShieldAlert, Recycle } from 'lucide-react';
+import { Package, Trash2, MapPin, Sparkles, History, Check, ShieldAlert } from 'lucide-react';
 import type { Roll, Rarity } from '@/lib/types';
 import { RARITY_COLOR, RARITY_LABEL, canScrap, isScrappable } from '@/lib/types';
 import { usePlayer } from '@/app/(player)/_lib/player-store';
-import { apiScrap, apiScrapAll } from '@/app/(player)/_lib/api';
+import { apiScrap } from '@/app/(player)/_lib/api';
 import { sfx } from '@/lib/sound';
 import { ScrapCompactor } from '@/components/ScrapCompactor';
 
@@ -77,62 +77,6 @@ export function InventoryView({ initialItems, recentRolls: initialRecent, allowH
     }
   };
 
-  const [scrappingAll, setScrappingAll] = useState(false);
-  const [confirmAll, setConfirmAll] = useState(false);
-
-  /*
-   * Which rows the button is offering. Computed the same way the per-item
-   * button decides, so the count in the label always matches what the server
-   * will actually take -- `scrap_all` re-derives eligibility itself, and a
-   * label promising 9 items when the server scraps 7 reads as a bug even when
-   * the server is right.
-   */
-  const scrappableItems = items.filter((r) => {
-    const p = r.payload && r.payload.type === 'physical' ? r.payload : null;
-    return canScrap(r.item_rarity, p?.scrap_value ?? 0, allowHighRarityScrap);
-  });
-  const scrappableCoins = scrappableItems.reduce((sum, r) => {
-    const p = r.payload && r.payload.type === 'physical' ? r.payload : null;
-    return sum + (p?.scrap_value ?? 0);
-  }, 0);
-
-  const handleScrapAll = async () => {
-    if (scrappingAll || scrappingId || scrappableItems.length === 0) return;
-    setScrappingAll(true);
-    setConfirmAll(false);
-    /*
-     * No optimistic adjust here. The single-item path can predict its own
-     * result, but a batch can be refused as a whole, and rolling back an
-     * optimistic +N coins across several rows is how a balance ends up wrong
-     * on screen. Wait for the server, then commit what it actually did.
-     */
-    try {
-      const res = await apiScrapAll();
-      if (res.ok) {
-        const { scrapped, scrap_gained } = res.value.data;
-        sfx.playScrapCrunch();
-        const ids = new Set(scrappableItems.map((r) => r.id));
-        setItems((prev) => prev.filter((r) => !ids.has(r.id)));
-        setRecentRolls((prev) =>
-          prev.map((r) => (ids.has(r.id) ? { ...r, status: 'scrapped' } : r))
-        );
-        commit(res.value.stats);
-        toast(
-          scrapped === 0
-            ? 'Nothing on the shelf was worth scrapping.'
-            : `Recycled ${scrapped} item${scrapped === 1 ? '' : 's'} for +${scrap_gained} Scrap Coins!`,
-          scrapped === 0 ? 'bad' : 'good'
-        );
-      } else {
-        toast(res.error ?? 'Could not scrap everything. Nothing was changed.', 'bad');
-      }
-    } catch {
-      toast('Could not scrap everything. Nothing was changed.', 'bad');
-    } finally {
-      setScrappingAll(false);
-    }
-  };
-
   return (
     <div className="space-y-8">
       {/* Scrap Compactor */}
@@ -153,35 +97,6 @@ export function InventoryView({ initialItems, recentRolls: initialRecent, allowH
             </p>
           </div>
 
-          {scrappableItems.length > 0 &&
-            (confirmAll ? (
-              <div className="flex shrink-0 items-center gap-2">
-                <button
-                  onClick={handleScrapAll}
-                  disabled={scrappingAll}
-                  className="flex min-h-[44px] items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg transition hover:brightness-110 disabled:opacity-50"
-                >
-                  <Check className="h-4 w-4" />
-                  Yes, scrap {scrappableItems.length}
-                </button>
-                <button
-                  onClick={() => setConfirmAll(false)}
-                  disabled={scrappingAll}
-                  className="min-h-[44px] rounded-xl border border-gun-700 bg-gun-800 px-3 py-2.5 text-xs font-semibold text-gun-300 transition hover:text-white disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setConfirmAll(true)}
-                disabled={scrappingAll || scrappingId !== null}
-                className="flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-xl border border-gun-700 bg-gun-800 px-4 py-2.5 text-xs font-bold text-gun-200 transition hover:border-amber-500/50 hover:text-amber-300 disabled:opacity-50"
-              >
-                <Recycle className={`h-4 w-4 ${scrappingAll ? 'animate-spin' : ''}`} />
-                {scrappingAll ? 'Recycling…' : `Scrap All (${scrappableItems.length}) → +${scrappableCoins}`}
-              </button>
-            ))}
         </div>
 
         {items.length === 0 ? (

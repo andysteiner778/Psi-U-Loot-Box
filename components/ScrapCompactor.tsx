@@ -19,7 +19,17 @@ export function ScrapCompactor() {
   const canCompact = coinsHeld >= cost;
   const progressPct = Math.min(100, (coinsHeld / cost) * 100);
 
-  const handleCompact = async () => {
+  /*
+   * How many whole keys the pile is worth. compact_scrap only ever converts
+   * whole keys -- the remainder stays as coins rather than being rounded into
+   * credit the house never charged for -- so this is what "crush all" will
+   * actually pay, and the button says so rather than implying the remainder
+   * disappears.
+   */
+  const keysHeld = Math.floor(coinsHeld / cost);
+  const remainder = coinsHeld - keysHeld * cost;
+
+  const handleCompact = async (all = false) => {
     if (!canCompact || crunching) return;
     setCrunching(true);
     sfx.playScrapCrunch();
@@ -28,11 +38,17 @@ export function ScrapCompactor() {
       // Delay briefly to allow the hydraulic crunch animation to play
       await new Promise((resolve) => setTimeout(resolve, 800));
 
-      const res = await apiCompact();
+      const res = await apiCompact(all);
       if (res.ok) {
         commit(res.value.stats);
         sfx.playScrapCrunch();
-        toast(`💥 CRUNCH! Converted ${cost} Scrap Coins into $${res.value.data.credit}.00 Account Credit!`, 'good');
+        const d = res.value.data;
+        toast(
+          `💥 CRUNCH! Converted ${d.spent} Scrap Coins into $${d.credit}.00 Account Credit` +
+            (d.keys > 1 ? ` (${d.keys} keys)` : '') +
+            '!',
+          'good'
+        );
       } else {
         toast(res.error, 'bad');
       }
@@ -98,7 +114,7 @@ export function ScrapCompactor() {
           </div>
 
           <motion.button
-            onClick={handleCompact}
+            onClick={() => handleCompact(false)}
             disabled={!canCompact || crunching}
             animate={crunching ? { scale: [1, 0.9, 1.05, 1], rotate: [0, -2, 2, 0] } : {}}
             transition={{ duration: 0.8 }}
@@ -117,6 +133,26 @@ export function ScrapCompactor() {
                   : `Need ${Math.max(0, cost - coinsHeld)} More Coins`}
             </span>
           </motion.button>
+
+          {/*
+            Crush everything in one tap. Only worth offering once there are two
+            or more keys in the pile -- below that it does exactly what the
+            button above does, and two buttons that do the same thing is worse
+            than one.
+          */}
+          {keysHeld > 1 && (
+            <button
+              onClick={() => handleCompact(true)}
+              disabled={crunching}
+              className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-950/40 px-5 py-2.5 font-mono text-xs font-bold text-cyan-300 transition hover:border-cyan-400 hover:text-white active:scale-95 disabled:opacity-40"
+            >
+              <Hammer className={`h-3.5 w-3.5 ${crunching ? 'animate-spin' : ''}`} />
+              <span>
+                Crush All {keysHeld * cost} → ${keysHeld * keyPrice} Credit
+                {remainder > 0 ? ` (${remainder} coins stay)` : ''}
+              </span>
+            </button>
+          )}
         </div>
       </div>
     </div>

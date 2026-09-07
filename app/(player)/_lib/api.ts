@@ -142,10 +142,11 @@ export const apiScrap = (rollId: string) =>
     { rollId }
   );
 
-export const apiCompact = () =>
-  post<{ data: { ok: boolean; spent: number; credit: number; tier: BoxTier }; stats: PlayerStats }>(
-    '/api/inventory/compact'
-  );
+export const apiCompact = (all = false) =>
+  post<{
+    data: { ok: boolean; spent: number; credit: number; keys: number; tier: BoxTier };
+    stats: PlayerStats;
+  }>('/api/inventory/compact', { all });
 
 export const apiClaimPc = () =>
   post<{ data: { ok: boolean; item_name: string; value: number }; stats: PlayerStats }>(
@@ -158,8 +159,3 @@ export const apiSalvage = (count: number) =>
     { count }
   );
 
-export const apiScrapAll = () =>
-  post<{
-    data: { ok: boolean; scrapped: number; scrap_gained: number; items: { name: string; coins: number }[] };
-    stats: PlayerStats;
-  }>('/api/inventory/scrap-all');

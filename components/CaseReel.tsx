@@ -674,6 +674,30 @@ export function CaseReel({
               receipt rather than an offer -- and without it the player would
               never learn they had it until the discount silently appeared on
               their next box. */}
+          {/* A second OBJECT rode along with this one. Favors used to be their own
+              drop, which moved no stock; as a rider the win clears something off
+              the shelf AND still feels like a favor. It is already in inventory
+              by the time this renders -- open_box inserted its own roll row. */}
+          {winner.type === 'physical' && winner.bonus_item ? (
+            <div className="my-3 rounded-2xl border border-amber-500/50 bg-amber-950/40 p-3.5 text-left space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Gift className="h-4 w-4 text-amber-300 shrink-0" />
+                  <span className="font-bold text-xs font-mono text-amber-200 uppercase truncate">
+                    Bundled In
+                  </span>
+                </div>
+                <span className="rounded-md bg-amber-500/20 px-2 py-0.5 font-mono text-[10px] font-bold text-amber-300 uppercase shrink-0">
+                  +${Number(winner.bonus_item.msrp ?? winner.bonus_item.est_value).toFixed(2)}
+                </span>
+              </div>
+              <p className="text-xs font-mono text-amber-100/90">
+                <span className="font-bold text-white">{winner.bonus_item.item_name}</span> came
+                in the same box — already on your shelf.
+              </p>
+            </div>
+          ) : null}
+
           {winner.type === 'physical' && winner.bonus_pct ? (
             (() => {
               const bonusTier = winner.bonus_tier ?? 'tier_0';
