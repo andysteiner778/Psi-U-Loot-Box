@@ -157,3 +157,9 @@ export const apiSalvage = (count: number) =>
     '/api/inventory/salvage',
     { count }
   );
+
+export const apiScrapAll = () =>
+  post<{
+    data: { ok: boolean; scrapped: number; scrap_gained: number; items: { name: string; coins: number }[] };
+    stats: PlayerStats;
+  }>('/api/inventory/scrap-all');
