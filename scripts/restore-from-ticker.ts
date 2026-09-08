@@ -11,7 +11,14 @@
  * rolled are unrecoverable and are simply absent.
  *
  * WHAT IS RECOVERED EXACTLY
- *   name, box_tier, rarity          -- straight from the last broadcast for it
+ *   name, rarity   -- straight from the last broadcast for it
+ *
+ * WHAT THE TICKER GETS WRONG
+ *   box_tier -- the broadcast carries the tier of the BOX THAT WAS OPENED, not
+ *               the item's home tier. Cross-tier drops and filler mean a
+ *               tier_0 item is regularly broadcast as tier_2, so trusting it
+ *               scatters cheap junk across the expensive boxes. Tier is derived
+ *               from value instead, exactly as the admin form derives it.
  *
  * WHAT IS NOT INFERRED, DELIBERATELY
  *   est_value  -- rarity looks like it could be inverted back to a value band,
@@ -39,6 +46,7 @@
 import { config as denv } from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import { writeFileSync } from 'fs';
+import { tierForValue } from '../lib/economy';
 import type { BoxTier, Rarity } from '../lib/types';
 
 denv({ path: '.env.local', quiet: true });
@@ -100,8 +108,19 @@ async function main() {
   const { data: msgs, error } = await db.rpc('recover_ticker_items');
   if (error) throw new Error('recover_ticker_items RPC missing: ' + error.message);
 
+  /*
+   * Not just `kind === 'physical'`.
+   *
+   * A reward row -- house credit, a free spin, a discount voucher -- is
+   * broadcast as `respin`, because that is what winning one does. Filtering to
+   * physical dropped every one of them, so the first pass recovered the junk
+   * and silently lost the entire free-spin and credit economy. They are
+   * identifiable by NAME, so keep any row whose name states what it is.
+   */
   const rows = (msgs as any[]).filter(
-    (r) => r.kind === 'physical' && !/^(__|zz-e2e)/.test(r.name)
+    (r) =>
+      !/^(__|zz-e2e)/.test(r.name) &&
+      (r.kind === 'physical' || rewardWiring(r.name, prices) !== null)
   );
 
   const plan = rows.map((r) => {
@@ -110,7 +129,8 @@ async function main() {
     const est_value = reward?.est_value ?? 0.01;
     return {
       name: r.name,
-      box_tier: r.tier as BoxTier,
+      // NOT r.tier: see the header. That is the box that was opened.
+      box_tier: tierForValue(est_value),
       // The owner's own rarity choice, kept verbatim. It is set for effect
       // rather than derived from value, so recomputing it here would throw away
       // the one piece of curation the ticker preserved.
@@ -125,8 +145,35 @@ async function main() {
       reward_credit: reward?.reward_credit ?? null,
       reward_voucher_tier: reward?.reward_voucher_tier ?? null,
       reward_voucher_pct: reward?.reward_voucher_pct ?? null,
+      shard_cost: 0,
     };
   });
+
+  /*
+   * The shard prize cannot come from the ticker at ALL: it is claimed with
+   * shards, never dropped from a box, so it has never been broadcast. Without
+   * this row the shard track has no prize, the HUD has nothing to count toward
+   * and claim_pc has nothing to hand over -- the feature is simply broken.
+   * Its values are known and stated here rather than guessed.
+   */
+  if (!have.has('Gaming PC')) {
+    plan.push({
+      name: 'Gaming PC',
+      box_tier: 'tier_3' as BoxTier,
+      rarity: 'gold' as Rarity,
+      est_value: 400,
+      msrp: 600,
+      stock_qty: 1,
+      initial_stock_qty: 1,
+      scrap_value: 0,
+      is_active: true,
+      description: 'needs_review — the shard prize, recreated by hand (never appears in the ticker)',
+      reward_credit: null,
+      reward_voucher_tier: null,
+      reward_voucher_pct: null,
+      shard_cost: 4,
+    } as never);
+  }
 
   const fresh = plan.filter((p) => !have.has(p.name));
   writeFileSync('recovered-items.json', JSON.stringify(plan, null, 2));
