@@ -50,7 +50,8 @@ export const ConfigPatchSchema = z
     scrap_coins_per_key: z.number().int().min(1).max(100_000),
     scrap_key_tier: z.enum(BOX_TIERS),
     flash_sale_pct: z.number().min(0).max(0.9),
-    // Capped at 0.95 to match box_odds; the price is floored at $0.01 anyway.
+    // The slider offers 0-90% in tens; box_odds clamps at 0.95 and floors the
+    // final price at $0.01, so a hand-sent value cannot zero a box out.
     extra_discount_pct: z.number().min(0).max(0.95),
   })
   .partial();

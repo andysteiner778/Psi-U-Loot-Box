@@ -1578,8 +1578,8 @@ export function AdminDashboard({
                 <input
                   type="range"
                   min={0}
-                  max={0.95}
-                  step={0.05}
+                  max={0.9}
+                  step={0.1}
                   value={discountDraft}
                   onChange={(e) => setDiscountDraft(Number(e.target.value))}
                   onMouseUp={() => handleUpdateExtraDiscount(discountDraft)}
