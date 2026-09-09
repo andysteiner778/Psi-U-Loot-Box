@@ -27,6 +27,7 @@
     "backup": "tsx scripts/backup.ts",
     "backup:verify": "tsx scripts/backup-roundtrip.ts",
     "purge:placeholders": "tsx scripts/purge-placeholders.ts",
+    "unpriced": "tsx scripts/unpriced-live.ts",
     "compact": "tsx scripts/compact-live.ts",
     "bundle": "tsx scripts/bundle-live.ts",
     "reconcile": "tsx scripts/reconcile.ts"

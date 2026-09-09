@@ -71,7 +71,8 @@ export function BulkUpload({
       url: null,
       status: 'queued',
       name: nameFromFile(file),
-      value: '',
+      // Unpriced by default: upload the photos now, put values on them later.
+      value: '0',
       msrp: '',
       qty: '1',
     }));
@@ -192,15 +193,22 @@ export function BulkUpload({
   };
 
   const createAll = async () => {
-    const ready = drafts.filter((d) => d.status === 'done' && d.name.trim() && Number(d.value) > 0);
+    /*
+     * A price is no longer required. $0 means "uploaded, not yet priced", and
+     * such an item is absent from every box until it is valued -- so it is safe
+     * to create a whole shelf of them and price them afterwards.
+     */
+    const ready = drafts.filter(
+      (d) => d.status === 'done' && d.name.trim() && Number.isFinite(Number(d.value))
+    );
     if (!ready.length) {
-      showMsg('Give each item a name and a price above $0 first', 'bad');
+      showMsg('Give each item a name first', 'bad');
       return;
     }
     setCreating(true);
     let made = 0;
     for (const d of ready) {
-      const est = Number(d.value);
+      const est = Math.max(0, Number(d.value) || 0);
       try {
         const res = await fetch('/api/admin/items', {
           method: 'POST',
@@ -222,7 +230,11 @@ export function BulkUpload({
     }
     setCreating(false);
     setDrafts((d) => d.filter((x) => !ready.includes(x)));
-    showMsg('Added ' + made + ' items');
+    const unpriced = ready.filter((d) => !(Number(d.value) > 0)).length;
+    showMsg(
+      'Added ' + made + ' items' +
+        (unpriced ? ' — ' + unpriced + ' unpriced, so they stay out of the boxes until you value them' : '')
+    );
     onDone();
   };
 
@@ -281,7 +293,7 @@ export function BulkUpload({
 
           <div className="mt-2 max-h-[420px] space-y-2 overflow-y-auto pr-1">
             {drafts.map((d) => {
-              const est = Number(d.value);
+              const est = Math.max(0, Number(d.value) || 0);
               const rarity: Rarity | null = est > 0 ? rarityForValue(est) : null;
               const tier: BoxTier | null = est > 0 ? tierForValue(est) : null;
               return (

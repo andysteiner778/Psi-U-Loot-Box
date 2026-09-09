@@ -13,6 +13,7 @@
  */
 
 import { config as denv } from 'dotenv';
+import { skipIfUnplayable } from './_preflight';
 import { createClient } from '@supabase/supabase-js';
 
 denv({ path: '.env.local', quiet: true });
@@ -74,6 +75,8 @@ const balanceOf = async (id: string) => {
 const setBalance = (id: string, v: number) => db.from('profiles').update({ balance: v }).eq('id', id);
 
 async function main() {
+  // Nothing below can pass while every box is locked for want of priced items.
+  if (await skipIfUnplayable(db, 'e2e-live.ts')) return;
   console.log('\n=================================================================');
   console.log(' LIVE END-TO-END SCENARIO TEST');
   console.log('=================================================================');

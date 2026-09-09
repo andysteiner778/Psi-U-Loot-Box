@@ -502,7 +502,13 @@ export function AdminDashboard({
 
     setLoading(true);
     try {
-      const valNum = Math.max(0.01, parseFloat(itemForm.est_value) || 0.01);
+      /*
+       * 0 is allowed: it means "not priced yet", and such an item stays out of
+       * every box until it is valued. Clamping to 0.01 would quietly put an
+       * unpriced item into the draw.
+       */
+      const parsed = parseFloat(itemForm.est_value);
+      const valNum = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
       const autoRarity = rarityForValue(valNum);
       const autoTier = tierForValue(valNum);
       const autoScrap = scrapCoinsFor(valNum, autoRarity);
@@ -1272,7 +1278,21 @@ export function AdminDashboard({
                             {rLabel}
                           </span>
                         </td>
-                        <td className="py-3 px-3 text-right text-emerald-400 font-bold">${Number(item.est_value).toFixed(2)}</td>
+                        <td className="py-3 px-3 text-right font-bold">
+                          {/* An unpriced item is not in any box. Saying so here is the
+                              difference between "I still have to price these" and
+                              "why is my box empty". */}
+                          {Number(item.est_value) > 0 ? (
+                            <span className="text-emerald-400">${Number(item.est_value).toFixed(2)}</span>
+                          ) : (
+                            <span
+                              title="Not priced yet — this item does not appear in any box"
+                              className="rounded-md bg-amber-500/15 px-1.5 py-0.5 font-mono text-[10px] text-amber-300"
+                            >
+                              UNPRICED
+                            </span>
+                          )}
+                        </td>
                         <td className="py-3 px-3 text-center">
                           <div className="inline-flex items-center gap-1.5 rounded-lg bg-gun-900 px-2 py-1 border border-gun-800">
                             <button

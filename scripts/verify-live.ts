@@ -18,6 +18,7 @@
  */
 
 import { config } from 'dotenv';
+import { skipIfUnplayable } from './_preflight';
 import { createClient } from '@supabase/supabase-js';
 
 config({ path: '.env.local', quiet: true });
@@ -46,6 +47,8 @@ function ok(cond: boolean, msg: string, detail = '') {
 }
 
 async function main() {
+  // Nothing below can pass while every box is locked for want of priced items.
+  if (await skipIfUnplayable(svc, 'verify-live.ts')) return;
   console.log('\n=================================================================');
   console.log(' LIVE SUPABASE VERIFICATION');
   console.log('=================================================================');

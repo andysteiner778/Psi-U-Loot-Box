@@ -31,14 +31,27 @@ export async function POST(req: Request) {
   if (gate instanceof Response) return gate;
 
   const body = await readJson<any>(req);
-  if (!body || !body.name || !body.est_value) {
+  /*
+   * `!body.est_value` rejected 0, which is a legitimate value: an item can be
+   * uploaded before it is priced. Check for PRESENCE, not truthiness.
+   */
+  if (!body || !body.name || body.est_value === undefined || body.est_value === null) {
     return jsonErr(400, 'Missing name or est_value');
+  }
+  if (!Number.isFinite(Number(body.est_value)) || Number(body.est_value) < 0) {
+    return jsonErr(400, 'est_value must be a number of 0 or more');
   }
 
   const name = String(body.name).trim();
   const description = body.description ? String(body.description).trim() : null;
   const image_url = body.image_url ? String(body.image_url).trim() : null;
-  const est_value = Math.max(0.01, Number(body.est_value));
+  /*
+   * 0 is allowed and means "not priced yet". It is NOT the same as cheap: the
+   * engine, box_odds and tier_lock_state all filter `est_value > 0`, so an
+   * unpriced item is absent from every draw until it is given a value. Clamping
+   * it up to $0.01 would silently drop it into the boxes instead.
+   */
+  const est_value = Math.max(0, Number(body.est_value));
   // Display only. Never feeds the odds -- see items.msrp in migration 0008.
   const msrpRaw = Number(body.msrp);
   const msrp = Number.isFinite(msrpRaw) && msrpRaw > 0 ? msrpRaw : null;
