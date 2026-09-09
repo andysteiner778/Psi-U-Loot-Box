@@ -2,6 +2,7 @@ import { AdminUnlock } from '@/components/admin/AdminUnlock';
 import { adminPinConfigured } from '@/lib/admin-lock';
 import { adminPageGate } from '../_lib/guard';
 import { PlayerRoster } from '@/components/admin/PlayerRoster';
+import { AdminExitButton } from '@/components/admin/AdminExitButton';
 import Link from 'next/link';
 import { ArrowLeft, Lock, LayoutDashboard } from 'lucide-react';
 
@@ -59,13 +60,7 @@ export default async function AdminPlayersPage() {
             <LayoutDashboard className="h-3.5 w-3.5" />
             <span>Admin Dashboard</span>
           </Link>
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-gun-700 bg-gun-850 px-3 py-1.5 text-xs font-mono text-gun-300 hover:text-white transition"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            <span>Back to Game</span>
-          </Link>
+          <AdminExitButton label="Back to Game" showLockNow={false} />
         </div>
 
         <div className="rounded-3xl border border-gun-800 bg-gun-900/60 p-6 sm:p-8 shadow-2xl backdrop-blur-md">

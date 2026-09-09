@@ -5,6 +5,7 @@ import { readConfig } from './_lib/config';
 import { db } from '@/lib/supabase/server';
 import { playerRoster } from '@/lib/session';
 import { AdminDashboard } from '@/components/admin/AdminDashboard';
+import { AdminExitButton } from '@/components/admin/AdminExitButton';
 import Link from 'next/link';
 import { ShieldAlert, ArrowLeft, Lock } from 'lucide-react';
 
@@ -106,13 +107,7 @@ export default async function AdminPage() {
   return (
     <main className="min-h-dvh bg-gun-950 text-white p-4 sm:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1.5 rounded-xl border border-gun-700 bg-gun-850 px-3 py-1.5 text-xs font-mono text-gun-300 hover:text-white transition"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          <span>Back to Player Game</span>
-        </Link>
+        <AdminExitButton label="Back to Main Menu" />
 
         <AdminDashboard
           admin={gate.admin}
