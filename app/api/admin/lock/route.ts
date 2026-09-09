@@ -10,7 +10,9 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(req: Request) {
   await lockAdmin();
-  return NextResponse.redirect(new URL('/', req.url));
+  const url = new URL(req.url);
+  const target = url.searchParams.get('redirect') || '/';
+  return NextResponse.redirect(new URL(target, req.url));
 }
 
 export async function POST() {

@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 /**
- * Next.js Proxy — enforces admin lock upon returning to the main menu.
+ * Next.js Middleware — enforces admin lock upon returning to the main menu.
  *
  * When an admin leaves the /admin portal and visits any player page (like /),
- * this proxy automatically strips the `hl_admin_unlock` cookie.
+ * this middleware automatically strips the `hl_admin_unlock` cookie.
  * Next time they tap "Admin", they must re-enter their admin PIN.
  */
 export function proxy(request: NextRequest) {

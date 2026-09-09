@@ -178,7 +178,7 @@ export function Header() {
             {/* Admin Link if admin role */}
             {user.role === 'admin' && (
               <a
-                href="/admin"
+                href="/api/admin/lock?redirect=/admin"
                 className="flex shrink-0 min-h-[44px] items-center gap-1.5 rounded-xl border border-purple-500/40 bg-purple-950/50 px-3 py-2 text-xs font-mono font-bold text-purple-300 hover:bg-purple-900/60 transition shadow-sm"
               >
                 <Shield className="h-3.5 w-3.5" />
