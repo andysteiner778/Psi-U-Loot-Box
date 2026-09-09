@@ -32,6 +32,7 @@
     "shards": "tsx scripts/shards-live.ts",
     "retier": "tsx scripts/retier-by-retail.ts",
     "credit-fit": "tsx scripts/credit-fit.ts",
+    "lockout": "tsx scripts/lockout-live.ts",
     "compact": "tsx scripts/compact-live.ts",
     "bundle": "tsx scripts/bundle-live.ts",
     "reconcile": "tsx scripts/reconcile.ts"
