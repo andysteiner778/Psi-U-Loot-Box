@@ -167,6 +167,7 @@ export default async function PlayerBoxesPage() {
               listPrice={config.box_list_prices?.[odds.tier]}
               voucherPct={vouchers[odds.tier]?.bestPct}
               destinations={destinations}
+              shardImageUrl={shardPrizes[0]?.image_url ?? null}
             />
           ))}
         </div>

@@ -159,3 +159,9 @@ export const apiSalvage = (count: number) =>
     { count }
   );
 
+/**
+ * A free test spin. Returns what a real roll WOULD have produced; nothing is
+ * charged and nothing is kept, so there are no stats to commit.
+ */
+export const apiPreviewBox = (tier: BoxTier) =>
+  post<{ data: OpenBoxResult & { preview: true } }>('/api/box/preview', { tier });

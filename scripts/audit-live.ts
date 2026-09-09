@@ -241,26 +241,54 @@ async function main() {
   const highRate = rates.scrap_recovery_high ?? 0.4;
   console.log('\n----------------------------------------------------------------');
   console.log(' SCRAP RECOVERY   (a coin is worth $' + coinUsdNow.toFixed(4) + ')');
+  /*
+   * Scrap is priced off RETAIL now, not est_value, and capped at half the price
+   * of the box that drops the item.
+   *
+   * The old check compared the payout to est_value against scrap_recovery_frac,
+   * which no longer describes anything: est_value and msrp are decoupled on
+   * purpose here, so a $0.01 giveaway carrying a $40 retail is MEANT to scrap
+   * for real money. It flagged 65 of 84 items as broken when they were correct.
+   *
+   * The two invariants that still matter, and both are about not minting money:
+   *   - nothing scraps for more than half the box that produced it, or a
+   *     patient player farms the cheap box forever
+   *   - nothing scraps for more than its own advertised retail
+   */
   let scrapOk = true;
+  let worstOfBox = 0;
+  let worstName = '';
   for (const it of items) {
     if (it.scrap_value <= 0) continue;             // deliberately unscrappable
     if ((it.shard_cost ?? 0) > 0) continue;        // shard prizes priced by hand
-    const target = ['purple', 'pink', 'gold'].includes(it.rarity) ? highRate : normalRate;
-    const actual = (it.scrap_value * coinUsdNow) / it.est_value;
-    // Rounding to whole coins makes cheap items lumpy, so the band is wide; it
-    // is here to catch a denomination shift, not to police pennies.
-    if (actual < target * 0.6 || actual > target * 1.8) {
+    const paid = it.scrap_value * coinUsdNow;
+    const boxPrice = cfg.box_prices[it.box_tier] ?? 0;
+    const retail = Number((it as unknown as { msrp: number | null }).msrp ?? it.est_value);
+
+    const ofBox = boxPrice > 0 ? paid / boxPrice : 0;
+    if (ofBox > worstOfBox) { worstOfBox = ofBox; worstName = it.name; }
+
+    if (boxPrice > 0 && paid > boxPrice * 0.5 + 1e-9) {
       scrapOk = false;
       warn(
-        it.name + ': scraps for ' + it.scrap_value + ' coins = $' +
-        (it.scrap_value * coinUsdNow).toFixed(2) + ' on a $' + it.est_value.toFixed(2) +
-        ' item (' + (actual * 100).toFixed(1) + '%), but config promises ' +
-        (target * 100).toFixed(0) + '%. Rebase scrap_value against the current coin.'
+        it.name + ': scraps for $' + paid.toFixed(2) + ' out of a $' + boxPrice.toFixed(2) +
+        ' box (' + (ofBox * 100).toFixed(0) + '%). Above 50% this can be farmed — ' +
+        'run npm run rebase-scrap -- --basis=retail --fix.'
+      );
+    }
+    if (paid > retail + 1e-9) {
+      scrapOk = false;
+      warn(
+        it.name + ': scraps for $' + paid.toFixed(2) + ' but is advertised at $' +
+        retail.toFixed(2) + ' retail.'
       );
     }
   }
   if (scrapOk) {
-    console.log('   every scrappable item pays within tolerance of its configured rate.');
+    console.log(
+      '   nothing scraps above its retail, and the worst is ' +
+      (worstOfBox * 100).toFixed(0) + '% of its box (' + worstName + ').'
+    );
   }
 
   console.log('\n----------------------------------------------------------------');

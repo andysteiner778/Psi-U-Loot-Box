@@ -47,11 +47,23 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
    * not listed. One line at the top answers it instead.
    */
   const RARITY_ORDER: Rarity[] = ['grey', 'blue', 'purple', 'pink', 'gold'];
+  /*
+   * Split the pool by what a row actually IS.
+   *
+   * House credit, FREE SPIN and % OFF rows live in `items` so the engine can
+   * price them, but they are promises, not objects. Listing them under
+   * "Physical Loot Pool" — counted in the prize total and the rarity bands —
+   * is what made the junk odds look inflated. `is_reward` comes from box_odds
+   * itself, so this cannot drift from the server's own definition.
+   */
   const allDrops = [...odds.items, ...odds.filler];
+  const objectDrops = allDrops.filter((i) => !i.is_reward);
+  const rewardDrops = allDrops.filter((i) => i.is_reward && i.probability > 0);
+  const rewardChance = rewardDrops.reduce((a, i) => a + i.probability, 0);
   const rarityTotals = RARITY_ORDER.map((rarity) => ({
     rarity,
-    p: allDrops.filter((i) => i.rarity === rarity).reduce((a, i) => a + i.probability, 0),
-    n: allDrops.filter((i) => i.rarity === rarity && i.probability > 0).length,
+    p: objectDrops.filter((i) => i.rarity === rarity).reduce((a, i) => a + i.probability, 0),
+    n: objectDrops.filter((i) => i.rarity === rarity && i.probability > 0).length,
   })).filter((x) => x.p > 0);
 
   return (
@@ -176,10 +188,14 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-gun-300">
-                Physical Loot Pool ({allDrops.filter((i) => i.probability > 0).length} prizes)
+                Physical Loot Pool ({objectDrops.filter((i) => i.probability > 0).length} prizes)
               </h3>
               <span className="text-[11px] font-mono text-emerald-400 font-semibold">
-                Total Physical Chance: {pct(odds.p_physical + (odds.floor_kind === 'item' ? odds.p_scrap : 0))}
+                {/* Sum the ROWS, do not add p_scrap on top. Every filler row already
+                    carries its share of p_scrap in its own probability, so adding the
+                    anchor as well counted the floor twice — and p_physical includes the
+                    reward rows, which are not objects at all. */}
+                Real Item Chance: {pct(objectDrops.reduce((a, i) => a + i.probability, 0))}
               </span>
             </div>
 
@@ -214,7 +230,7 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
                   <tr>
                     <th className="py-2.5 px-3">Item Name</th>
                     <th className="py-2.5 px-3">Rarity</th>
-                    <th className="py-2.5 px-3 text-right">Est. Value</th>
+                    <th className="py-2.5 px-3 text-right">Retail</th>
                     <th className="py-2.5 px-3 text-right">Stock</th>
                     <th className="py-2.5 px-3 text-right">Chance</th>
                   </tr>
@@ -228,7 +244,7 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
                     Filler probabilities are already conditional on the floor
                     branch being drawn, so they are directly comparable.
                   */}
-                  {[...odds.items, ...odds.filler]
+                  {objectDrops
                     .filter((i) => i.probability > 0)
                     .sort((a, b) => b.probability - a.probability)
                     .map((item) => {
@@ -349,7 +365,10 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
                       </td>
                     </tr>
                   )}
-                  {odds.items.length === 0 && (
+                  {/* Guard on what the table actually renders. This keyed off
+                      odds.items alone, so an empty prize pool printed "nothing
+                      remaining" UNDERNEATH a list of populated filler rows. */}
+                  {objectDrops.filter((i) => i.probability > 0).length === 0 && (
                     <tr>
                       <td colSpan={5} className="py-6 text-center text-gun-500">
                         No physical items remaining in this tier.
@@ -360,6 +379,43 @@ export function BoxOddsModal({ isOpen, onClose, odds, meta }: BoxOddsModalProps)
               </table>
             </div>
           </div>
+
+          {/*
+            Credit, free spins and vouchers — shown, but kept out of the loot
+            pool above. They are real outcomes a player should be able to see
+            the odds of; they are just not things you carry home, and counting
+            them as prizes was what made the item odds look better than they are.
+          */}
+          {rewardDrops.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-gun-300">
+                  Credit &amp; Free Spins ({rewardDrops.length})
+                </h3>
+                <span className="text-[11px] font-mono font-semibold text-cyan-400">
+                  {pct(rewardChance)} of rolls
+                </span>
+              </div>
+              <div className="rounded-2xl border border-gun-800 bg-gun-950/50 divide-y divide-gun-850">
+                {rewardDrops
+                  .sort((a, b) => b.probability - a.probability)
+                  .map((r) => (
+                    <div key={r.item_id} className="flex items-center justify-between px-3 py-2">
+                      <span className="truncate font-sans text-xs font-semibold text-cyan-200">
+                        {r.name}
+                      </span>
+                      <span className="shrink-0 font-mono text-[11px] font-bold text-white">
+                        {pct(r.probability)}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+              <p className="text-[10px] font-mono leading-relaxed text-gun-500">
+                Not objects — these pay straight into your balance or hand you a
+                discounted spin.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Modal Footer */}

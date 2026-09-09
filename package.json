@@ -28,6 +28,10 @@
     "backup:verify": "tsx scripts/backup-roundtrip.ts",
     "purge:placeholders": "tsx scripts/purge-placeholders.ts",
     "unpriced": "tsx scripts/unpriced-live.ts",
+    "preview": "tsx scripts/preview-live.ts",
+    "shards": "tsx scripts/shards-live.ts",
+    "retier": "tsx scripts/retier-by-retail.ts",
+    "credit-fit": "tsx scripts/credit-fit.ts",
     "compact": "tsx scripts/compact-live.ts",
     "bundle": "tsx scripts/bundle-live.ts",
     "reconcile": "tsx scripts/reconcile.ts"

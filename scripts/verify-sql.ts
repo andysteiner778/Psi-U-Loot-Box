@@ -234,6 +234,13 @@ async function main() {
     "INSERT INTO deposits (user_id, amount, venmo_note, status) VALUES ($1, 500, '#TEST', 'approved')",
     [player]
   );
+  /*
+   * Restock first. Four hundred rolls above drain tier_3, and shards now taper
+   * with remaining real stock so a picked-clean box cannot become the easiest
+   * route to the PC. That taper would hold p_shard at 0 here and make this look
+   * like the pot gate failing, when the gate is exactly what is under test.
+   */
+  await db.query('UPDATE items SET stock_qty = GREATEST(stock_qty, 20) WHERE COALESCE(shard_cost,0) = 0');
   const gated = (await db.query<{ box_odds: Record<string, unknown> }>(
     "SELECT box_odds('tier_3') AS box_odds"
   )).rows[0].box_odds;
@@ -450,7 +457,14 @@ async function main() {
       // agreement alone cannot prove a per-tier margin actually took effect --
       // if `tier_margins` were missing, both would fall back to house_margin
       // and still agree. Pin the target payout to an absolute number.
-      const expectedMargin = tier === 'tier_0' ? 0 : Number((cfg as Record<string, unknown>).house_margin);
+      // Read tier_margins off the RAW config row rather than through
+      // marginForTier, so a silently-missing per-tier override still fails here
+      // instead of both engines agreeing on the same fallback. Hardcoding
+      // tier_0 to 0 predated tier_margins existing at all.
+      const rawMargins = ((cfg as Record<string, unknown>).tier_margins ?? {}) as Record<string, number>;
+      const expectedMargin = Number(
+        rawMargins[tier] ?? (cfg as Record<string, unknown>).house_margin
+      );
       const expectedTarget = Number(sql.box_price) * (1 - expectedMargin);
       ok(
         Math.abs(Number(sql.target_ev) - expectedTarget) < 1e-6,

@@ -8,7 +8,7 @@ import type { BoxTier, OpenBoxResult } from '@/lib/types';
 import { RARITY_COLOR } from '@/lib/types';
 import { BOX_META, money, type PlayerBoxOdds, type DestinationTarget } from '@/app/(player)/_lib/shared';
 import { usePlayer } from '@/app/(player)/_lib/player-store';
-import { apiOdds, apiOpenBox, newRollId } from '@/app/(player)/_lib/api';
+import { apiOdds, apiOpenBox, apiPreviewBox, newRollId } from '@/app/(player)/_lib/api';
 import { sfx } from '@/lib/sound';
 import { supabase, TICKER_TOPIC } from '@/lib/supabase/browser';
 import { CaseReel } from '@/components/CaseReel';
@@ -28,6 +28,8 @@ export interface BoxCardProps {
   voucherPct?: number;
   /** Ladder destination metadata map for all tiers */
   destinations?: Partial<Record<BoxTier, DestinationTarget>>;
+  /** The PC's photo, so a shard win can show the machine it is a piece of. */
+  shardImageUrl?: string | null;
 }
 
 export function BoxCard({
@@ -39,6 +41,7 @@ export function BoxCard({
   listPrice,
   voucherPct: initialVoucherPct,
   destinations,
+  shardImageUrl,
 }: BoxCardProps) {
   /**
    * Odds are server-rendered once at page load. Stock changes on every roll --
@@ -87,6 +90,7 @@ export function BoxCard({
 
   const endSpin = useCallback(() => {
     spinningRef.current = false;
+    setIsPreview(false);
     setActiveWinner(null);
     setSpinning(false);
     refreshPendingRef.current = false;
@@ -139,6 +143,14 @@ export function BoxCard({
   const [spinning, setSpinning] = useState(false);
   const [opening, setOpening] = useState(false);
   const [activeWinner, setActiveWinner] = useState<OpenBoxResult | null>(null);
+  /*
+   * A free test spin reuses the whole reel, so it lives in the same state as a
+   * real one and is distinguished by a flag. `preview` suppresses the charge
+   * (there was none), the confetti and the "spin again" affordance, and drives
+   * the banner on the reveal.
+   */
+  const [previewing, setPreviewing] = useState(false);
+  const [isPreview, setIsPreview] = useState(false);
 
   const tier = odds.tier;
   const meta = BOX_META[tier] || { name: 'Mystery Box', blurb: '', accent: 'grey' };
@@ -247,6 +259,33 @@ export function BoxCard({
     refreshPendingRef.current = true;
   }, []);
 
+  /**
+   * Free test spin. Nothing is charged and nothing is kept — the server runs
+   * the real draw in a subtransaction and discards it — so there is no
+   * optimistic balance adjustment to make and no stats to commit.
+   */
+  const handlePreview = useCallback(async () => {
+    if (previewing || opening || spinningRef.current) return;
+    setPreviewing(true);
+    try {
+      const res = await apiPreviewBox(tier);
+      if (res.ok) {
+        setIsPreview(true);
+        spinningRef.current = true;
+        setActiveWinner(res.value.data);
+        setSpinning(true);
+      } else {
+        sfx.playError();
+        toast(res.error, 'bad');
+      }
+    } catch {
+      sfx.playError();
+      toast('Could not run a test spin right now.', 'bad');
+    } finally {
+      setPreviewing(false);
+    }
+  }, [previewing, opening, tier, toast]);
+
   const handleOpen = async () => {
     if (opening || spinning) return;
     // Unlock iOS WebAudio synchronously during user gesture before async fetch
@@ -256,7 +295,10 @@ export function BoxCard({
       return;
     }
 
+
+
     setOpening(true);
+    setIsPreview(false);
     // Optimistic balance adjustment for instant UI tap feedback
     adjust({ balance: -effectivePrice });
 
@@ -411,7 +453,18 @@ export function BoxCard({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-4 gap-2">
+            {/* Free test spin: what you WOULD have won, at no cost. */}
+            <button
+              onClick={handlePreview}
+              disabled={previewing || opening || spinning || isCleanedOut}
+              title="See what this box would have given you — free, nothing is won or charged"
+              className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-cyan-600/40 bg-cyan-950/30 py-3 text-xs font-semibold text-cyan-300 hover:border-cyan-500 hover:text-white transition disabled:opacity-40"
+            >
+              <Sparkles className={`h-4 w-4 ${previewing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">{previewing ? '…' : 'Try Free'}</span>
+            </button>
+
             {/* Inspect Button */}
             <button
               onClick={() => setInspectOpen(true)}
@@ -501,6 +554,8 @@ export function BoxCard({
           compactUsd={compactUsd}
           decoys={decoys}
           winner={activeWinner}
+          isPreview={isPreview}
+          shardImageUrl={shardImageUrl}
           tierName={meta.name}
           // The item that just landed has had its stock decremented server
           // side. Pull fresh odds now so it stops appearing in this card and on

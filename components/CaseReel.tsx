@@ -3,7 +3,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { motion, useAnimation, useReducedMotion } from 'framer-motion';
 import confetti from 'canvas-confetti';
-import { Sparkles, ArrowDown, ArrowUp, RefreshCw, X, Gift, ShieldAlert, Ticket, Package } from 'lucide-react';
+import { Sparkles, ArrowDown, ArrowUp, RefreshCw, X, Gift, ShieldAlert, Ticket, Package, Coins, Recycle } from 'lucide-react';
 import type { BoxTier, OpenBoxResult, Rarity } from '@/lib/types';
 import type { DestinationTarget } from '@/app/(player)/_lib/shared';
 import { RARITY_COLOR, RARITY_LABEL, canScrap, isJackpot } from '@/lib/types';
@@ -39,6 +39,17 @@ export interface CaseReelProps {
    * scrap the server would refuse.
    */
   allowHighRarityScrap?: boolean;
+  /**
+   * The PC's photo. A shard win used to render a generic sparkle icon, which
+   * gave no sense of what the piece is FOR — showing the machine itself is the
+   * whole point of a shard.
+   */
+  shardImageUrl?: string | null;
+  /**
+   * This was a free test spin: the server ran the real draw and threw it away.
+   * Nothing was won, so the reveal says so and offers no "spin again".
+   */
+  isPreview?: boolean;
   /** Coins the compactor needs, and what it pays. Quoted on a scrap result. */
   compactCoins?: number;
   compactUsd?: number;
@@ -100,6 +111,8 @@ export function CaseReel({
   onSpinAgain,
   onClose,
   allowHighRarityScrap = false,
+  shardImageUrl = null,
+  isPreview = false,
   compactCoins = 500,
   compactUsd = 10,
 }: CaseReelProps) {
@@ -315,7 +328,13 @@ export function CaseReel({
         // Legendary purple items landed in total silence visually, despite
         // being the second-best thing in the game and worth $50-100. A tier that
         // gets its own sound but no confetti reads as broken, not as restrained.
-        const burst = celebrationFor(won);
+        /*
+         * No confetti on a test spin. The reel and the sound still play -- that
+         * is the point, you are being shown what the box feels like -- but
+         * celebrating something the player did not actually get is the kind of
+         * detail that makes a free preview feel like a bait and switch.
+         */
+        const burst = isPreview ? null : celebrationFor(won);
         if (burst) {
           try {
             confetti(burst);
@@ -461,7 +480,23 @@ export function CaseReel({
                       className="h-full w-full object-contain"
                     />
                   ) : (
-                    <Gift className="h-10 w-10 text-gun-500" style={{ color: cardColor }} />
+                    /* Pick the icon off the NAME, because a strip card carries no
+                       type — it is built from the odds pool, where credit rows,
+                       spin rows and voucher rows are just items with no photo. A
+                       single Gift for all of them made the reel look like it was
+                       full of the same mystery box. */
+                    (() => {
+                      const n = card.name;
+                      if (/free .*spin|re-?roll/i.test(n))
+                        return <RefreshCw className="h-10 w-10" style={{ color: cardColor }} />;
+                      if (/% ?off|voucher/i.test(n))
+                        return <Ticket className="h-10 w-10" style={{ color: cardColor }} />;
+                      if (/credit/i.test(n))
+                        return <Coins className="h-10 w-10" style={{ color: cardColor }} />;
+                      if (/shard/i.test(n))
+                        return <Sparkles className="h-10 w-10" style={{ color: cardColor }} />;
+                      return <Gift className="h-10 w-10" style={{ color: cardColor }} />;
+                    })()
                   )}
                 </div>
 
@@ -533,15 +568,68 @@ export function CaseReel({
                 className="relative h-full w-full object-contain p-2"
               />
             ) : winner.type === 'shard' ? (
-              <Sparkles className="relative h-20 w-20" style={{ color: winColor }} />
+              /* Show the machine, not an abstract sparkle. A shard means
+                 nothing on its own — the picture of what it builds toward is
+                 the entire reason the piece is worth having. */
+              shardImageUrl ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={shardImageUrl}
+                    alt="Gaming PC"
+                    className="relative h-full w-full object-contain p-2"
+                  />
+                  <Sparkles
+                    className="absolute right-2 top-2 h-6 w-6 drop-shadow"
+                    style={{ color: winColor }}
+                  />
+                </>
+              ) : (
+                <Sparkles className="relative h-20 w-20" style={{ color: winColor }} />
+              )
             ) : winner.type === 'respin' ? (
-              <RefreshCw className="relative h-20 w-20" style={{ color: winColor }} />
+              /*
+               * Three different things arrive as `respin` and they used to share
+               * one icon: a free re-roll, house credit, and a discount voucher.
+               * None of these rows has a photo, so the icon IS the art — giving
+               * them the same one made three distinct outcomes look identical
+               * at the moment the player is trying to read what they got.
+               */
+              winner.voucher_tier ? (
+                <Ticket className="relative h-20 w-20" style={{ color: winColor }} />
+              ) : Number(winner.refund_amount ?? 0) > 0 &&
+                winner.item_name !== 'Free Re-Roll Token' ? (
+                <Coins className="relative h-20 w-20" style={{ color: winColor }} />
+              ) : (
+                <RefreshCw className="relative h-20 w-20" style={{ color: winColor }} />
+              )
+            ) : winner.type === 'scrap' ? (
+              <Recycle className="relative h-20 w-20" style={{ color: winColor }} />
             ) : (
               <Gift className="relative h-20 w-20" style={{ color: winColor }} />
             )}
           </div>
 
-          <h3 className="mt-3 text-2xl font-black text-white sm:text-3xl">{winner.item_name}</h3>
+          {isPreview && (
+            <div className="mt-2 rounded-xl border border-cyan-500/50 bg-cyan-950/40 px-3 py-2 text-center">
+              <p className="font-mono text-[11px] font-bold uppercase tracking-wider text-cyan-300">
+                Test spin — nothing was won
+              </p>
+              <p className="mt-0.5 font-mono text-[10px] text-cyan-100/80">
+                This is what the box would have given you. You were not charged.
+              </p>
+            </div>
+          )}
+
+          {/* Past the halfway mark the headline becomes the prize itself. Reading
+              "PC Core Shard (3/4)" understates how close they are; "GAMING PC"
+              is what the next one actually means. The progress line below still
+              gives the exact count. */}
+          <h3 className="mt-3 text-2xl font-black text-white sm:text-3xl">
+            {winner.type === 'shard' && winner.current_shards >= 3
+              ? 'Gaming PC'
+              : winner.item_name}
+          </h3>
 
           {/* Outcome specific details */}
           {winner.type === 'physical' && (
@@ -638,7 +726,7 @@ export function CaseReel({
                             </span>
                             <span className="font-bold text-xs text-white truncate block">{topPrize.name}</span>
                             <span className="font-mono text-[11px] font-semibold text-emerald-400">
-                              Est. Value ${topPrize.value.toFixed(2)}
+                              Retail ${topPrize.value.toFixed(2)}
                             </span>
                           </div>
                         </div>
@@ -761,7 +849,10 @@ export function CaseReel({
 
           {/* Action buttons */}
           <div className="mt-4 flex w-full gap-3">
-            {onSpinAgain && (
+            {/* No "spin again" after a preview: the button charges, and offering
+                it straight after a free look invites a tap the player did not
+                mean to pay for. Close and choose deliberately. */}
+            {onSpinAgain && !isPreview && (
               <button
                 onClick={onSpinAgain}
                 className="flex-1 flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3 font-bold text-white shadow-lg transition hover:brightness-110 active:scale-95"

@@ -99,6 +99,11 @@ export interface Item {
   bonus_item_id?: string | null;
   /** A rider: reaches players only via someone else's bonus_item_id, never drawn alone. */
   bundle_only?: boolean | null;
+  /** Set on rows that pay house credit instead of handing over an object. */
+  reward_credit?: number | null;
+  /** Set on rows that hand over a discount/free-spin voucher for this tier. */
+  reward_voucher_tier?: BoxTier | null;
+  reward_voucher_pct?: number | null;
   bonus_voucher_tier?: BoxTier | null;
   bonus_voucher_pct?: number | null;
 
@@ -270,6 +275,28 @@ export interface EconomyConfig {
   pot_revenue_threshold: number;
   box_prices: Record<BoxTier, number>;
   shard_probs: Record<BoxTier, number>;
+  /**
+   * Per-tier shard ladder, indexed by shards HELD: the Nth entry is the chance
+   * of the (N+1)th shard. Supersedes shard_probs x shard_progress_curve, which
+   * could not express "20/10 on every box, then diverge for the last two".
+   */
+  shard_ladder?: Partial<Record<BoxTier, number[]>>;
+  /**
+   * What the payout budget is charged per shard — NOT what the machine is
+   * worth. pc_value/shards_required charges more than a cheap box costs, and
+   * the EV solve responds by dumping the whole box into the floor anchor. A
+   * shard's honest expected cash value is near zero: a set is almost never
+   * completed.
+   */
+  shard_ev_value?: number;
+  /**
+   * Real units a tier needs before shards drop at their full rate. Below it the
+   * rate tapers, so a picked-clean box cannot become the easiest route to the
+   * PC.
+   */
+  shard_full_stock_threshold?: number;
+  /** Legacy multiplier ladder, kept as a fallback when shard_ladder is absent. */
+  shard_progress_curve?: number[];
   /** What the ECONOMY charges for the shard track. Not the machine's worth. */
   pc_value: number;
   /** What the machine is actually worth. Shown to players; never priced against. */
@@ -351,6 +378,14 @@ export interface ItemOdds {
   rarity: Rarity;
   stock_qty: number;
   probability: number;
+  /**
+   * True for house credit, free spins and discount vouchers.
+   *
+   * These live in `items` so the engine prices them and stock_qty caps how many
+   * can ever be given away — but they are promises, not objects. Published by
+   * box_odds so the UI never has to re-derive the predicate and drift from it.
+   */
+  is_reward?: boolean;
 }
 
 export interface BoxOdds {

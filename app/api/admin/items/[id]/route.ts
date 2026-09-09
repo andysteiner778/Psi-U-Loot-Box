@@ -3,6 +3,7 @@ import { db } from '@/lib/supabase/server';
 import { jsonErr, jsonOk, readJson } from '@/app/admin/_lib/http';
 import { isScrappable, RARITIES, BOX_TIERS, type BoxTier } from '@/lib/types';
 import { readConfig } from '@/app/admin/_lib/config';
+import { scrapCoinUsd } from '@/lib/economy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,7 +24,18 @@ export async function PATCH(
   if (!body) return jsonErr(400, 'Missing body');
 
   const cfg = await readConfig();
-  const coin = cfg.box_prices[cfg.scrap_key_tier] / cfg.scrap_coins_per_key;
+  /*
+   * scrapCoinUsd, not a local formula.
+   *
+   * This divided the KEY TIER'S BOX PRICE by coins-per-key ($10/100 = $0.10)
+   * while the engine, box_odds, the audit and the sibling POST route all use
+   * scrap_key_usd over coins-per-key ($1/100 = $0.01). Ten times apart, so
+   * every item EDITED through the admin UI got a scrap_value a tenth of
+   * correct -- which is why scrapping felt worthless across the whole
+   * catalogue after a day of re-pricing. Fourth copy of this expression to be
+   * found; there are now none left.
+   */
+  const coin = scrapCoinUsd(cfg);
   const highTierScrappable = cfg.allow_high_rarity_scrap === true;
 
   const patch: Record<string, unknown> = {};
@@ -72,10 +84,17 @@ export async function PATCH(
     const { data: cur } = await db.from('items').select('rarity,est_value').eq('id', id).maybeSingle();
     const r = String(patch.rarity ?? (cur as { rarity?: string } | null)?.rarity ?? 'grey');
     const v = Number(patch.est_value ?? (cur as { est_value?: number } | null)?.est_value ?? 0);
+    /*
+     * Same ceiling the POST route applies: a payout may never exceed what the
+     * item is worth. Without it the Math.max(1, ...) floor mints money on
+     * anything cheaper than a single coin -- the exact hole 0043 closed.
+     */
+    const affordableCoins = Math.floor(v / coin);
+    const withFloor = (rawCoins: number) => Math.min(Math.max(1, rawCoins), affordableCoins);
     patch.scrap_value = isScrappable(r as never)
-      ? Math.max(1, Math.round((v * 0.6) / coin))
+      ? withFloor(Math.round((v * 0.6) / coin))
       : highTierScrappable
-        ? Math.max(1, Math.round((v * 0.4) / coin))
+        ? withFloor(Math.round((v * 0.4) / coin))
         : 0;
   }
   if (effectiveRarity && !isScrappable(effectiveRarity as never) && !highTierScrappable) {

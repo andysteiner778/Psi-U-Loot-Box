@@ -85,13 +85,32 @@ async function main() {
       `UPDATE config SET value = jsonb_set(value, '{pc_shards_minted}', '0') WHERE key = 'settings'`
     );
 
-    // Restore stock from the catalog rather than a blanket number, so items the
-    // admin added through the scanner keep whatever quantity they were given.
+    /*
+     * Restock EVERY item from its own initial_stock_qty first.
+     *
+     * This used to walk RESOLVED_CATALOG alone and match by name, so only items
+     * from the original seed were restored. The catalogue is now entirely
+     * hand-built through the admin scanner, so a reset left 31 of 84 items --
+     * including the MCAT books, the TV and the monitor -- sitting at zero, and
+     * the tiers that matter came back empty.
+     *
+     * initial_stock_qty is set on creation and is the right answer for every
+     * row. The seed loop stays as a fallback for anything that somehow has no
+     * baseline recorded.
+     */
+    const restored = await c.query(
+      `UPDATE items
+          SET stock_qty = initial_stock_qty, is_active = TRUE
+        WHERE initial_stock_qty IS NOT NULL
+          AND stock_qty IS DISTINCT FROM initial_stock_qty`
+    );
+    console.log('  restocked ' + restored.rowCount + ' item(s) from their initial quantity');
+
     for (const item of RESOLVED_CATALOG) {
-      await c.query('UPDATE items SET stock_qty = $1, is_active = TRUE WHERE name = $2', [
-        item.stock_qty,
-        item.name,
-      ]);
+      await c.query(
+        'UPDATE items SET stock_qty = $1, is_active = TRUE WHERE name = $2 AND initial_stock_qty IS NULL',
+        [item.stock_qty, item.name]
+      );
     }
     await c.query('COMMIT');
   } catch (e) {

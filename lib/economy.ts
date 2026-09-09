@@ -109,6 +109,12 @@ export interface OddsInput {
   config: EconomyConfig;
   /** Approved deposits have crossed pot_revenue_threshold. Gates shards to 0 below it. */
   potGateMet: boolean;
+  /**
+   * Shards this player already holds. The ladder is indexed by it, so the Nth
+   * entry is the chance of the (N+1)th shard. Defaults to 0, which is what an
+   * anonymous/admin preview sees — matching box_odds with p_user_id NULL.
+   */
+  shardsHeld?: number;
   now?: Date;
 }
 
@@ -121,7 +127,7 @@ export interface OddsInput {
  *
  * Two equations, two unknowns (P_respin, P_scrap), given P_i and P_shard.
  */
-export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: OddsInput): BoxOdds {
+export function computeBoxOdds({ tier, items, config: cfg, potGateMet, shardsHeld = 0, now }: OddsInput): BoxOdds {
   const warnings: string[] = [];
   const C = effectiveBoxPrice(cfg, tier, now);
   const target = C * (1 - marginForTier(cfg, tier));
@@ -130,8 +136,55 @@ export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: Od
   // Mint cap is deliberately NOT the completion requirement -- see 0006.
   const shardCapacity = cfg.pc_shard_mint_cap ?? cfg.pc_total_supply * cfg.shards_required;
   const shardsAvailable = cfg.pc_shards_minted < shardCapacity;
-  const pShard = potGateMet && shardsAvailable ? cfg.shard_probs[tier] ?? 0 : 0;
-  const vShard = cfg.pc_value / cfg.shards_required;
+
+  /*
+   * MIRRORS box_odds. This engine is what the solvency proof runs against, so
+   * any divergence means the proof is about a game nobody is playing — which is
+   * exactly what happened while the SQL had a progress curve and this did not.
+   */
+  const ladder = cfg.shard_ladder?.[tier];
+  const shardRate = (): number => {
+    if (!potGateMet || !shardsAvailable) return 0;
+    // A complete set can never be added to: open_box refuses to mint past
+    // shards_required and falls through to a refund.
+    if (shardsHeld >= cfg.shards_required) return 0;
+    if (ladder && ladder.length > 0) {
+      return ladder[Math.min(shardsHeld, ladder.length - 1)] ?? 0;
+    }
+    const base = cfg.shard_probs[tier] ?? 0;
+    const curve = cfg.shard_progress_curve;
+    if (!curve || curve.length === 0) return base;
+    return base * (curve[Math.min(shardsHeld, curve.length - 1)] ?? 1);
+  };
+
+  /*
+   * A picked-clean tier must not become a shard lottery: p_shard is fixed per
+   * tier, so as the real prizes are won it becomes a larger share of what is
+   * left. Taper it with the remaining real stock.
+   */
+  const shardStockFloor = cfg.shard_full_stock_threshold ?? 5;
+  const realUnits = items
+    .filter(
+      (i) =>
+        i.is_active &&
+        i.stock_qty > 0 &&
+        i.est_value > 0 &&
+        !(i.shard_cost && i.shard_cost > 0) &&
+        !i.bundle_only &&
+        i.reward_credit == null &&
+        i.reward_voucher_tier == null &&
+        (i.box_tier === tier || i.est_value > cfg.filler_max_value)
+    )
+    .reduce((a, i) => a + i.stock_qty, 0);
+  const shardTaper = Math.min(1, realUnits / Math.max(1, shardStockFloor));
+  const pShard = shardRate() * shardTaper;
+
+  /*
+   * What the BUDGET is charged per shard, which is not what the machine is
+   * worth. pc_value/shards_required charges more than a cheap box costs and the
+   * EV solve responds by dumping everything into the floor anchor.
+   */
+  const vShard = cfg.shard_ev_value ?? cfg.pc_value / cfg.shards_required;
   if (potGateMet && !shardsAvailable) {
     warnings.push(
       'PC shard supply exhausted (' + cfg.pc_shards_minted + '/' + shardCapacity + ') - shard odds forced to 0'
@@ -207,7 +260,12 @@ export function computeBoxOdds({ tier, items, config: cfg, potGateMet, now }: Od
     (i) =>
       BOX_TIERS.indexOf(i.box_tier) < tierRank &&
       i.est_value <= fillerMax &&
-      i.est_value >= fillerMin
+      i.est_value >= fillerMin &&
+      // The consolation must be an OBJECT. Reward rows carry far more stock
+      // than the junk beside them and the floor draw is stock-weighted, so they
+      // were winning it. Mirrors the filler predicate in box_odds.
+      i.reward_credit == null &&
+      i.reward_voucher_tier == null
   );
 
   // --- Floor anchor: priced honestly, never $0 ------------------------------

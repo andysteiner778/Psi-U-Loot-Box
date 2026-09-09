@@ -4,6 +4,15 @@ import React, { useState } from 'react';
 import { X, DollarSign, Send, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { usePlayer } from '@/app/(player)/_lib/player-store';
 
+/**
+ * The one place the Venmo account is written down.
+ *
+ * The screen used to display @Tyler-HouseLoot while the deep link paid
+ * andaysmonay, so anyone who read the handle and typed it into Venmo by hand
+ * sent money to the wrong account.
+ */
+const VENMO_HANDLE = 'andaysmonay';
+
 export interface DepositModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -118,7 +127,11 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
             <div className="rounded-xl bg-gun-950 p-4 border border-gun-800 text-xs space-y-2 mb-5">
               <div className="flex items-center justify-between">
                 <span className="text-gun-400">1. Venmo Recipient:</span>
-                <span className="font-mono font-bold text-cyan-400">@Tyler-HouseLoot</span>
+                {/* Must match the deep link below. These had drifted: the screen told
+                    people to pay @Tyler-HouseLoot while the button paid
+                    andaysmonay, so anyone typing it by hand paid the wrong
+                    account. Single source now. */}
+                <span className="font-mono font-bold text-cyan-400">@{VENMO_HANDLE}</span>
               </div>
               <div className="flex items-center justify-between border-t border-gun-850 pt-2">
                 <span className="text-gun-400">2. Mandatory Note:</span>
@@ -128,7 +141,7 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
               </div>
               <div className="pt-1">
                 <a
-                  href={`https://venmo.com/?txn=pay&recipients=andaysmonay&amount=${activeAmount || 20}&note=${encodeURIComponent(venmoNote)}`}
+                  href={`https://venmo.com/?txn=pay&recipients=${VENMO_HANDLE}&amount=${activeAmount || 20}&note=${encodeURIComponent(venmoNote)}`}
                   target="_blank"
                   rel="noreferrer"
                   className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-sky-600/20 border border-sky-500/40 py-1.5 text-[11px] font-semibold text-sky-300 hover:bg-sky-600/30 transition"

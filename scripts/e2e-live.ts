@@ -519,21 +519,25 @@ async function main() {
       cfg.scrap_key_usd ??
         (cfg.box_prices as Record<string, number>)[String(cfg.scrap_key_tier)]
     ) / Number(cfg.scrap_coins_per_key);
-  const { data: allItems } = await db.from('items').select('name, est_value, scrap_value');
+  const { data: allItems } = await db.from('items').select('name, est_value, msrp, scrap_value');
   let worst = 0;
   let worstName = '';
   for (const i of allItems ?? []) {
-    const r = (Number(i.scrap_value) * coinUsd) / Number(i.est_value);
+    const r = (Number(i.scrap_value) * coinUsd) / Math.max(1e-9, Number(i.msrp ?? i.est_value));
     if (r > worst) {
       worst = r;
       worstName = i.name;
     }
   }
   /*
-   * <= 1, not < 1. Scrap values are whole coins, so the cheapest item in the
-   * catalogue can only be one coin -- and the owner prices giveaway junk at
-   * exactly one coin's worth. That is break-even, which is the floor working,
-   * not a leak. Anything ABOVE 100% is a leak and still fails.
+   * Measured against RETAIL, not est_value.
+   *
+   * Scrap is priced off retail now and capped at half the box price, precisely
+   * because est_value and retail are decoupled here on purpose -- a $0.01
+   * giveaway can carry a $40 retail and is MEANT to scrap for real money. The
+   * old est_value ratio flagged that as a 150,000% leak when it is the intended
+   * behaviour. What must never happen is scrapping for more than the thing is
+   * advertised to be worth.
    */
   ok(worst <= 1 + 1e-9, 'worst scrap ratio is ' + (worst * 100).toFixed(0) + '% (' + worstName + ')');
 

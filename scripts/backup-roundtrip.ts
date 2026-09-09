@@ -30,14 +30,25 @@ const conn = () =>
   const n = async (t: string) => Number((await c.query(`SELECT count(*)::INT c FROM ${t}`)).rows[0].c);
 
   const items0 = await n('public.items');
-  const pins0 = await n('app_private.profile_secrets');
-  console.log('\n  before: ' + items0 + ' items, ' + pins0 + ' pin(s)\n');
   ok(items0 > 0, 'there is a catalogue to lose');
 
-  // A known-good credential to authenticate with after the restore.
-  const { rows: [p] } = await c.query('SELECT id, name FROM public.profiles LIMIT 1');
-  ok(!!p, 'there is a player to lose');
+  /*
+   * A DISPOSABLE player, not a real one.
+   *
+   * This used to grab the first profile and overwrite its PIN with '4321' — so
+   * running the gate silently changed a real person's login, and because the
+   * snapshot is taken AFTER that write, the restore put 4321 back rather than
+   * the original. A backup test must not damage what it is protecting.
+   */
+  const probeName = '__rt_probe_' + Date.now().toString(36) + '__';
+  const { rows: [p] } = await c.query(
+    'INSERT INTO public.profiles (name, balance) VALUES ($1, 0) RETURNING id, name', [probeName]);
+  ok(!!p, 'created a disposable player to authenticate with');
   await c.query('SELECT auth_set_pin($1,$2)', [p.id, '4321']);
+
+  // Counted AFTER the probe exists, or the probe's own PIN reads as drift.
+  const pins0 = await n('app_private.profile_secrets');
+  console.log('  before: ' + items0 + ' items, ' + pins0 + ' pin(s)');
 
   const out = execSync('npm run backup -- verify', { encoding: 'utf8' });
   const dir = (/Snapshot -> (\S+)/.exec(out) ?? [])[1];
@@ -61,6 +72,11 @@ const conn = () =>
 
   const { rows: [bad] } = await c.query('SELECT app_private.verify_pin($1,$2) AS id', [p.name, '0000']);
   ok(bad.id === null, 'while a wrong PIN is still refused');
+
+  // The probe was captured in the snapshot, so it comes back on the restore.
+  // Remove it by id so the gate leaves no residue in the real roster.
+  await c.query('DELETE FROM app_private.profile_secrets WHERE profile_id = $1', [p.id]);
+  await c.query('DELETE FROM public.profiles WHERE id = $1', [p.id]);
 
   await c.end();
   console.log('\n  ' + (fails ? fails + ' FAILURE(S)' : 'backup and restore are trustworthy') + '\n');

@@ -149,7 +149,7 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
 
 export const BOX_META: Record<BoxTier, { name: string; blurb: string; accent: Rarity }> = {
   tier_0: {
-    name: 'OG Junk Box',
+    name: 'OG JunkBox',
     blurb: 'Cheap as it gets. Mostly oddments — but anything can show up.',
     accent: 'grey',
   },
@@ -165,7 +165,7 @@ export const BOX_META: Record<BoxTier, { name: string; blurb: string; accent: Ra
   },
   tier_3: {
     name: 'High Roller',
-    blurb: 'The big pulls, and the best shot at PC shards.',
+    blurb: 'The big pulls, and the best shot at the PC.',
     accent: 'gold',
   },
 };
@@ -212,6 +212,13 @@ export function normalizeOdds(raw: unknown): PlayerBoxOdds {
     rarity: (i.rarity as Rarity) ?? 'grey',
     stock_qty: num(i.stock_qty),
     probability: num(i.probability),
+    /*
+     * Straight from box_odds, never re-derived here. House credit, free spins
+     * and vouchers live in `items` so the engine prices them, but they are not
+     * objects — and the odds screen counted them as "Physical Loot Pool",
+     * which is what made the junk odds read far higher than they are.
+     */
+    is_reward: Boolean(i.is_reward),
   });
 
   return {

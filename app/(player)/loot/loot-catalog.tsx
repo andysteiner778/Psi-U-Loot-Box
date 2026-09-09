@@ -4,13 +4,20 @@ import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Search, Package, Sparkles } from 'lucide-react';
 import { BOX_TIERS, RARITY_COLOR, RARITY_LABEL, type BoxTier, type Rarity } from '@/lib/types';
+import { BOX_META } from '@/app/(player)/_lib/shared';
 import type { CatalogueItem, GameConfig, PlayerBoxOdds } from '../_lib/shared';
 
+/*
+ * Box names come from BOX_META, the one place they are defined. A private copy
+ * lived here and had already drifted -- it still said 'Mostly Junk' long after
+ * tier_0 was renamed, so the catalogue page and the box card disagreed about
+ * what the same box was called.
+ */
 const TIER_NAME: Record<BoxTier, string> = {
-  tier_0: 'Mostly Junk',
-  tier_1: 'Good Stuff',
-  tier_2: 'Golden Chest',
-  tier_3: 'High Roller',
+  tier_0: BOX_META.tier_0.name,
+  tier_1: BOX_META.tier_1.name,
+  tier_2: BOX_META.tier_2.name,
+  tier_3: BOX_META.tier_3.name,
 };
 
 /** Best first: the things people came for, then everything else by value. */

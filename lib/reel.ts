@@ -72,7 +72,7 @@ export const WINNER_INDEX = WINNER_POSITION - 1; //       49
  */
 export const BAIT_IN_FILLER_RATE = 0.17;
 
-export const NEAR_MISS_CHANCE = 0.3;
+export const NEAR_MISS_CHANCE = 0.6;
 
 /** Rarities that qualify as near-miss bait. */
 export const BAIT_RARITIES: readonly Rarity[] = ['gold', 'pink', 'purple'];
@@ -209,11 +209,37 @@ export function buildReel(
   const fillerPool = filler.length > 0 ? filler : pool;
   const baitPool = pool.filter((c) => BAIT_RARITIES.includes(c.rarity));
 
+  /*
+   * No two adjacent cards may be the same item.
+   *
+   * Every slot used to be an independent uniform pick, so with a small pool --
+   * a tier down to five filler items, or the 13-entry fallback -- the same
+   * picture landed twice or three times in a row constantly. It is not a
+   * fairness problem (the winner is already decided server-side; the strip is
+   * decoration) but it reads as broken, and a case-opening reel that looks
+   * broken undermines the one moment the whole app is built around.
+   *
+   * Re-pick a few times on a collision rather than looping forever: a pool with
+   * exactly one distinct name has no valid arrangement, and the reel still has
+   * to render.
+   */
+  const distinct = new Set(pool.map((c) => c.name)).size;
+  const drawDistinctFrom = (prev: ReelCard | undefined): ReelCard => {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const useBait = baitPool.length > 0 && rng() < BAIT_IN_FILLER_RATE;
+      const src = useBait ? pick(baitPool, rng) : pick(fillerPool, rng);
+      if (distinct < 2 || !prev || src.name !== prev.name) {
+        return { ...src, id: '', isWinner: false, isNearMiss: false };
+      }
+    }
+    const src = pick(fillerPool, rng);
+    return { ...src, id: '', isWinner: false, isNearMiss: false };
+  };
+
   const cards: ReelCard[] = new Array<ReelCard>(REEL_LENGTH);
   for (let i = 0; i < REEL_LENGTH; i++) {
-    const useBait = baitPool.length > 0 && rng() < BAIT_IN_FILLER_RATE;
-    const src = useBait ? pick(baitPool, rng) : pick(fillerPool, rng);
-    cards[i] = { ...src, id: `reel-${i}-${src.id}`, isWinner: false, isNearMiss: false };
+    const c = drawDistinctFrom(cards[i - 1]);
+    cards[i] = { ...c, id: `reel-${i}-${c.name}-${i}` };
   }
 
   // The near-miss is DELIBERATELY not guaranteed.
@@ -246,6 +272,42 @@ export function buildReel(
     isWinner: true,
     isNearMiss: false,
   };
+
+  /*
+   * One deterministic repair pass, after everything else is written.
+   *
+   * The near-miss and the winner are stamped OVER slots that were already
+   * filled, so they can collide with a neighbour chosen before they landed —
+   * and with a very small pool the draw loop itself can exhaust its retries.
+   * Rather than patch each of those cases separately, sweep once at the end and
+   * fix every remaining collision.
+   *
+   * The winner and the near-miss are never the card that moves: they are what
+   * the spin is about. When one of them clashes with the card before it, the
+   * PREVIOUS card is replaced instead.
+   */
+  if (distinct >= 2) {
+    const protectedSlot = (i: number) => cards[i].isWinner || cards[i].isNearMiss;
+    const repair = (i: number) => {
+      const before = cards[i - 1]?.name;
+      const after = cards[i + 1]?.name;
+      // Prefer a card that clashes with neither neighbour; settle for one that
+      // at least differs from the card before it, which is what the eye catches.
+      const best =
+        pool.find((c) => c.name !== before && c.name !== after) ??
+        pool.find((c) => c.name !== before);
+      if (best) {
+        cards[i] = { ...best, id: `reel-${i}-${best.name}-fix`, isWinner: false, isNearMiss: false };
+      }
+    };
+
+    for (let i = 1; i < REEL_LENGTH; i++) {
+      if (cards[i].name !== cards[i - 1].name) continue;
+      // Move whichever of the pair is not load-bearing.
+      if (!protectedSlot(i)) repair(i);
+      else if (!protectedSlot(i - 1)) repair(i - 1);
+    }
+  }
 
   return cards;
 }

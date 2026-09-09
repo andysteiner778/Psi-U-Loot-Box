@@ -54,16 +54,32 @@ const ok = (g: boolean, m: string) => { console.log((g ? '  ok    ' : '  FAIL  '
       "SELECT count(*)::INT n FROM pg_proc p JOIN pg_namespace n2 ON n2.oid=p.pronamespace WHERE n2.nspname='public' AND p.proname='scrap_all'");
     ok(fn.n === 0, 'scrap_all() no longer exists (' + fn.n + ')');
 
-    // every real object is scrappable, and none pays more than it is worth
+    // Scrap is priced off RETAIL now, capped at half the box price, so the old
+    // "never more than est_value" rule no longer describes it: a $0.01 giveaway
+    // with a $40 retail is meant to scrap for real money. The two invariants
+    // that still matter are that nothing can be farmed for more than the box
+    // that produced it, and that nothing exceeds its own retail.
     const { rows: [bad] } = await c.query(`
       SELECT
-        count(*) FILTER (WHERE COALESCE(scrap_value,0) < 1)::INT AS unscrappable,
-        count(*) FILTER (WHERE scrap_value * $1::NUMERIC > est_value + 1e-9)::INT AS overpaying
-      FROM items
-      WHERE is_active AND COALESCE(shard_cost,0)=0
-        AND reward_credit IS NULL AND reward_voucher_tier IS NULL`, [per / rate]);
-    ok(bad.unscrappable === 0, 'every real object can be scrapped (' + bad.unscrappable + ' cannot)');
-    ok(bad.overpaying === 0, 'no item scraps for more than it is worth (' + bad.overpaying + ' do)');
+        count(*) FILTER (WHERE COALESCE(i.scrap_value,0) < 1)::INT AS unscrappable,
+        count(*) FILTER (
+          WHERE i.scrap_value * $1::NUMERIC
+                > (c.value->'box_prices'->>i.box_tier)::NUMERIC * 0.5 + 1e-9
+        )::INT AS beats_its_box,
+        count(*) FILTER (
+          WHERE i.scrap_value * $1::NUMERIC > COALESCE(i.msrp, i.est_value) + 1e-9
+        )::INT AS beats_retail
+      FROM items i CROSS JOIN config c
+      WHERE c.key = 'settings'
+        AND i.is_active AND COALESCE(i.shard_cost,0)=0
+        AND i.reward_credit IS NULL AND i.reward_voucher_tier IS NULL
+        AND COALESCE(i.msrp, 0) * 0.9 >= $1::NUMERIC`, [per / rate]);
+    ok(bad.unscrappable === 0,
+      'every object worth at least one coin of retail can be scrapped (' + bad.unscrappable + ' cannot)');
+    ok(bad.beats_its_box === 0,
+      'nothing scraps for more than half the box that drops it (' + bad.beats_its_box + ' do)');
+    ok(bad.beats_retail === 0,
+      'nothing scraps for more than its own retail (' + bad.beats_retail + ' do)');
   } catch (e) {
     console.error('  THREW: ' + (e as Error).message);
     fails++;

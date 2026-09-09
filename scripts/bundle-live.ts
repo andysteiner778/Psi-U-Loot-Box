@@ -20,6 +20,20 @@ const ok = (g: boolean, m: string) => { console.log((g ? '  ok    ' : '  FAIL  '
              b.id rider, b.name rname, b.est_value rval, b.stock_qty rstock
         FROM items h JOIN items b ON b.id = h.bonus_item_id
        WHERE h.is_active AND h.stock_qty > 0 LIMIT 1`);
+    /*
+     * Skip, loudly, when nothing is bundled. The catalogue is rebuilt by hand
+     * between parties and bundles are optional, so "no host/rider pair exists"
+     * is a legitimate state -- but it is NOT a pass, and silently returning
+     * green would hide a bundle feature that had stopped working.
+     */
+    if (!pair) {
+      console.log('  SKIPPED — no item currently carries a bonus_item_id.');
+      console.log('  Attach a rider (a favor to a piece of junk) and re-run.');
+      console.log('  THIS IS NOT A PASS.');
+      await c.query('ROLLBACK');
+      await c.end();
+      process.exit(0);
+    }
     console.log('        ' + pair.hname + '  carries  ' + pair.rname + ' ($' + pair.rval + ')');
 
     const { rows: [p] } = await c.query(
