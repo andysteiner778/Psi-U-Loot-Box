@@ -667,6 +667,44 @@ export function AdminDashboard({
     setThresholdDraft(Number(config.pot_revenue_threshold) || 0);
   }, [config.pot_revenue_threshold]);
 
+  /*
+   * Standing discount on every box, on top of any flash sale.
+   *
+   * Held as a draft so dragging the slider does not fire a PATCH per pixel;
+   * it commits on release. The two discounts COMPOUND server-side, so the
+   * preview below multiplies them rather than adding them — adding could show
+   * a price below zero.
+   */
+  const [discountDraft, setDiscountDraft] = useState(
+    Number(config.extra_discount_pct) || 0
+  );
+  useEffect(() => {
+    setDiscountDraft(Number(config.extra_discount_pct) || 0);
+  }, [config.extra_discount_pct]);
+
+  const handleUpdateExtraDiscount = async (pct: number) => {
+    try {
+      const res = await fetch('/api/admin/config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ extra_discount_pct: pct }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setConfig(json.data);
+        showMsg(
+          pct > 0
+            ? 'Every box is now ' + Math.round(pct * 100) + '% off'
+            : 'Standing discount cleared — boxes back to list price'
+        );
+      } else {
+        showMsg(json.error || 'Could not set the discount', 'bad');
+      }
+    } catch {
+      showMsg('Could not set the discount', 'bad');
+    }
+  };
+
   const handleUpdatePotThreshold = async (threshold: number) => {
     try {
       const res = await fetch('/api/admin/config', {
@@ -1515,6 +1553,72 @@ export function AdminDashboard({
                   className="w-full rounded-xl bg-gradient-to-r from-red-600 to-amber-600 py-3 font-mono text-xs font-bold text-white shadow-lg shadow-red-600/30 hover:brightness-110 active:scale-95 transition"
                 >
                   Trigger 15-Minute Flash Sale (20% OFF)
+                </button>
+              )}
+            </div>
+
+            {/* Standing Discount */}
+            <div className="rounded-2xl border border-amber-500/30 bg-gun-900/90 p-5 shadow-xl">
+              <div className="flex items-center gap-2 mb-2">
+                <Flame className="h-5 w-5 text-amber-400" />
+                <h3 className="text-base font-bold text-white">Standing Box Discount</h3>
+              </div>
+              <p className="text-xs text-gun-300 mb-4">
+                Marks every box down until you change it. Stacks on top of a flash
+                sale — the two multiply, so 40% here and a 20% sale is 52% off, not 60%.
+              </p>
+
+              <div className="rounded-xl bg-gun-950 p-4 border border-gun-800 mb-4 font-mono text-xs space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-gun-400">Discount:</span>
+                  <span className="font-bold text-amber-300 text-base">
+                    {Math.round(discountDraft * 100)}% OFF
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={0.95}
+                  step={0.05}
+                  value={discountDraft}
+                  onChange={(e) => setDiscountDraft(Number(e.target.value))}
+                  onMouseUp={() => handleUpdateExtraDiscount(discountDraft)}
+                  onTouchEnd={() => handleUpdateExtraDiscount(discountDraft)}
+                  className="w-full accent-amber-500"
+                />
+                <div className="border-t border-gun-850 pt-2 space-y-1">
+                  {BOX_TIERS.map((t) => {
+                    const list = Number(config.box_prices?.[t] ?? 0);
+                    const afterStanding = Math.round(list * (1 - discountDraft) * 100) / 100;
+                    const withSale = config.flash_sale
+                      ? Math.round(afterStanding * (1 - Number(config.flash_sale_pct || 0)) * 100) / 100
+                      : afterStanding;
+                    const finalPrice = Math.max(0.01, withSale);
+                    return (
+                      <div key={t} className="flex justify-between text-[11px]">
+                        <span className="text-gun-400">{t}</span>
+                        <span>
+                          <span className="text-gun-600 line-through mr-2">${list.toFixed(2)}</span>
+                          <span className="font-bold text-emerald-400">${finalPrice.toFixed(2)}</span>
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {config.flash_sale && (
+                    <p className="pt-1 text-[10px] text-red-300">
+                      includes the live flash sale
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {discountDraft !== (Number(config.extra_discount_pct) || 0) && (
+                <button
+                  onClick={() => handleUpdateExtraDiscount(discountDraft)}
+                  disabled={loading}
+                  className="w-full rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 py-3 font-mono text-xs font-bold text-white shadow-lg hover:brightness-110 active:scale-95 transition"
+                >
+                  Apply {Math.round(discountDraft * 100)}% Off Every Box
                 </button>
               )}
             </div>

@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import type { BoxTier, Rarity, SessionUser } from '@/lib/types';
 import { RARITY_COLOR, RARITY_LABEL } from '@/lib/types';
+import { clearanceUnitPrice } from '@/lib/clearance';
+import { sfx } from '@/lib/sound';
 
 interface ClearanceItem {
   id: string;
@@ -70,6 +72,15 @@ export function ClearanceView({ user, initialBalance = 0, onRefreshPlayer }: Cle
   const [spinHighlightIndex, setSpinHighlightIndex] = useState(0);
   const [spinWinner, setSpinWinner] = useState<ClearanceItem | null>(null);
   const [spinPaymentMethod, setSpinPaymentMethod] = useState<'balance' | 'venmo_reserve'>('balance');
+  /*
+   * What the server ACTUALLY charged for this spin.
+   *
+   * The reveal used to print `spinPrice`, which is recomputed from the current
+   * selection — and the spin clears the selection and reloads the catalogue, so
+   * by the time the result rendered there were no longer three items to average
+   * and it printed "(Paid: $0.00)" for a box that cost $7.50.
+   */
+  const [spinPaid, setSpinPaid] = useState<number>(0);
 
   const loadCatalog = async () => {
     try {
@@ -99,7 +110,7 @@ export function ClearanceView({ user, initialBalance = 0, onRefreshPlayer }: Cle
 
   const avgEst =
     selectedItems.length > 0
-      ? selectedItems.reduce((acc, i) => acc + i.est_value, 0) / selectedItems.length
+      ? selectedItems.reduce((acc, i) => acc + clearanceUnitPrice(i), 0) / selectedItems.length
       : 0;
   const spinPrice =
     selectedItems.length === 3
@@ -119,6 +130,8 @@ export function ClearanceView({ user, initialBalance = 0, onRefreshPlayer }: Cle
   };
 
   const handleDirectBuy = async (item: ClearanceItem, method: 'balance' | 'venmo_reserve') => {
+    // Unlock inside the tap; the fetch below is async and iOS would refuse.
+    void sfx.unlock();
     if (!user) {
       setMsg({ text: 'Please sign in to buy or reserve items', type: 'bad' });
       return;
@@ -138,6 +151,15 @@ export function ClearanceView({ user, initialBalance = 0, onRefreshPlayer }: Cle
       const data = await res.json();
       if (data.ok) {
         if (data.balance !== undefined) setBalance(data.balance);
+        // Buying outright was completely silent — the one action in the app
+        // that costs real money and it gave no feedback at all. Same rarity
+        // ladder and confetti a box win gets.
+        sfx.playWinFor(item.rarity);
+        try {
+          confetti({ particleCount: 90, spread: 75, origin: { y: 0.5 } });
+        } catch {
+          /* confetti is decoration; never let it break a purchase */
+        }
         setBuyoutSuccess({
           item,
           paymentMethod: method,
@@ -171,6 +193,10 @@ export function ClearanceView({ user, initialBalance = 0, onRefreshPlayer }: Cle
     setSpinModalOpen(true);
     setSpinning(true);
     setActionBusy(true);
+    // Unlock WebAudio inside the tap, before any await — iOS refuses to start
+    // an AudioContext from an async continuation.
+    void sfx.unlock();
+    sfx.playReelStart();
 
     try {
       const clientRollId = crypto.randomUUID();
@@ -193,6 +219,7 @@ export function ClearanceView({ user, initialBalance = 0, onRefreshPlayer }: Cle
         return;
       }
 
+      if (typeof data.price === 'number') setSpinPaid(data.price);
       const winningIndex = data.winningIndex as number;
       const targetWinner = selectedItems[winningIndex] || data.winner;
 
@@ -205,6 +232,8 @@ export function ClearanceView({ user, initialBalance = 0, onRefreshPlayer }: Cle
       const step = () => {
         currentIndex = (currentIndex + 1) % 3;
         setSpinHighlightIndex(currentIndex);
+        // One tick per card, so the custom box sounds like the reel it is.
+        sfx.playTick();
         stepCount++;
 
         if (stepCount < totalSteps) {
@@ -217,6 +246,9 @@ export function ClearanceView({ user, initialBalance = 0, onRefreshPlayer }: Cle
           setSpinHighlightIndex(winningIndex);
           setSpinWinner(targetWinner);
           setSpinning(false);
+          // Same rarity ladder the loot boxes use, so a good pull here lands
+          // with the same weight as a good pull there.
+          sfx.playWinFor(targetWinner.rarity);
           if (data.balance !== undefined) setBalance(data.balance);
           loadCatalog();
           if (onRefreshPlayer) onRefreshPlayer();
@@ -351,7 +383,7 @@ export function ClearanceView({ user, initialBalance = 0, onRefreshPlayer }: Cle
 
                       <div className="mt-2 pt-2 border-t border-gun-850 flex items-baseline justify-between font-mono text-xs">
                         <span className="text-gun-400 text-[10px]">Value:</span>
-                        <span className="font-bold text-emerald-400">${item.est_value.toFixed(2)}</span>
+                        <span className="font-bold text-emerald-400">${clearanceUnitPrice(item).toFixed(2)}</span>
                       </div>
                     </>
                   ) : (
@@ -506,7 +538,7 @@ export function ClearanceView({ user, initialBalance = 0, onRefreshPlayer }: Cle
                       <div>
                         <span className="text-[10px] text-gun-400 block uppercase">Buyout Price</span>
                         <span className="text-base font-black text-emerald-400">
-                          ${item.est_value.toFixed(2)}
+                          ${clearanceUnitPrice(item).toFixed(2)}
                         </span>
                       </div>
                       {item.msrp && item.msrp > item.est_value && (
@@ -591,7 +623,7 @@ export function ClearanceView({ user, initialBalance = 0, onRefreshPlayer }: Cle
               <div className="font-mono">
                 <h4 className="font-bold text-white text-sm line-clamp-1">{buyoutTarget.name}</h4>
                 <div className="text-xs text-gun-400 mt-1">
-                  100% Base Value: <span className="font-bold text-emerald-400">${buyoutTarget.est_value.toFixed(2)}</span>
+                  Price: <span className="font-bold text-emerald-400">${clearanceUnitPrice(buyoutTarget).toFixed(2)}</span>
                 </div>
                 <div className="text-[10px] text-gun-500">
                   {buyoutTarget.stock_qty} in stock
@@ -607,13 +639,13 @@ export function ClearanceView({ user, initialBalance = 0, onRefreshPlayer }: Cle
                   <span className="font-bold text-white">Pay with In-App Balance</span>
                   <span className="text-gun-400">Available: ${balance.toFixed(2)}</span>
                 </div>
-                {balance >= buyoutTarget.est_value ? (
+                {balance >= clearanceUnitPrice(buyoutTarget) ? (
                   <button
                     onClick={() => handleDirectBuy(buyoutTarget, 'balance')}
                     disabled={actionBusy}
                     className="w-full py-2.5 rounded-xl bg-emerald-600 font-bold text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-500 active:scale-95 transition disabled:opacity-50"
                   >
-                    Pay ${buyoutTarget.est_value.toFixed(2)} &amp; Claim Item
+                    Pay ${clearanceUnitPrice(buyoutTarget).toFixed(2)} &amp; Claim Item
                   </button>
                 ) : (
                   <div className="text-gun-500 text-[11px]">
@@ -639,7 +671,7 @@ export function ClearanceView({ user, initialBalance = 0, onRefreshPlayer }: Cle
                     disabled={actionBusy}
                     className="w-full py-2.5 rounded-xl border border-cyan-500/50 bg-cyan-600/20 font-bold text-cyan-200 hover:bg-cyan-600/40 active:scale-95 transition disabled:opacity-50"
                   >
-                    Reserve Now (${buyoutTarget.est_value.toFixed(2)} via Venmo)
+                    Reserve Now (${clearanceUnitPrice(buyoutTarget).toFixed(2)} via Venmo)
                   </button>
                 </div>
               )}
@@ -738,7 +770,7 @@ export function ClearanceView({ user, initialBalance = 0, onRefreshPlayer }: Cle
                         {item.name}
                       </h5>
                       <span className="text-[10px] font-mono text-emerald-400 block mt-1">
-                        ${item.est_value.toFixed(2)}
+                        ${clearanceUnitPrice(item).toFixed(2)}
                       </span>
                     </div>
                   </div>
@@ -746,23 +778,57 @@ export function ClearanceView({ user, initialBalance = 0, onRefreshPlayer }: Cle
               })}
             </div>
 
-            {/* Winner reveal info */}
+            {/* Winner reveal — the same shape the loot boxes use: the item's own
+                photo, big, ringed and glowing in its rarity colour, with the
+                rarity called out. This used to be a line of yellow text, so the
+                custom box had none of the payoff of the thing it imitates. */}
             {!spinning && spinWinner && (
               <div className="space-y-4">
-                <div className="rounded-2xl border border-yellow-500/40 bg-yellow-950/20 p-4 font-mono text-xs">
-                  <p className="text-yellow-300 font-bold text-base">
-                    🎉 You won: {spinWinner.name}!
-                  </p>
-                  <p className="text-gun-400 text-[11px] mt-1">
-                    Value: ${spinWinner.est_value.toFixed(2)} (Paid: ${spinPrice.toFixed(2)})
-                  </p>
-                </div>
+                {(() => {
+                  const winColor = RARITY_COLOR[spinWinner.rarity] || '#3b82f6';
+                  return (
+                    <div className="flex flex-col items-center">
+                      <span
+                        className="rounded-full px-3 py-1 font-mono text-[10px] font-black uppercase tracking-widest"
+                        style={{ backgroundColor: winColor + '22', color: winColor }}
+                      >
+                        {RARITY_LABEL[spinWinner.rarity] || 'Item'} Unlocked
+                      </span>
+                      <div
+                        className="relative mt-3 flex h-40 w-40 items-center justify-center overflow-hidden rounded-2xl border-2 bg-gun-950/80"
+                        style={{ borderColor: winColor, boxShadow: `inset 0 0 40px -10px ${winColor}` }}
+                      >
+                        <div
+                          className="pointer-events-none absolute inset-0 opacity-40"
+                          style={{ background: `radial-gradient(circle at center, ${winColor}55, transparent 70%)` }}
+                        />
+                        {spinWinner.image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={spinWinner.image_url}
+                            alt={spinWinner.name}
+                            className="relative h-full w-full object-contain p-2"
+                          />
+                        ) : (
+                          <Package className="relative h-20 w-20" style={{ color: winColor }} />
+                        )}
+                      </div>
+                      <h3 className="mt-3 text-2xl font-black text-white sm:text-3xl">
+                        {spinWinner.name}
+                      </h3>
+                      <p className="mt-1 font-mono text-[11px] text-gun-400">
+                        Retail ${(spinWinner.msrp ?? spinWinner.est_value).toFixed(2)}
+                        {'  ·  '}Paid ${spinPaid.toFixed(2)}
+                      </p>
+                    </div>
+                  );
+                })()}
 
                 {spinPaymentMethod === 'venmo_reserve' && (
                   <div className="rounded-2xl border border-yellow-500/40 bg-yellow-950/40 p-4 font-mono text-xs text-left space-y-2">
                     <div className="font-bold text-yellow-300">Venmo Instruction:</div>
                     <p className="text-yellow-200/90 text-[11px]">
-                      Please Venmo <strong>${spinPrice.toFixed(2)}</strong> with note:
+                      Please Venmo <strong>${spinPaid.toFixed(2)}</strong> with note:
                     </p>
                     <div className="rounded-lg bg-black/60 p-2 text-center text-yellow-400 font-bold tracking-wide select-all">
                       CLEARANCE SPIN: {spinWinner.name}

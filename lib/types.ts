@@ -360,6 +360,11 @@ export interface EconomyConfig {
   scrap_key_tier: BoxTier;
   flash_sale: boolean;
   flash_sale_pct: number;
+  /**
+   * A standing markdown on every box, applied BEFORE the timed flash sale so
+   * the two compound. The owner's lever for "nobody is biting at these prices".
+   */
+  extra_discount_pct?: number;
   flash_sale_ends_at: string | null;
 }
 

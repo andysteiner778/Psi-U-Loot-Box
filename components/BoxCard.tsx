@@ -68,7 +68,7 @@ export function BoxCard({
    * Refreshing the route re-runs the server component with the new state.
    */
   const router = useRouter();
-  const { stats, commit, adjust, toast } = usePlayer();
+  const { stats, config, commit, adjust, toast } = usePlayer();
   const spinningRef = useRef(false);
   const refreshPendingRef = useRef(false);
 
@@ -555,6 +555,8 @@ export function BoxCard({
           decoys={decoys}
           winner={activeWinner}
           isPreview={isPreview}
+          shardsHeld={stats.pc_shards}
+          shardsRequired={config.shards_required}
           shardImageUrl={shardImageUrl}
           tierName={meta.name}
           // The item that just landed has had its stock decremented server

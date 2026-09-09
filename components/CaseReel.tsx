@@ -50,6 +50,13 @@ export interface CaseReelProps {
    * Nothing was won, so the reveal says so and offers no "spin again".
    */
   isPreview?: boolean;
+  /**
+   * Shard progress, passed in rather than read from the player store: this
+   * component is deliberately store-free (see the spin-effect warning above --
+   * extra dependencies there have eaten a reveal before now).
+   */
+  shardsHeld?: number;
+  shardsRequired?: number;
   /** Coins the compactor needs, and what it pays. Quoted on a scrap result. */
   compactCoins?: number;
   compactUsd?: number;
@@ -113,6 +120,8 @@ export function CaseReel({
   allowHighRarityScrap = false,
   shardImageUrl = null,
   isPreview = false,
+  shardsHeld = 0,
+  shardsRequired = 4,
   compactCoins = 500,
   compactUsd = 10,
 }: CaseReelProps) {
@@ -137,7 +146,19 @@ export function CaseReel({
 
   // Build the 60-card strip. The near-miss in slot 49 is probabilistic, so
   // some spins have no bait at all -- see NEAR_MISS_CHANCE in lib/reel.ts.
-  const cards = useMemo(() => buildReel(winner, decoys), [winner, decoys]);
+  /*
+   * Shard progress feeds the reel so a player two away from the PC sees a shard
+   * slide past the line far more often. Read from the live player store rather
+   * than a prop, so it is current at the moment the strip is built.
+   */
+  const cards = useMemo(
+    () =>
+      buildReel(winner, decoys, Math.random, {
+        shardsHeld,
+        shardsRequired,
+      }),
+    [winner, decoys, shardsHeld, shardsRequired]
+  );
   const hasNearMiss = useMemo(() => cards.some((c) => c.isNearMiss), [cards]);
 
   // Measure container viewport width.

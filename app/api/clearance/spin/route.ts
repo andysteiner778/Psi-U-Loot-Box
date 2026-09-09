@@ -4,6 +4,7 @@ import { requireUser } from '@/lib/session';
 import { readClearanceConfig } from '@/app/admin/_lib/clearance';
 import { db } from '@/lib/supabase/server';
 import type { BoxTier, Rarity } from '@/lib/types';
+import { clearanceUnitPrice } from '@/lib/clearance';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -78,7 +79,7 @@ export async function POST(req: Request) {
     // 3. Inspect all 3 items
     const { data: items, error: itemsErr } = await db
       .from('items')
-      .select('id, name, rarity, est_value, stock_qty, box_tier, image_url, is_active, reward_credit, reward_voucher_tier')
+      .select('id, name, rarity, est_value, msrp, stock_qty, box_tier, image_url, is_active, reward_credit, reward_voucher_tier')
       .in('id', itemIds);
 
     if (itemsErr || !items || items.length !== 3) {
@@ -105,7 +106,12 @@ export async function POST(req: Request) {
 
     // 4. Calculate spin price
     // Average of 3 items * clearance discount rate (e.g. 75%)
-    const sumEst = orderedItems.reduce((acc, item) => acc + Number(item.est_value), 0);
+    // Same per-item floor the buy-now uses, then averaged — otherwise a custom
+    // box is a way to buy a $40 mouse for a third of a cent.
+    const sumEst = orderedItems.reduce(
+      (acc, item) => acc + clearanceUnitPrice(item as { est_value: number; msrp: number | null }),
+      0
+    );
     const avgEst = sumEst / 3;
     const spinPrice = Math.max(0.5, Math.round(avgEst * clearanceConfig.spin_discount_rate * 100) / 100);
 

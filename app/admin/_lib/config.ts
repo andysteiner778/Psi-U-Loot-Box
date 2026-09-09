@@ -50,6 +50,8 @@ export const ConfigPatchSchema = z
     scrap_coins_per_key: z.number().int().min(1).max(100_000),
     scrap_key_tier: z.enum(BOX_TIERS),
     flash_sale_pct: z.number().min(0).max(0.9),
+    // Capped at 0.95 to match box_odds; the price is floored at $0.01 anyway.
+    extra_discount_pct: z.number().min(0).max(0.95),
   })
   .partial();
 
@@ -139,6 +141,7 @@ export function coerceConfig(raw: unknown): EconomyConfig {
       : DEFAULT_CONFIG.scrap_key_tier,
     flash_sale: r.flash_sale === true,
     flash_sale_pct: n(r.flash_sale_pct, DEFAULT_CONFIG.flash_sale_pct),
+    extra_discount_pct: n(r.extra_discount_pct, 0),
     flash_sale_ends_at: typeof ends === 'string' && ends.trim() ? ends : null,
   };
 }

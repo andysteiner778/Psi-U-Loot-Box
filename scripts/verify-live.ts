@@ -99,11 +99,21 @@ async function main() {
     // database whose pot grows as real deposits are approved, so "no deposits
     // yet" stops being true the moment the party starts.
     const gateMet = o.pot_gate_met === true;
+    /*
+     * There are now TWO things that hold shards at 0%, and only one of them is
+     * the pot gate. Shards also taper with a tier's remaining real stock, so a
+     * picked-clean box cannot become the easiest route to the PC — and tier_3
+     * legitimately taper to zero once its own prizes are gone. Asserting
+     * "gate open therefore p_shard > 0" reported that correct behaviour as a
+     * failure.
+     */
+    const taper = Number(o.shard_taper ?? 1);
     ok(
-      gateMet ? Number(o.p_shard) > 0 : Number(o.p_shard) === 0,
-      'shard odds track the pot gate (pot $' + Number(o.pot_total).toFixed(2) +
-        ', gate ' + (gateMet ? 'OPEN' : 'shut') + ', P(shard) ' +
-        (Number(o.p_shard) * 100).toFixed(1) + '%)'
+      gateMet && taper > 0 ? Number(o.p_shard) > 0 : Number(o.p_shard) === 0,
+      'shard odds track the pot gate and the stock taper (pot $' +
+        Number(o.pot_total).toFixed(2) + ', gate ' + (gateMet ? 'OPEN' : 'shut') +
+        ', taper ' + taper + ' on ' + Number(o.shard_real_units ?? 0) +
+        ' real units, P(shard) ' + (Number(o.p_shard) * 100).toFixed(1) + '%)'
     );
     ok(
       Number(o.shards_minted) <= Number(o.shard_capacity),

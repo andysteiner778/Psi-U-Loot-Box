@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/session';
 import { readClearanceConfig } from '@/app/admin/_lib/clearance';
 import { db } from '@/lib/supabase/server';
 import type { BoxTier, Rarity } from '@/lib/types';
+import { clearanceUnitPrice } from '@/lib/clearance';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -70,7 +71,7 @@ export async function POST(req: Request) {
     // 3. Inspect target item
     const { data: item, error: itemErr } = await db
       .from('items')
-      .select('id, name, rarity, est_value, stock_qty, box_tier, image_url, is_active, reward_credit, reward_voucher_tier')
+      .select('id, name, rarity, est_value, msrp, stock_qty, box_tier, image_url, is_active, reward_credit, reward_voucher_tier')
       .eq('id', itemId)
       .maybeSingle();
 
@@ -84,7 +85,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: 'Item is out of stock' }, { status: 409 });
     }
 
-    const price = Number(item.est_value);
+    // Never below half retail — see lib/clearance.ts. A direct buy-now is
+    // someone picking the exact thing they want, not a box.
+    const price = clearanceUnitPrice(item as { est_value: number; msrp: number | null });
 
     // 4-6. Charge, decrement and record — in ONE database transaction.
     //

@@ -74,6 +74,20 @@ export const BAIT_IN_FILLER_RATE = 0.17;
 
 export const NEAR_MISS_CHANCE = 0.6;
 
+/**
+ * Near-miss rate for a player two shards or fewer from the PC. Higher than the
+ * baseline because at 2 or 3 of 4 the near miss is about something they can
+ * actually taste.
+ */
+export const NEAR_MISS_CHANCE_ENDGAME = 0.8;
+
+/**
+ * Given a near miss fires for a nearly-there player, how often it is a PC Core
+ * Shard specifically rather than whatever gold happens to be in the tier.
+ * 0.8 x 0.4 lands a shard near miss on roughly one roll in three.
+ */
+export const SHARD_BAIT_WHEN_CLOSE = 0.4;
+
 /** Rarities that qualify as near-miss bait. */
 export const BAIT_RARITIES: readonly Rarity[] = ['gold', 'pink', 'purple'];
 
@@ -186,10 +200,25 @@ export function cardFromResult(result: OpenBoxResult): ReelCard {
  * `rng` is injectable purely so tests can pin the strip; it never touches the
  * outcome.
  */
+export interface ReelOptions {
+  /**
+   * Shards this player already holds.
+   *
+   * At 2 and 3 of 4 the machine is genuinely within reach, and that is the
+   * moment a near miss lands hardest — so the near-miss card becomes a PC Core
+   * Shard far more often, and the near miss itself fires more often. Below that
+   * it would just be noise about a prize they are nowhere near.
+   */
+  shardsHeld?: number;
+  /** Shards needed for a set; only used to decide "nearly there". */
+  shardsRequired?: number;
+}
+
 export function buildReel(
   winner: OpenBoxResult,
   decoys: ReelCard[],
   rng: () => number = Math.random,
+  opts: ReelOptions = {},
 ): ReelCard[] {
   const pool = decoys.length > 0 ? decoys : FALLBACK_DECOYS;
 
@@ -250,13 +279,27 @@ export function buildReel(
   // roughly half of spins keeps it unpredictable -- typically one in every one
   // to three openings -- which is what makes the occasional real gold land
   // feel earned.
-  if (rng() < NEAR_MISS_CHANCE) {
+  /*
+   * Two shards from the end, the near miss stops being generic.
+   *
+   * A player holding 2 or 3 of 4 is close enough that watching a PC Core Shard
+   * slide past the line is the most charged thing the reel can show them. Below
+   * that it is noise about a prize they are nowhere near, so the ordinary
+   * behaviour stands.
+   */
+  const held = opts.shardsHeld ?? 0;
+  const required = opts.shardsRequired ?? 4;
+  const nearlyThere = held >= required - 2 && held < required;
+  const chance = nearlyThere ? NEAR_MISS_CHANCE_ENDGAME : NEAR_MISS_CHANCE;
+
+  if (rng() < chance) {
     // Any Legendary-or-better item in this tier can be the near miss, picked at
     // random rather than always the single best one -- seeing the same $400 PC
     // slide past every time is how a player learns the beat is scripted.
     const candidates = pool.filter((c) => BAIT_RARITIES.includes(c.rarity));
-    const bait =
-      candidates.length > 0 ? candidates[Math.floor(rng() * candidates.length)] : SHARD_BAIT;
+    const bait = nearlyThere && rng() < SHARD_BAIT_WHEN_CLOSE
+      ? SHARD_BAIT
+      : candidates.length > 0 ? candidates[Math.floor(rng() * candidates.length)] : SHARD_BAIT;
 
     cards[NEAR_MISS_INDEX] = {
       ...bait,

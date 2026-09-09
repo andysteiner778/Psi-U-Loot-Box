@@ -98,9 +98,22 @@ export function marginForTier(cfg: EconomyConfig, tier: BoxTier): number {
 /** Box price after any live flash sale. The server clock is authoritative. */
 export function effectiveBoxPrice(cfg: EconomyConfig, tier: BoxTier, now = new Date()): number {
   const base = cfg.box_prices[tier];
-  if (!cfg.flash_sale) return base;
-  if (cfg.flash_sale_ends_at && new Date(cfg.flash_sale_ends_at) <= now) return base;
-  return round2(base * (1 - cfg.flash_sale_pct));
+  /*
+   * Standing discount first, then the timed sale. They COMPOUND rather than
+   * add -- 40% standing and 20% in a sale is 0.6 x 0.8 = 52% off -- because
+   * adding two discounts can drive a price to zero or below and compounding
+   * cannot. Mirrors box_odds.
+   */
+  const standing = Math.min(0.95, Math.max(0, cfg.extra_discount_pct ?? 0));
+  let price = round2(base * (1 - standing));
+
+  const saleLive =
+    cfg.flash_sale && !(cfg.flash_sale_ends_at && new Date(cfg.flash_sale_ends_at) <= now);
+  if (saleLive) price = round2(price * (1 - cfg.flash_sale_pct));
+
+  // A box must still cost something, or a deep discount rounds it to $0.00 and
+  // it becomes a free spin that still pays out prizes.
+  return Math.max(0.01, price);
 }
 
 export interface OddsInput {
