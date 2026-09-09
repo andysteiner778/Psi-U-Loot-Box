@@ -325,12 +325,38 @@ async function main() {
   const bad = await db.query("SELECT auth_verify_pin('Ben','9999')");
   ok(bad.rows.length === 0, 'wrong PIN returns no rows');
 
-  for (let i = 0; i < 5; i++) await db.query("SELECT auth_verify_pin('Ben','9999')").catch(() => {});
+  /*
+   * Read the limit from config rather than hardcoding 5. The lockout was
+   * loosened to 10 tries and 60 seconds because five wrong PINs buying a
+   * fifteen-minute lock is a rule for the internet, not for a phone being
+   * passed around a house -- and this assertion was the thing that would have
+   * silently kept asserting the old rule.
+   */
+  const pinCfg = (await db.query<{ value: Record<string, unknown> }>(
+    "SELECT value FROM config WHERE key='settings'"
+  )).rows[0].value;
+  const maxTries = Number(pinCfg.pin_max_attempts ?? 10);
+
+  // Start from a known count: the wrong-PIN check above already burned one.
+  await db.query("UPDATE app_private.profile_secrets SET failed_attempts = 0, locked_until = NULL");
+
+  // One short of the limit must NOT lock.
+  for (let i = 0; i < maxTries - 1; i++) {
+    await db.query("SELECT auth_verify_pin('Ben','9999')").catch(() => {});
+  }
+  const stillIn = await db.query("SELECT auth_verify_pin('Ben','1234')").catch(() => null);
+  ok(stillIn !== null, (maxTries - 1) + ' wrong PINs do not lock the account');
+
+  // The success above cleared the counter, so this run starts from zero.
+  for (let i = 0; i < maxTries; i++) {
+    await db.query("SELECT auth_verify_pin('Ben','9999')").catch(() => {});
+  }
   try {
     await db.query("SELECT auth_verify_pin('Ben','1234')");
-    ok(false, 'lockout did not engage after 5 failures');
+    ok(false, 'lockout did not engage after ' + maxTries + ' failures');
   } catch (e) {
-    ok(/Too many attempts/.test((e as Error).message), 'locks the account after 5 failed PINs');
+    ok(/Too many attempts/.test((e as Error).message),
+      'locks the account after ' + maxTries + ' failed PINs');
   }
 
   // ---- Sessions -----------------------------------------------------------
