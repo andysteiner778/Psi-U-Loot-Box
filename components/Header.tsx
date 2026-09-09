@@ -33,6 +33,13 @@ export function Header() {
     0
   );
 
+  // When returning to player game/main menu, ensure the admin panel is re-locked
+  React.useEffect(() => {
+    if (user.role === 'admin') {
+      fetch('/api/admin/unlock', { method: 'DELETE' }).catch(() => {});
+    }
+  }, [user.role]);
+
   const handleToggleSound = () => {
     const next = sfx.toggleMuted();
     setIsMuted(next);
@@ -170,13 +177,13 @@ export function Header() {
 
             {/* Admin Link if admin role */}
             {user.role === 'admin' && (
-              <Link
+              <a
                 href="/admin"
                 className="flex shrink-0 min-h-[44px] items-center gap-1.5 rounded-xl border border-purple-500/40 bg-purple-950/50 px-3 py-2 text-xs font-mono font-bold text-purple-300 hover:bg-purple-900/60 transition shadow-sm"
               >
                 <Shield className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Admin</span>
-              </Link>
+              </a>
             )}
 
             {/* User Pill & Signout */}

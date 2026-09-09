@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { ShieldAlert, ArrowLeft, Lock } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default async function AdminPage() {
   const gate = await adminPageGate();
