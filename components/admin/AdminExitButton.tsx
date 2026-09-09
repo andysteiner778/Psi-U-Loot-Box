@@ -15,13 +15,17 @@ export function AdminExitButton({
   const [exiting, setExiting] = useState(false);
   const [locking, setLocking] = useState(false);
 
-  const handleExitAndLock = async () => {
+  /*
+   * Leaving the panel does NOT lock it.
+   *
+   * This used to DELETE the unlock cookie before navigating, so stepping out to
+   * the game for ten seconds cost you the PIN again. The unlock is meant to
+   * last 30 minutes of ordinary back-and-forth; the thing it defends against is
+   * an unattended phone, and that is what the TTL and the explicit Lock Admin
+   * button are for.
+   */
+  const handleExit = () => {
     setExiting(true);
-    try {
-      await fetch('/api/admin/unlock', { method: 'DELETE' });
-    } catch {
-      // Fall through to redirect even if fetch fails
-    }
     window.location.href = '/';
   };
 
@@ -38,9 +42,9 @@ export function AdminExitButton({
   return (
     <div className="flex items-center gap-2">
       <button
-        onClick={handleExitAndLock}
+        onClick={handleExit}
         disabled={exiting || locking}
-        title="Lock admin session and return to main game"
+        title="Return to the game — admin stays unlocked"
         className="inline-flex items-center gap-1.5 rounded-xl border border-gun-700 bg-gun-850 px-3 py-1.5 text-xs font-mono text-gun-300 hover:text-white hover:border-gun-600 transition disabled:opacity-50"
       >
         {exiting ? (

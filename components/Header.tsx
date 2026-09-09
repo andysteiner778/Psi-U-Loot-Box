@@ -175,10 +175,17 @@ export function Header() {
               {isMuted ? <VolumeX className="h-4 w-4 text-red-400" /> : <Volume2 className="h-4 w-4 text-emerald-400" />}
             </button>
 
-            {/* Admin Link if admin role */}
+            {/*
+              Straight to /admin. This used to point at
+              /api/admin/lock?redirect=/admin — which LOCKS and then redirects,
+              so the PIN prompt appeared on every single visit and the 30-minute
+              unlock could never survive one trip back to the game. Locking on
+              the way IN is not a security measure; it is just the prompt firing
+              twice for the same session.
+            */}
             {user.role === 'admin' && (
               <a
-                href="/api/admin/lock?redirect=/admin"
+                href="/admin"
                 className="flex shrink-0 min-h-[44px] items-center gap-1.5 rounded-xl border border-purple-500/40 bg-purple-950/50 px-3 py-2 text-xs font-mono font-bold text-purple-300 hover:bg-purple-900/60 transition shadow-sm"
               >
                 <Shield className="h-3.5 w-3.5" />

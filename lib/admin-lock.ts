@@ -77,8 +77,20 @@ export async function unlockAdmin(profileId: string, pin: string): Promise<boole
   return true;
 }
 
+/**
+ * Re-issued on use, so the 30 minutes is an IDLE timeout rather than a hard
+ * deadline. The lock exists to catch an unattended phone; expiring in the
+ * middle of an admin who is actively working just costs them the PIN again for
+ * no security gain.
+ *
+ * Only refreshed once the token is over halfway through its life, so an admin
+ * page that fires several requests does not rewrite the cookie on every one.
+ */
+const REFRESH_AFTER_MS = TTL_MS / 2;
+
 export async function isAdminUnlocked(profileId: string): Promise<boolean> {
-  const raw = (await cookies()).get(COOKIE)?.value;
+  const jar = await cookies();
+  const raw = jar.get(COOKIE)?.value;
   if (!raw) return false;
 
   const [expStr, sig] = raw.split('.');
@@ -87,7 +99,29 @@ export async function isAdminUnlocked(profileId: string): Promise<boolean> {
 
   const expected = sign(profileId, exp);
   if (sig.length !== expected.length) return false;
-  return timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+  if (!timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return false;
+
+  if (exp - Date.now() < TTL_MS - REFRESH_AFTER_MS) {
+    /*
+     * Server Components render with a read-only cookie jar and throw on a
+     * write. That is fine: the refresh is a convenience, and every admin action
+     * goes through a route handler where the write does land. Never let it turn
+     * a valid session into a locked one.
+     */
+    try {
+      const next = Date.now() + TTL_MS;
+      jar.set(COOKIE, next + '.' + sign(profileId, next), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: Math.floor(TTL_MS / 1000),
+      });
+    } catch {
+      /* read-only jar during render — the token is still valid */
+    }
+  }
+  return true;
 }
 
 export async function lockAdmin(): Promise<void> {
