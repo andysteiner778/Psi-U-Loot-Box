@@ -462,7 +462,7 @@ export function BoxCard({
               className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-cyan-600/40 bg-cyan-950/30 py-3 text-xs font-semibold text-cyan-300 hover:border-cyan-500 hover:text-white transition disabled:opacity-40"
             >
               <Sparkles className={`h-4 w-4 ${previewing ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">{previewing ? '…' : 'Try Free'}</span>
+              <span className="hidden sm:inline">{previewing ? '…' : 'Test Spin'}</span>
             </button>
 
             {/* Inspect Button */}
@@ -520,8 +520,22 @@ export function BoxCard({
               )}
             </button>
 
+            {/*
+              * The button is a quarter of the row and drops its label entirely
+              * on a phone, so on the narrowest screen -- which is most of them
+              * at a party -- the sparkle icon was the only thing saying what it
+              * does. This line always shows, and says the part that makes
+              * people press it: it costs nothing and wins nothing.
+              */}
+            {!isCleanedOut && (
+              <p className="col-span-4 -mt-1 text-center text-[11px] leading-snug text-cyan-300/70">
+                <span className="font-semibold text-cyan-300">Test Spin</span>
+                {' — see what you would have gotten. Free, and nothing is won or charged.'}
+              </p>
+            )}
+
             {isCleanedOut && (
-              <p className="col-span-3 -mt-1 text-center text-[11px] leading-snug text-gun-400">
+              <p className="col-span-4 -mt-1 text-center text-[11px] leading-snug text-gun-400">
                 Every item in this tier has been won. Spinning now would only
                 refund you — try another tier.
               </p>
