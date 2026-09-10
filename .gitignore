@@ -52,3 +52,4 @@ photos/
 # balances, so they stay out of git.
 backups/
 recovered-items.json
+scratch/
