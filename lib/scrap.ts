@@ -1,4 +1,4 @@
-import { scrapCoinUsd } from './economy';
+import { scrapCoinUsd, standingBoxPrice } from './economy';
 import type { BoxTier, EconomyConfig, Rarity } from './types';
 
 /**
@@ -11,7 +11,7 @@ import type { BoxTier, EconomyConfig, Rarity } from './types';
  * number, or an item's scrap value depends on which screen last touched it.
  *
  * THE RULE
- *   payout = min(retail x 90%, HALF the price of the box it drops from)
+ *   payout = min(retail x 90%, HALF what the box it drops from COSTS right now)
  *   coins  = floor(payout / coin)
  *
  * Priced off RETAIL because the owner deliberately prices give-away junk at
@@ -56,13 +56,30 @@ export function scrapValueCoins(item: ScrapInput, cfg: EconomyConfig): number {
   if (!(coin > 0)) return 0;
 
   const retail = Number(item.msrp ?? 0) || 0;
-  // List price, not the discounted one: a temporary sale must not permanently
-  // rewrite what every item is worth on the shelf.
-  const boxPrice = Number(cfg.box_prices?.[item.box_tier] ?? 0) || 0;
+  /*
+   * The price people actually PAY, after the standing discount -- not the list
+   * price.
+   *
+   * This used the list price, on the reasoning that a sale should not rewrite
+   * what an item is worth. At 60% off that made the cap 125% of the real box
+   * price: the $4 Golden Chest paid $5 to scrap a Ti-83, and scrapping puts the
+   * Ti-83 back in the box. Buy, scrap, repeat, $1 of credit each time. In a
+   * simulated party that turned $150 of deposits into ~$780 of spins and lost
+   * the house $138 on a bad night.
+   *
+   * Standing discount only, not the timed flash sale: the sale is 20% for 15
+   * minutes, so a roll during it still costs 80% of the standing price, well
+   * above this 50% cap. Values are recomputed whenever the discount is saved
+   * (app/admin/_lib/scrap-rebase.ts), so turning the sale off raises them again.
+   */
+  const boxPrice = cfg.box_prices?.[item.box_tier] ? standingBoxPrice(cfg, item.box_tier) : 0;
 
   const payout = Math.min(retail * RETAIL_RATE, boxPrice * CAP_OF_BOX);
   if (!(payout > 0)) return 0;
-  return Math.floor(payout / coin);
+  // The epsilon is for binary floating point, not generosity: 0.6 / 0.1 is
+  // 5.999999999999999, which floors to 5 coins and short-pays a $0.60 cap as
+  // $0.50. It is far too small to lift 2.5 coins to 3.
+  return Math.floor(payout / coin + 1e-9);
 }
 
 /**

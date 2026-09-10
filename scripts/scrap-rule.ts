@@ -17,7 +17,7 @@
  */
 import { readFileSync } from 'fs';
 import { scrapValueCoins, tierForRetail, RETAIL_RATE, CAP_OF_BOX } from '../lib/scrap';
-import { DEFAULT_CONFIG, scrapCoinUsd } from '../lib/economy';
+import { DEFAULT_CONFIG, scrapCoinUsd, standingBoxPrice } from '../lib/economy';
 import type { BoxTier, EconomyConfig, Rarity } from '../lib/types';
 
 let fails = 0;
@@ -69,6 +69,32 @@ for (const t of ['tier_0', 'tier_1', 'tier_2', 'tier_3'] as BoxTier[]) {
   }
 }
 ok(!breach, 'no retail in any tier ever beats half its box price' + (breach ? ' -- ' + breach : ''));
+
+/*
+ * THE DISCOUNT. The cap is half of what the box COSTS, not its list price. On
+ * the list price, a 60% sale made the $4 Golden Chest pay $5 to scrap a Ti-83
+ * that then went back into the box -- buy, scrap, repeat, free credit.
+ */
+const sale = { ...cfg, extra_discount_pct: 0.6 } as EconomyConfig;
+ok(Math.abs(scrapValueCoins(item(10, 'tier_2'), sale) * coin - 2) < 1e-9,
+  'at 60% off, a $10 retail item in the Golden Chest ($4) pays $2, not $5');
+ok(Math.abs(scrapValueCoins(item(40, 'tier_3'), sale) * coin - 6) < 1e-9,
+  'at 60% off, a $40 retail item in High Roller ($12) pays $6, not $15');
+ok(Math.abs(scrapValueCoins(item(5, 'tier_1'), sale) * coin - 0.6) < 1e-9,
+  'at 60% off, a $5 retail item in Good Stuff ($1.20) pays $0.60 -- not $0.50 from 0.6/0.1 = 5.999...');
+let loop = '';
+for (const d of [0, 0.1, 0.3, 0.5, 0.6, 0.8, 0.9]) {
+  const c2 = { ...cfg, extra_discount_pct: d } as EconomyConfig;
+  for (const t of ['tier_0', 'tier_1', 'tier_2', 'tier_3'] as BoxTier[]) {
+    // Even inside a 20% flash sale on top, a roll costs 80% of the standing price.
+    const paidInFlashSale = standingBoxPrice(c2, t) * 0.8;
+    for (const m of [1, 10, 40, 999999]) {
+      const p = scrapValueCoins(item(m, t), c2) * coin;
+      if (p > paidInFlashSale + 1e-9) loop = t + ' at ' + d * 100 + '% off pays $' + p.toFixed(2) + ' against $' + paidInFlashSale.toFixed(2);
+    }
+  }
+}
+ok(!loop, 'at every discount, even mid flash sale, scrapping pays less than the roll cost' + (loop ? ' -- ' + loop : ''));
 
 // Things that are not objects pay nothing.
 ok(scrapValueCoins({ ...item(40, 'tier_3'), shard_cost: 4 }, cfg) === 0, 'a shard-locked prize scraps for nothing');

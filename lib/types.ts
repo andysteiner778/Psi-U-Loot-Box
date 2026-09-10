@@ -335,6 +335,14 @@ export interface EconomyConfig {
    */
   filler_min_frac?: number;
   /**
+   * Superseded filler_min_frac in migration 0060. The consolation must have a
+   * RETAIL of at least this fraction of the box price (so it looks worth
+   * having), and cost the house (est_value) no more than `filler_max_cost_frac`
+   * of it. MUST match box_odds and open_box SQL.
+   */
+  filler_min_retail_frac?: number;
+  filler_max_cost_frac?: number;
+  /**
    * Weight multiplier for items that belong to a DIFFERENT tier than the box
    * being opened. 1.0 would make tiers meaningless; 0 restores strict
    * partitioning. Around 0.15 means a $5 crate can still cough up the good

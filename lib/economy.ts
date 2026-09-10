@@ -62,6 +62,8 @@ export const DEFAULT_CONFIG: EconomyConfig = {
   max_respin_share: 0.25,
   shard_salvage_value: 10,
   filler_max_value: 15,
+  filler_min_retail_frac: 0.5,
+  filler_max_cost_frac: 0.1,
   cross_tier_factor: 0.15,
   scrap_coins_per_key: 50,
   scrap_key_tier: 'tier_2',
@@ -95,17 +97,24 @@ export function marginForTier(cfg: EconomyConfig, tier: BoxTier): number {
   return typeof override === 'number' && Number.isFinite(override) ? override : cfg.house_margin;
 }
 
+/**
+ * Box price after the STANDING discount only -- the admin slider, not the
+ * timed flash sale. What a box costs for the rest of the night.
+ */
+export function standingBoxPrice(cfg: EconomyConfig, tier: BoxTier): number {
+  const standing = Math.min(0.95, Math.max(0, cfg.extra_discount_pct ?? 0));
+  return Math.max(0.01, round2(cfg.box_prices[tier] * (1 - standing)));
+}
+
 /** Box price after any live flash sale. The server clock is authoritative. */
 export function effectiveBoxPrice(cfg: EconomyConfig, tier: BoxTier, now = new Date()): number {
-  const base = cfg.box_prices[tier];
   /*
    * Standing discount first, then the timed sale. They COMPOUND rather than
    * add -- 40% standing and 20% in a sale is 0.6 x 0.8 = 52% off -- because
    * adding two discounts can drive a price to zero or below and compounding
    * cannot. Mirrors box_odds.
    */
-  const standing = Math.min(0.95, Math.max(0, cfg.extra_discount_pct ?? 0));
-  let price = round2(base * (1 - standing));
+  let price = standingBoxPrice(cfg, tier);
 
   const saleLive =
     cfg.flash_sale && !(cfg.flash_sale_ends_at && new Date(cfg.flash_sale_ends_at) <= now);
@@ -267,13 +276,23 @@ export function computeBoxOdds({ tier, items, config: cfg, potGateMet, shardsHel
   // the boxes they belong to; they just stop being a ten dollar box's idea of
   // a consolation prize. The mass they lose lands on the credit, free-spin and
   // voucher rewards that share this pool.
+  //
+  // The minimum is on RETAIL and there is a separate ceiling on COST (0060).
+  // It used to be a minimum on est_value, and since most of this catalogue is
+  // priced at $0.01 on purpose, the only items that cleared it were the few the
+  // owner had actually valued -- so the consolation was the most expensive
+  // thing a cheaper tier had, and it ate the budget meant for real prizes. A
+  // consolation should LOOK worth having (retail) and cost the house little
+  // (est_value); those are decoupled in this catalogue on purpose.
   const tierRank = BOX_TIERS.indexOf(tier);
-  const fillerMin = (cfg.filler_min_frac ?? 0) * C;
+  const fillerMinRetail = (cfg.filler_min_retail_frac ?? 0) * C;
+  const fillerMaxCost = (cfg.filler_max_cost_frac ?? 1) * C;
   const fillerPool = live.filter(
     (i) =>
       BOX_TIERS.indexOf(i.box_tier) < tierRank &&
       i.est_value <= fillerMax &&
-      i.est_value >= fillerMin &&
+      ((i.msrp ?? 0) > 0 ? Number(i.msrp) : i.est_value) >= fillerMinRetail &&
+      i.est_value <= fillerMaxCost &&
       // The consolation must be an OBJECT. Reward rows carry far more stock
       // than the junk beside them and the floor draw is stock-weighted, so they
       // were winning it. Mirrors the filler predicate in box_odds.
