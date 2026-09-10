@@ -459,10 +459,18 @@ export function BoxCard({
               onClick={handlePreview}
               disabled={previewing || opening || spinning || isCleanedOut}
               title="See what this box would have given you — free, nothing is won or charged"
-              className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-cyan-600/40 bg-cyan-950/30 py-3 text-xs font-semibold text-cyan-300 hover:border-cyan-500 hover:text-white transition disabled:opacity-40"
+              className="flex min-h-[44px] flex-col items-center justify-center gap-1 rounded-xl border border-cyan-600/40 bg-cyan-950/30 px-1 py-2 font-semibold text-cyan-300 hover:border-cyan-500 hover:text-white transition disabled:opacity-40"
             >
               <Sparkles className={`h-4 w-4 ${previewing ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">{previewing ? '…' : 'Test Spin'}</span>
+              {/*
+                * Stacked under the icon rather than beside it, and never
+                * hidden: at a quarter of the row an inline label does not fit
+                * on a phone, which is why this button used to be a bare
+                * sparkle there. The explanation lives in the tooltip and on
+                * the reveal itself -- as a caption under the row it ate the
+                * bottom of every card.
+                */}
+              <span className="text-[10px] leading-none">{previewing ? '…' : 'Test Spin'}</span>
             </button>
 
             {/* Inspect Button */}
@@ -519,20 +527,6 @@ export function BoxCard({
                 </>
               )}
             </button>
-
-            {/*
-              * The button is a quarter of the row and drops its label entirely
-              * on a phone, so on the narrowest screen -- which is most of them
-              * at a party -- the sparkle icon was the only thing saying what it
-              * does. This line always shows, and says the part that makes
-              * people press it: it costs nothing and wins nothing.
-              */}
-            {!isCleanedOut && (
-              <p className="col-span-4 -mt-1 text-center text-[11px] leading-snug text-cyan-300/70">
-                <span className="font-semibold text-cyan-300">Test Spin</span>
-                {' — see what you would have gotten. Free, and nothing is won or charged.'}
-              </p>
-            )}
 
             {isCleanedOut && (
               <p className="col-span-4 -mt-1 text-center text-[11px] leading-snug text-gun-400">
