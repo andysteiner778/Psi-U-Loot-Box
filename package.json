@@ -37,7 +37,8 @@
     "gift": "tsx scripts/gift-live.ts",
     "compact": "tsx scripts/compact-live.ts",
     "bundle": "tsx scripts/bundle-live.ts",
-    "reconcile": "tsx scripts/reconcile.ts"
+    "reconcile": "tsx scripts/reconcile.ts",
+    "scrap-rule": "tsx scripts/scrap-rule.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

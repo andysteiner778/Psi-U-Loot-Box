@@ -17,7 +17,8 @@
 import { config as denv } from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import { scrapCoinUsd, DEFAULT_CONFIG } from '../lib/economy';
-import type { EconomyConfig } from '../lib/types';
+import { scrapValueCoins, RETAIL_RATE, CAP_OF_BOX } from '../lib/scrap';
+import type { EconomyConfig, BoxTier, Rarity } from '../lib/types';
 
 denv({ path: '.env.local', quiet: true });
 
@@ -41,17 +42,14 @@ const APPLY = process.argv.includes('--fix');
  * rate hands out more than the box that produced it cost. Hence CAP_OF_BOX.
  */
 const BASIS: 'est' | 'retail' = process.argv.some((a) => a === '--basis=retail') ? 'retail' : 'est';
-/**
- * Dollars returned per dollar of retail: 90%. With a $0.10 coin that is the
- * owner's "9 scrap per $1 retail, 100 scrap gives $10".
+/*
+ * RETAIL_RATE and CAP_OF_BOX now come from lib/scrap, which is also what the
+ * admin create and edit forms call. They used to be declared here, and this
+ * script was the only place the retail rule existed -- so an item added
+ * through the form was priced by a different rule until someone remembered to
+ * re-run this. Two copies of one formula is the bug that has already produced
+ * a ten-times-wrong coin in this codebase four separate times.
  */
-const RETAIL_RATE = 0.9;
-/**
- * A scrapped item may never return more than half the price of the box it can
- * drop from. At 100% it is break-even and a patient player can farm it; at 50%
- * the compactor is a good deal on a lucky pull and never a money printer.
- */
-const CAP_OF_BOX = 0.5;
 const HIGH = ['purple', 'pink', 'gold'];
 const pad = (s: string, n: number) => s.padEnd(n);
 
@@ -65,7 +63,8 @@ async function main() {
    * $0.20) while the engine, box_odds and the audit divide scrap_key_usd
    * ($1/50 = $0.02). Same name, ten times apart.
    */
-  const coin = scrapCoinUsd({ ...DEFAULT_CONFIG, ...(cfg as Partial<EconomyConfig>) } as EconomyConfig);
+  const fullCfg = { ...DEFAULT_CONFIG, ...(cfg as Partial<EconomyConfig>) } as EconomyConfig;
+  const coin = scrapCoinUsd(fullCfg);
   const lowRate = Number(cfg.scrap_recovery_frac ?? 0.6);
   const highRate = Number(cfg.scrap_recovery_high ?? 0.4);
   const highOk = cfg.allow_high_rarity_scrap === true;
@@ -117,18 +116,19 @@ async function main() {
     let want: number;
     if (isHigh && !highOk) want = 0;
     else if (BASIS === 'retail') {
-      const boxCap = (prices[i.box_tier] ?? 0) * CAP_OF_BOX;
-      const payout = Math.min(retail * RETAIL_RATE, boxCap);
-      /*
-       * FLOOR, not round. A $0.25 cap against a $0.10 coin rounds 2.5 up to 3
-       * coins = $0.30, which quietly breaks the very cap it is applying — and
-       * the cap is the only thing standing between this and a farm loop.
-       * Rounding down costs a few cents and keeps the guarantee exact.
-       *
-       * No 1-coin floor here either: below one coin of value the item is simply
-       * not worth scrapping, which the inventory already words properly.
-       */
-      want = payout <= 0 ? 0 : Math.floor(payout / coin);
+      // The shared rule, byte for byte the one the admin forms apply.
+      want = scrapValueCoins(
+        {
+          est_value: val,
+          msrp: retail,
+          rarity: i.rarity as Rarity,
+          box_tier: i.box_tier as BoxTier,
+          shard_cost: i.shard_cost,
+          reward_credit: i.reward_credit,
+          reward_voucher_tier: i.reward_voucher_tier as BoxTier | null,
+        },
+        fullCfg
+      );
     } else {
       const rate = isHigh ? highRate : lowRate;
       // Never pay out more than the item is worth, even to honour the 1-coin floor.
