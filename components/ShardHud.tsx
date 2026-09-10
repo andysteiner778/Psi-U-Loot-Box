@@ -11,12 +11,15 @@ export interface ShardHudProps {
   potTotal?: number;
   potThreshold?: number;
   potGateMet?: boolean;
+  /** The Gaming PC's photo, shown in place of a generic chip icon. */
+  pcImageUrl?: string | null;
 }
 
 export function ShardHud({
   potTotal = 0,
   potThreshold = 150,
   potGateMet = false,
+  pcImageUrl = null,
 }: ShardHudProps) {
   const { stats, config, commit, toast } = usePlayer();
   const [claiming, setClaiming] = useState(false);
@@ -109,8 +112,13 @@ export function ShardHud({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {/* Title & Shard Progress */}
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.2)]">
-              <Cpu className="h-6 w-6" />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.2)]">
+              {pcImageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={pcImageUrl} alt="Gaming PC" className="h-full w-full object-contain p-0.5" />
+              ) : (
+                <Cpu className="h-6 w-6" />
+              )}
             </div>
 
             <div>

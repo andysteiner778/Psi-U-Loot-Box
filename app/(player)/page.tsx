@@ -121,6 +121,7 @@ export default async function PlayerBoxesPage() {
         potTotal={potTotal}
         potThreshold={potThreshold}
         potGateMet={potGateMet}
+        pcImageUrl={shardPrizes[0]?.image_url ?? null}
       />
 
       {welcomeLeft > 0 && (

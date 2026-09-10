@@ -493,13 +493,22 @@ export function CaseReel({
                 </div>
 
                 {/* Card Graphic */}
-                <div className="my-auto flex h-24 w-full items-center justify-center overflow-hidden rounded-lg bg-gun-950/80 p-2">
+                <div className="relative my-auto flex h-24 w-full items-center justify-center overflow-hidden rounded-lg bg-gun-950/80 p-2">
                   {card.image_url ? (
                     <img
                       src={card.image_url}
                       alt={card.name}
                       className="h-full w-full object-contain"
                     />
+                  ) : /shard/i.test(card.name) && shardImageUrl ? (
+                    /* A shard has no photo of its own -- neither the one you
+                       land on nor the near-miss bait -- so it showed a sparkle.
+                       Show the machine it builds toward, same as the reveal. */
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={shardImageUrl} alt="Gaming PC" className="h-full w-full object-contain" />
+                      <Sparkles className="absolute right-1 top-1 h-4 w-4 drop-shadow" style={{ color: cardColor }} />
+                    </>
                   ) : (
                     /* Pick the icon off the NAME, because a strip card carries no
                        type — it is built from the odds pool, where credit rows,
