@@ -16,7 +16,8 @@ import {
   Zap,
   Gift,
 } from 'lucide-react';
-import type { Profile } from '@/lib/types';
+import { BOX_TIERS, type BoxTier, type Profile } from '@/lib/types';
+import { BOX_META } from '@/app/(player)/_lib/shared';
 
 export function PlayerRoster() {
   const [players, setPlayers] = useState<Profile[]>([]);
@@ -27,7 +28,14 @@ export function PlayerRoster() {
   const [saving, setSaving] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ text: string; type: 'good' | 'bad' } | null>(null);
   const [giftFor, setGiftFor] = useState<string | null>(null);
-  const [giftTier, setGiftTier] = useState<'tier_1' | 'tier_2' | 'tier_3'>('tier_1');
+  const [giftTier, setGiftTier] = useState<BoxTier>('tier_0');
+  /*
+   * Live box prices, so the dropdown quotes what a spin actually costs.
+   * The options used to be hardcoded "Tier 1 ($5)" — the LIST price, not the
+   * charged one, and stale the moment either is retuned or a standing discount
+   * is applied.
+   */
+  const [prices, setPrices] = useState<Partial<Record<BoxTier, number>>>({});
   const [giftCount, setGiftCount] = useState('5');
   const [gifting, setGifting] = useState(false);
 
@@ -88,6 +96,20 @@ export function PlayerRoster() {
 
   useEffect(() => {
     fetchPlayers();
+  }, []);
+
+  // Box prices for the gift dropdown. Read once; a failure just means the
+  // options show names without a price, which is still usable.
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/config');
+        const json = await res.json();
+        if (json?.ok && json.data?.box_prices) setPrices(json.data.box_prices);
+      } catch {
+        /* names alone are enough to pick a tier */
+      }
+    })();
   }, []);
 
   const handleStartEdit = (p: Profile) => {
@@ -388,9 +410,16 @@ export function PlayerRoster() {
                           className="rounded bg-gun-950 px-2 py-1 font-mono text-[11px] text-white outline-none"
                           aria-label="Box tier"
                         >
-                          <option value="tier_1">Tier 1 ($5)</option>
-                          <option value="tier_2">Tier 2 ($20)</option>
-                          <option value="tier_3">Tier 3 ($50)</option>
+                          {/* Every tier, from BOX_TIERS — tier_0 was missing
+                              entirely, which meant the cheapest box, the one
+                              you would most want to hand out spins on, was the
+                              one you could not gift. */}
+                          {BOX_TIERS.map((t) => (
+                            <option key={t} value={t}>
+                              {BOX_META[t]?.name ?? t}
+                              {prices[t] !== undefined ? ` ($${prices[t]!.toFixed(2)})` : ''}
+                            </option>
+                          ))}
                         </select>
                         <button
                           onClick={() => giftSpins(p)}

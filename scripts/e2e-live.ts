@@ -346,15 +346,27 @@ async function main() {
         p_user_id: vp!.id, p_box_tier: 'tier_3', p_client_roll_id: crypto.randomUUID(),
       });
       const charge1 = await chargeOf((r1.data as { roll_id: string }).roll_id);
-      ok(Math.abs(charge1 - prices.tier_3 * 0.5) < 0.001,
-        'the voucher halved the price (charged $' + charge1.toFixed(2) + ' of $' + prices.tier_3 + ')');
+      /*
+       * The EFFECTIVE price, not the list price in config.box_prices.
+       *
+       * A standing discount (extra_discount_pct) and a flash sale both move
+       * what a box actually costs, and box_odds publishes the result as
+       * `box_price` — which is the number open_box charges against. Comparing a
+       * voucher's discount to the LIST price reported a correct half-price
+       * charge as broken the moment the owner touched the discount slider.
+       */
+      const t3Odds = await db.rpc('box_odds', { p_box_tier: 'tier_3', p_user_id: vp!.id });
+      const t3Price = Number((t3Odds.data as { box_price: number }).box_price);
+
+      ok(Math.abs(charge1 - t3Price * 0.5) < 0.001,
+        'the voucher halved the price (charged $' + charge1.toFixed(2) + ' of $' + t3Price + ')');
 
       await forcePlain();
       const r2 = await db.rpc('open_box', {
         p_user_id: vp!.id, p_box_tier: 'tier_3', p_client_roll_id: crypto.randomUUID(),
       });
       const charge2 = await chargeOf((r2.data as { roll_id: string }).roll_id);
-      ok(Math.abs(charge2 - prices.tier_3) < 0.001,
+      ok(Math.abs(charge2 - t3Price) < 0.001,
         'and it was single-use: the next roll paid full price ($' + charge2.toFixed(2) + ')');
 
       // A voucher must not leak across tiers.
@@ -364,8 +376,12 @@ async function main() {
         p_user_id: vp!.id, p_box_tier: 'tier_1', p_client_roll_id: crypto.randomUUID(),
       });
       const charge3 = await chargeOf((r3.data as { roll_id: string }).roll_id);
-      ok(Math.abs(charge3 - prices.tier_1) < 0.001,
-        'a High Roller voucher does not discount a cheap box (charged $' + charge3.toFixed(2) + ')');
+      // Effective price again — see the note above.
+      const t1Odds = await db.rpc('box_odds', { p_box_tier: 'tier_1', p_user_id: vp!.id });
+      const t1Price = Number((t1Odds.data as { box_price: number }).box_price);
+      ok(Math.abs(charge3 - t1Price) < 0.001,
+        'a High Roller voucher does not discount a cheap box (charged $' + charge3.toFixed(2) +
+        ' of $' + t1Price + ')');
       // Check THE TIER-3 VOUCHER specifically, not a count of all of them.
       // Counting broke when bundled vouchers landed (migration 0033): the
       // forced plain win on tier_1 legitimately issues its own voucher, so the
@@ -421,10 +437,13 @@ async function main() {
       });
       const bal1 = (await balanceOf(rp!.id)).balance;
       const payload = res.data as { type?: string; refund_amount?: number };
-      const cfgNow = await db.from('config').select('value').eq('key', 'settings').single();
-      const boxPrice = Number(
-        ((cfgNow.data!.value as Record<string, unknown>).box_prices as Record<string, number>)[rw.box_tier]
-      );
+      /*
+       * What the box actually charged, not its list price: a standing discount
+       * or a flash sale moves the real figure, and this compares a balance
+       * delta against it.
+       */
+      const rwOdds = await db.rpc('box_odds', { p_box_tier: rw.box_tier, p_user_id: rp!.id });
+      const boxPrice = Number((rwOdds.data as { box_price: number }).box_price);
 
       ok(payload?.type === 'respin', rw.name + ' pays as credit, not an object');
       ok(Number(payload?.refund_amount) === Number(rw.reward_credit),

@@ -34,6 +34,7 @@
     "credit-fit": "tsx scripts/credit-fit.ts",
     "lockout": "tsx scripts/lockout-live.ts",
     "adminlock": "tsx scripts/adminlock-live.ts",
+    "gift": "tsx scripts/gift-live.ts",
     "compact": "tsx scripts/compact-live.ts",
     "bundle": "tsx scripts/bundle-live.ts",
     "reconcile": "tsx scripts/reconcile.ts"

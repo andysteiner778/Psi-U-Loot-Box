@@ -79,7 +79,16 @@ const ok = (g: boolean, m: string) => { console.log((g ? '  ok    ' : '  FAIL  '
     // And with every voucher gone it must quote full price, never a stale free.
     await c.query('DELETE FROM vouchers WHERE user_id=$1', [uid]);
     const q2 = await quote(uid, 'tier_2');
-    ok(q2 === 10, 'with no voucher held, Golden Chest quotes full price ($' + q2 + ')');
+    /*
+     * Compare against what box_odds says the box costs, not the list price in
+     * config.box_prices. A standing discount or a flash sale moves the real
+     * figure, and hardcoding $10 here reported a correct quote as broken the
+     * moment the owner used the discount slider.
+     */
+    const { rows: [t2] } = await c.query("SELECT box_odds('tier_2', NULL) AS o");
+    const t2Full = Number(t2.o.box_price);
+    ok(q2 === t2Full,
+      'with no voucher held, Golden Chest quotes its full price ($' + q2 + ' of $' + t2Full + ')');
     const { rows: [r2] } = await c.query("SELECT open_box($1,'tier_2') AS r", [uid]);
     const { rows: [ch2] } = await c.query(
       'SELECT box_price FROM rolls WHERE id=$1', [(r2.r as any).roll_id]);
@@ -91,7 +100,10 @@ const ok = (g: boolean, m: string) => { console.log((g ? '  ok    ' : '  FAIL  '
 
     // High Roller was never free for this player, and must never quote free.
     const q3 = await quote(uid, 'tier_3');
-    ok(q3 === 30, 'High Roller quoted at full price throughout ($' + q3 + ')');
+    const { rows: [t3odds] } = await c.query("SELECT box_odds('tier_3', NULL) AS o");
+    const t3Full = Number(t3odds.o.box_price);
+    ok(q3 === t3Full,
+      'High Roller quoted at full price throughout ($' + q3 + ' of $' + t3Full + ')');
   } catch (e) {
     console.error('  THREW: ' + (e as Error).message);
     fails++;
